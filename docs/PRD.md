@@ -1,8 +1,9 @@
-# Buffr G2P App – Product Requirements Document (Revised v1.4)
+# Buffr G2P App – Product Requirements Document (Revised v1.5)
 
 **Ketchup Software Solutions**  
 **Ecosystem:** Government-to-Person (G2P) – Beneficiary Platform (Mobile App)  
 **Date:** March 2026  
+**v1.5 updates:** Screen header and back navigation consistency (§6.4): every stack screen must provide back or Home; Agent Network and entry screens must fallback to Home when history is empty; header patterns and quick reference table. **v1.6 gap analysis (senior developer review):** §11.12–§11.21 – Offline architecture, Push notifications, Analytics & monitoring, Testing strategy, Deployment & CI/CD, Security implementation details, Accessibility, Internationalization (i18n), Edge case handling, Performance budget.  
 **Status:** Specification – Build in `buffr_g2p`  
 **Self-contained:** This PRD is the **full specification**: wireframes (§3.7), **complete Figma screen index** (§3.8), user flows and flow logic (§7, §7.6), API request/response shapes (§9.4), design system (§5), **full component hierarchy organism→atom** (§4.7, §8.2), project structure and copy-paste code (§11, §11.7–§11.8). **No TODOs**—entry, onboarding, contexts, 2FA, compliance, NAMQR, and Open Banking are fully specified. Implement from this document with **100% confidence**. Use **Archon MCP** with this PRD for code generation (§9.5, §11.9).  
 **Design sources:** Figma MCP (Buffr App Design; file key `VeGAwsChUvwTBZxAU6H8VQ`), Archon (CONSOLIDATED_PRD, BUFFR_G2P_FINAL_ARCHITECTURE).  
@@ -32,6 +33,7 @@ All QR‑based transactions, payment flows, API interactions, security measures,
 9. [Tech Stack & Implementation](#9-tech-stack--implementation) (§9.5 Using Archon MCP for implementation – 100% confidence)
 10. [Compliance & Security (App)](#10-compliance--security-app)
 11. [Implementation File Map](#11-implementation-file-map--code-self-contained) (§11.0 Expo docs; §11.4 copy-paste code; §11.11 Expo Tabs Template Implementation Guide; §11.7–§11.8 Legal & NAMQR/Open Banking)
+11.12–11.21 [Gap Analysis & Recommendations for v1.6](#1112-1121-gap-analysis--recommendations-for-v16-senior-developer-review) (Offline, Push, Analytics, Testing, Deployment, Security, Accessibility, i18n, Edge Cases, Performance)
 12. [Legal & Regulatory Compliance](#12-legal--regulatory-compliance-new) (§12.1–§12.5: ETA, PSD-12, PSD-1, PSD-3, applicability, measures)
 13. [Implementation Roadmap (PRD ↔ System Design Guide)](#13-implementation-roadmap-prd--system-design-guide) (§13.1–§13.6: 23 rules, system design principles, PRD enhancements, sprint plan, AI leverage, validation)
 14. [Compliance with NAMQR and Open Banking](#14-compliance-with-namqr-and-open-banking) (§14.1–§14.3: NAMQR alignment table, Open Banking alignment table, implementation checklist)
@@ -1093,6 +1095,36 @@ app/
 - **Wallets:** stack for wallet detail → cash-out → method flows.
 - **Send money:** stack for select recipient → amount → confirm → success.
 - **Merchants / Bills / Agents:** each with own stack or nested under tabs.
+
+### 6.4 Screen header and back navigation consistency
+
+**Requirement:** Every non-tab, non-terminal screen must provide a clear way to go back or to Home so users are never stuck. Tab screens (Home, Transactions, Profile) use the tab bar; success/terminal screens use a primary CTA (e.g. "Done", "View receipt") instead of a header back.
+
+**Header patterns (implement consistently):**
+
+| Pattern | Use on | Back / Home |
+|--------|--------|-------------|
+| **ScreenHeader** (or layout that wraps it) | Most stack screens | Left: back arrow → `router.back()`; when history is empty (e.g. deep link) → `router.replace('/(tabs)')` so user reaches Home. Optional right action (e.g. Map on Agent Network). |
+| **StandardScreenLayout** | Detail/modal-style stack screens (agent detail, cash-out, merchant, bill pay, voucher redeem) | Same as above; uses ScreenHeader internally with `showBackButton` default true. |
+| **Custom in-screen header** | Add Bank, Add Wallet, wallet sub-screens (history, transfer, settings) | Back arrow or back button → `router.back()`. |
+| **State-flow screens** (single route, state-driven content) | When using state-flow UX | Back → `onNavigate('home')` or previous state; no `router.back()`. |
+| **Success / terminal screens** | Payment sent, Request sent, Redemption successful, Onboarding complete | No header back. Single primary CTA: "Done" → `router.replace('/(tabs)')` or "View receipt" / "Back to group" as specified per flow. |
+
+**Agent Network (and similar entry screens):**
+
+- Title: **"Agent Network"**. Header must show: **back** (left), **title** (centre), **Map** (right, primary-style button). Back behaviour: if `router.canGoBack()` then `router.back()`, else `router.replace('/(tabs)')` so deep links do not leave the user without a way to reach Home.
+
+**Quick reference – where is back?**
+
+| Screen type | Back / Home |
+|-------------|-------------|
+| Stack with ScreenHeader / StandardScreenLayout | Left arrow → back or replace to (tabs) when no history |
+| Add Bank / Add Wallet / Wallet sub-screens | Custom back arrow → `router.back()` |
+| State-flow | Custom back → `onNavigate('home')` or previous state |
+| Tab (Home, Transactions, Profile) | No back; tab bar only |
+| Success / terminal | No back; use "Done" / "View receipt" / "Back to group" |
+
+**Implementation note:** In `buffr` (reference app), `ScreenHeader` is in `components/common/ScreenHeader.tsx`; `StandardScreenLayout` in `components/layouts/StandardScreenLayout.tsx`. When building `buffr_g2p`, reuse or port these so every stack screen has a consistent header and back behaviour. See also §4 (StackScreen: "Header (back, title, optional right action)").
 
 ---
 
@@ -6511,6 +6543,228 @@ When ready, use EAS Build:
 eas build --platform ios
 eas build --platform android
 ```
+
+---
+
+## 11.12–11.21 Gap Analysis & Recommendations for v1.6 (Senior Developer Review)
+
+*As a senior developer from Apple and PhonePe, the following review of the Buffr G2P App PRD v1.5 was conducted. It is impressively comprehensive—covering screens, flows, API contracts, design tokens, compliance, and copy‑paste‑ready code. To make it truly production‑ready for a large‑scale government payment app, the following critical gaps and recommendations are captured for a **v1.6** update.*
+
+---
+
+### 🔍 Gap Analysis & Recommendations
+
+#### 1. Offline Support & Conflict Resolution
+
+**Current state:** Mentioned in non‑functional requirements (§13) but lacks concrete design.
+
+**Gaps:**
+- How are transactions queued when offline?
+- What happens if the same transaction is attempted twice after reconnect?
+- How do we ensure idempotency for offline‑generated cash‑out codes?
+
+**Recommendations:**
+- Add a dedicated **"Offline Architecture"** (see §11.12 below) describing:
+  - Use of a local SQLite store (via `expo-sqlite`) to persist pending transactions.
+  - Each pending transaction gets a UUID and is sent to the backend on connectivity restore.
+  - Backend must reject duplicate UUIDs (idempotency key).
+  - Conflict resolution: if a voucher was already redeemed elsewhere, the app receives a 409 and updates local state accordingly.
+- Cash‑out codes generated offline must be cryptographically secure and validated server‑side with a short expiry (e.g., 30 min) to prevent double‑spending after sync.
+
+---
+
+#### 2. Push Notifications
+
+**Current state:** Notifications are mentioned for incoming payments/vouchers (§3.9, §4.4) but integration details are missing.
+
+**Gaps:**
+- How are push tokens registered?
+- What payloads are expected?
+- How are deep links handled when tapping a notification?
+
+**Recommendations:**
+- Add **"Push Notifications"** (§11.13) covering:
+  - Use of `expo-notifications` for iOS/Android.
+  - Token registration after login (`POST /api/v1/mobile/push-token`).
+  - Notification payload should contain `data` with a deep‑link route (e.g., `receive/[transactionId]`) and a `type`.
+  - In‑app handling: when app is in foreground, show a toast; when in background, tapping the notification navigates to the appropriate screen using `expo-linking` and `useRouter`.
+  - Example payload:
+    ```json
+    {
+      "title": "Payment received",
+      "body": "N$ 500 from Maria",
+      "data": { "route": "/receive/12345" }
+    }
+    ```
+
+---
+
+#### 3. Analytics & Monitoring
+
+**Current state:** Only compliance reporting is covered. No user‑behaviour analytics or crash reporting.
+
+**Gaps:**
+- No strategy to measure feature adoption, funnel drop‑offs, or app performance.
+- Crash reporting not specified.
+
+**Recommendations:**
+- Add **"Analytics & Monitoring"** (§11.14):
+  - Integrate **Sentry** (`@sentry/react-native`) for crash reporting and performance monitoring.
+  - Use a privacy‑first analytics SDK (e.g., **PostHog** or **Segment**) to track key events: `onboarding_complete`, `voucher_redeemed`, `cash_out_initiated`, `send_money_success`.
+  - All analytics must be anonymised and comply with Namibia's data protection laws.
+  - Define event schemas in a separate file `analytics/events.ts`.
+
+---
+
+#### 4. Testing Strategy
+
+**Current state:** No testing plan.
+
+**Gaps:**
+- No guidance on unit, integration, or end‑to‑end tests.
+
+**Recommendations:**
+- Add **"Testing"** (§11.15):
+  - **Unit tests**: Use Jest for services, hooks, and utility functions (e.g., TLV encoder, CRC validation).
+  - **Component tests**: Use React Native Testing Library for isolated component rendering.
+  - **Integration tests**: Use `@testing-library/react-native` with mocked API clients to test critical flows (onboarding, voucher redemption).
+  - **E2E tests**: Use **Detox** or **Maestro** for critical user journeys. Include a test plan covering happy path and error scenarios (network loss, invalid QR, expired voucher).
+  - Add a `test:` script to `package.json` and run in CI.
+
+---
+
+#### 5. Deployment & CI/CD
+
+**Current state:** Not covered.
+
+**Gaps:**
+- No description of how to build and distribute the app (App Store, Google Play).
+- No CI/CD pipeline.
+
+**Recommendations:**
+- Add **"Deployment"** (§11.16):
+  - Use **EAS Build** for creating production builds. Provide `eas.json` profiles for development, preview, and production.
+  - Code signing: use EAS credentials manager or manual upload.
+  - **CI/CD**: Use GitHub Actions (or Bitrise) to run tests on PRs and trigger EAS builds on merge to main.
+  - Example GitHub Actions workflow:
+    - Checkout, install dependencies, run tests.
+    - On main branch push, run `eas build --platform ios --profile production` and `eas build --platform android --profile production`.
+  - App store submission: document process of uploading builds via Transporter (iOS) and Google Play Console (Android).
+
+---
+
+#### 6. Security Deep Dive
+
+**Current state:** Compliance sections cover 2FA, encryption, audit logs, but implementation details are light.
+
+**Gaps:**
+- Biometric fallback (when no biometric hardware) is mentioned but not fully specified.
+- Secure storage of refresh tokens – should be in `expo-secure-store` with biometric access control where possible.
+- Replay attack prevention for offline codes.
+
+**Recommendations:**
+- Add **"Security Implementation Details"** (§11.17):
+  - **Biometric fallback**: If biometric not available, the app should always prompt for PIN; the PIN is validated server‑side.
+  - **Token storage**: Store access token and refresh token in `expo-secure-store`. Use `requireAuthentication` option on Android for extra protection.
+  - **Idempotency keys**: All write endpoints must accept an `idempotency_key` header (UUID v4). The app generates one per request and stores it locally until successful response.
+  - **Offline cash‑out codes**: When generated offline, the code is a HMAC of `(userId, amount, expiry)` with a device‑specific secret; server verifies HMAC and prevents reuse.
+  - **Certificate pinning** (optional): Consider adding for high‑security environments.
+
+---
+
+#### 7. Accessibility
+
+**Current state:** Mentioned in UX audit (§4.4.1) but lacks specific criteria.
+
+**Gaps:**
+- No checklist for WCAG 2.1 AA compliance.
+- Dynamic text sizing not addressed.
+
+**Recommendations:**
+- Add **"Accessibility"** (§11.18):
+  - All touch targets must be at least 44×44 dp (already in design tokens).
+  - Use `accessibilityLabel` and `accessibilityHint` for all interactive elements (icons, buttons, links).
+  - Support **Dynamic Type** on iOS and **font scaling** on Android: use `allowFontScaling: true` and test with large text sizes.
+  - Provide high‑contrast theme option (can be system‑driven or user‑toggle).
+  - Regularly test with screen readers (VoiceOver, TalkBack).
+
+---
+
+#### 8. Internationalization (i18n)
+
+**Current state:** Not mentioned.
+
+**Gaps:**
+- Namibia has multiple languages (English, Afrikaans, Oshiwambo, etc.). App should support at least English and Oshiwambo initially.
+
+**Recommendations:**
+- Add **"Internationalization"** (§11.19):
+  - Use `i18next` with `react-i18next`.
+  - Store translations in JSON files under `locales/` (e.g., `en.json`, `kj.json`).
+  - Detect device language and fallback to English.
+  - All user‑facing strings in the PRD (e.g., "Verify identity", "Redeem to wallet") should be marked for translation.
+  - Provide a script to extract strings for translators.
+
+---
+
+#### 9. Edge Cases & Recovery
+
+**Current state:** Flows are well‑defined, but many edge cases are not explicitly handled.
+
+**Gaps:**
+- What if user tries to redeem an expired voucher? (Show disabled button with message "Expired".)
+- What if 2FA fails multiple times? (Lock out after 5 attempts? Show "Too many attempts, try later".)
+- What if network is lost during a transaction? (Queue as offline, but show warning.)
+- What if the backend returns a 5xx error? (Retry with exponential backoff up to 3 times, then show error.)
+
+**Recommendations:**
+- Add **"Edge Case Handling"** (§11.20) with a table of scenarios and expected UX/technical response:
+
+| Scenario | UX Handling | Technical Handling |
+|----------|-------------|---------------------|
+| Expired voucher | Redeem button disabled, tooltip "Expired on [date]" | `GET /vouchers` returns expired status; frontend disables. |
+| 2FA consecutive failures | After 3 failures, lock for 5 minutes, show countdown | Backend returns `429` with `Retry-After`; frontend disables input. |
+| Network loss mid‑transaction | Show toast "Connection lost. Transaction queued.", store in local DB | Use offline queue; on reconnect, send transactions in order. |
+| 5xx error | Show "Server error, please try again later" | Retry 3 times with exponential backoff, then show final error. |
+
+---
+
+#### 10. Performance Budget
+
+**Current state:** Not defined.
+
+**Gaps:**
+- No targets for app size, launch time, or frame rate.
+
+**Recommendations:**
+- Add **"Performance Targets"** (§11.21):
+  - App bundle size < 80 MB (after compression).
+  - Launch time (cold start) < 2 seconds on mid‑range devices.
+  - 60 FPS scrolling on all screens (use `useNativeDriver` for animations, avoid heavy re‑renders).
+  - Lighthouse / React DevTools profile for list screens (vouchers, transactions) to ensure smoothness.
+
+---
+
+### Proposed PRD Addendum (v1.6) – Section Placeholders
+
+The following subsections are to be fully elaborated in v1.6. They should be inserted or appended after §11.11.
+
+- **11.12 Offline Architecture** – Local SQLite, pending transaction queue, idempotency keys, conflict resolution, offline cash‑out code security and expiry.
+- **11.13 Push Notifications** – expo-notifications, token registration, payload schema, deep links, foreground/background handling.
+- **11.14 Analytics & Monitoring** – Sentry, privacy‑first analytics, event schemas, compliance with data protection.
+- **11.15 Testing Strategy** – Jest, React Native Testing Library, integration tests, Detox/Maestro E2E, CI test script.
+- **11.16 Deployment & CI/CD** – EAS Build profiles, code signing, GitHub Actions (or Bitrise), App Store / Play Console submission.
+- **11.17 Security Implementation Details** – Biometric fallback, token storage (expo-secure-store), idempotency keys, offline code HMAC, optional certificate pinning.
+- **11.18 Accessibility** – WCAG 2.1 AA, 44×44 dp targets, accessibilityLabel/Hint, Dynamic Type/font scaling, high‑contrast, VoiceOver/TalkBack.
+- **11.19 Internationalization** – i18next, locales (en, kj), device language, string extraction for translators.
+- **11.20 Edge Case Handling** – Table of scenarios (expired voucher, 2FA lockout, network loss, 5xx) with UX and technical handling.
+- **11.21 Performance Budget** – Bundle size, cold start, 60 FPS, profiling of list screens.
+
+---
+
+### Final Note
+
+The Buffr G2P PRD v1.5 is already a strong, comprehensive document. Addressing these gaps will turn it into an **unshakeable blueprint** that any engineering team can execute with confidence. The additions are essential for a real‑world payment app that must be reliable, secure, and user‑friendly for millions of Namibians.
 
 ---
 

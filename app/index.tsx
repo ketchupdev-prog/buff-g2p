@@ -31,7 +31,7 @@ export default function AppEntry() {
   }
 
   if (onboardingComplete) {
-    return <Redirect href="/(tabs)" />;
+    return <Redirect href="/(tabs)/home" />;
   } else {
     return <Redirect href="/onboarding" />;
   }
