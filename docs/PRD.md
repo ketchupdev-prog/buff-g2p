@@ -1941,6 +1941,29 @@ module.exports = function (api) {
 
 All paths are relative to `buffr_g2p/`. Use design tokens from §5 (Design System JSON); constants below align with that JSON.
 
+#### 11.4.0 Actual code pattern – extended to all screens
+
+The **actual implementation code** (not design reference) for the upgraded screens in this project is the canonical pattern. **Extended to all:** every screen in the app must use the same actual code structure.
+
+**Canonical files (copy from these):**
+
+| File | Pattern |
+|------|--------|
+| `app/(tabs)/vouchers.tsx` | LinearGradient background; header; search bar; type/status filter chips; voucher cards (borderRadius 16, padding 20, border #E5E7EB); list with date groups; hex palette (#F9FAFB, #E5E7EB, #111827, #0029D6, #22C55E, #E11D48, etc.). |
+| `app/(tabs)/transactions.tsx` | LinearGradient background; header + filter icon; search ("Search transactions..."); filter chips (All, Sent, Received, Vouchers, Bills); list grouped by date; tx rows (icon sent #E11D48 / received #22C55E, border 16, spacing). |
+| `app/loans/index.tsx` | LinearGradient background; header; gradient tiers / loan cards; same hex palette and card/row structure. |
+
+**Extended to all screens:** Home (`app/(tabs)/index.tsx`), Send money (`app/send-money/*`), Wallets (`app/wallets/[id]*`), Profile (`app/(tabs)/profile.tsx`, `app/profile/*`), Cards, Voucher detail, Cash-out flows, Agents, Bills, Receive, and every other route must replicate this **actual code** pattern:
+
+- **Background:** `LinearGradient` where used (e.g. `colors={['#F3F4F6', '#fff', '#F9FAFB']}` or equivalent), or consistent neutral background.
+- **Header:** Same structure (title, optional icon/avatar); padding 24, borderBottom #F3F4F6.
+- **Search:** Where applicable, same search bar (height 44–48, borderRadius 9999, #F9FAFB bg, #E5E7EB border).
+- **Filter chips:** Where applicable, horizontal ScrollView of pills (paddingHorizontal 14–16, paddingVertical 8, borderRadius 9999, active #0029D6).
+- **Cards / rows:** Same style tokens: backgroundColor #fff, borderRadius 16, padding 14–20, borderWidth 1, borderColor #E5E7EB, marginBottom 8–12.
+- **Palette:** Use the same hex values (#111827 text, #6B7280 / #9CA3AF secondary, #0029D6 primary, #22C55E success, #E11D48 error, #F59E0B warning) so all screens match.
+
+Implementers must **copy from the actual files above** and extend the pattern to every other screen; do not introduce a different structure or palette for new screens.
+
 #### 11.4.1 `app/_layout.tsx` (root layout)
 
 **Expo docs (Archon):** Safe areas (https://docs.expo.dev/develop/user-interface/safe-areas/), Fonts (https://docs.expo.dev/develop/user-interface/fonts/), SplashScreen (https://docs.expo.dev/versions/latest/sdk/splash-screen/), Stack (https://docs.expo.dev/router/advanced/stack/). See §11.0 for snippets.
@@ -7855,3 +7878,796 @@ npx expo prebuild --no-install
     ]
   }
 }
+
+---
+
+## 18. Design Implementation Reference – Full Code
+
+> **Status:** Implemented. This section documents the exact code patterns used across all upgraded screens, derived from the reference FlowState design (`ketchup-smartpay/buffr/components/state-flow/`). Use as authoritative copy-paste source for all future screens.
+
+---
+
+### §18.1 Design Tokens (Raw Hex – No Import Required)
+
+```
+COLORS:
+  primary:         #0029D6    (Buffr blue)
+  primaryDark:     #1D4ED8
+  primaryMuted:    #DBEAFE
+  blue600:         #2563EB
+  text:            #020617    (slate-950)
+  text2:           #111827    (gray-900)
+  textSecondary:   #64748B
+  textTertiary:    #94A3B8
+  surface:         #FFFFFF
+  bg:              #F8FAFC
+  border:          #E5E7EB / #E2E8F0
+  success:         #22C55E
+  error:           #E11D48
+  warning:         #F59E0B
+  purple:          #7C3AED
+  sky:             #06B6D4
+
+GRADIENTS (LinearGradient colors arrays):
+  Screen bg (Home):         ['#EFF6FF', '#F5F3FF', '#FDF2F8']
+  Screen bg (Vouchers):     ['#EFF6FF', '#ECFEFF', '#fff']
+  Screen bg (Transactions): ['#F3F4F6', '#fff', '#F9FAFB']
+  Screen bg (Loans):        ['#EFF6FF', '#F5F3FF', '#fff']
+  Avatar / header:          ['#2563EB', '#1D4ED8']
+  Loan summary card:        ['#2563EB', '#06B6D4']  start={x:0,y:0} end={x:1,y:1}
+  Loan tier – quick:        ['#2563EB', '#06B6D4']
+  Loan tier – standard:     ['#7C3AED', '#A78BFA']
+  Loan tier – maximum:      ['#22C55E', '#10B981']
+  Voucher detail card:      ['#2563EB', '#06B6D4']
+
+RADIUS:
+  pill:  9999 (inputs, buttons, search bars, badges)
+  card:  24   (wallet cards, gradient cards)
+  md:    16   (menu items, tier cards, transaction rows)
+  sm:    12   (service cards)
+
+SPACING:
+  horizontalPadding: 24
+  sectionGap:        16
+
+TYPOGRAPHY (pixel sizes):
+  display:  48px bold  (total balance hero)
+  heading:  36px bold  (wallet balance)
+  titleLg:  24px bold  (voucher amount)
+  title:    22px bold  (success title)
+  titleSm:  18px bold  (wallet name, display name)
+  body:     16px
+  bodySm:   14-15px
+  caption:  12-13px
+  tabLabel: 11px 600wt
+```
+
+---
+
+### §18.2 Screen Background Pattern
+
+Every main screen uses an absolute-fill LinearGradient under SafeAreaView:
+
+```tsx
+import { LinearGradient } from 'expo-linear-gradient';
+
+<View style={{ flex: 1 }}>
+  <LinearGradient colors={['#EFF6FF', '#F5F3FF', '#FDF2F8']} style={StyleSheet.absoluteFill} />
+  <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+    {/* screen content */}
+  </SafeAreaView>
+</View>
+```
+
+---
+
+### §18.3 Pill Search Bar Pattern
+
+Used on Home, Transactions, Vouchers:
+
+```tsx
+<View style={styles.searchWrap}>
+  <Ionicons name="search-outline" size={18} color="#9CA3AF" style={{ marginRight: 10 }} />
+  <TextInput
+    style={styles.searchInput}
+    placeholder="Search..."
+    placeholderTextColor="#9CA3AF"
+    value={searchTerm}
+    onChangeText={setSearchTerm}
+  />
+</View>
+
+// Styles
+searchWrap: {
+  flexDirection: 'row', alignItems: 'center',
+  backgroundColor: '#F9FAFB',
+  marginHorizontal: 24, marginVertical: 12,
+  paddingHorizontal: 16, height: 48,
+  borderRadius: 9999,
+  borderWidth: 1, borderColor: '#E5E7EB',
+},
+searchInput: { flex: 1, fontSize: 15, color: '#020617' },
+```
+
+---
+
+### §18.4 Wallet Card Pattern (160px, emoji, badge, color bar)
+
+```tsx
+// WALLET_EMOJI map
+const WALLET_EMOJI: Record<string, string> = {
+  main: '📊', savings: '💰', grant: '🎁',
+};
+
+// Card JSX
+<TouchableOpacity style={styles.walletCard} onPress={...} activeOpacity={0.8}>
+  <Text style={styles.walletBadge}>{index + 1}/{walletCount}</Text>  {/* top-right 1/N */}
+  <Text style={styles.walletEmoji}>{walletEmoji(w)}</Text>
+  <Text style={styles.walletName} numberOfLines={1}>{w.name}</Text>
+  <Text style={styles.walletBalance}>N$ {w.balance.toLocaleString('en-NA', { minimumFractionDigits: 2 })}</Text>
+  <View style={[styles.walletBar, { backgroundColor: '#0029D6' }]} />
+</TouchableOpacity>
+
+// Styles
+walletCard: {
+  width: 160, backgroundColor: '#fff',
+  borderRadius: 24, padding: 20,
+  borderWidth: 1, borderColor: '#E5E7EB', overflow: 'hidden',
+},
+walletBadge: { position: 'absolute', top: 12, right: 16, fontSize: 11, color: '#94A3B8' },
+walletEmoji: { fontSize: 28, marginBottom: 10 },
+walletName: { fontSize: 13, fontWeight: '500', color: '#020617', marginBottom: 4 },
+walletBalance: { fontSize: 18, fontWeight: '700', color: '#020617' },
+walletBar: { height: 4, borderRadius: 9999, marginTop: 12, width: '100%' },
+```
+
+---
+
+### §18.5 FAB Row Pattern (Send + QR)
+
+Positioned above the tab bar (`bottom: 90`):
+
+```tsx
+<View style={styles.fabRow}>
+  <TouchableOpacity style={styles.fabSend} onPress={...} activeOpacity={0.9}>
+    <Ionicons name="paper-plane-outline" size={20} color="#fff" />
+    <Text style={styles.fabSendText}>Send</Text>
+  </TouchableOpacity>
+  <TouchableOpacity style={styles.fabQr} onPress={...} activeOpacity={0.9}>
+    <Ionicons name="qr-code" size={20} color="#fff" />
+  </TouchableOpacity>
+</View>
+
+// Styles
+fabRow: {
+  position: 'absolute', bottom: 90, left: 0, right: 0,
+  flexDirection: 'row', justifyContent: 'center', gap: 12, zIndex: 30,
+},
+fabSend: {
+  flexDirection: 'row', alignItems: 'center', gap: 8,
+  width: 140, height: 60, borderRadius: 30,
+  backgroundColor: '#0029D6', justifyContent: 'center',
+  shadowColor: '#0029D6', shadowOffset: { width: 0, height: 6 },
+  shadowOpacity: 0.3, shadowRadius: 8, elevation: 8,
+},
+fabSendText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+fabQr: {
+  width: 60, height: 60, borderRadius: 30,
+  backgroundColor: '#020617', justifyContent: 'center', alignItems: 'center',
+  shadowColor: '#000', shadowOffset: { width: 0, height: 6 },
+  shadowOpacity: 0.2, shadowRadius: 8, elevation: 8,
+},
+```
+
+---
+
+### §18.6 Services Grid Pattern (3-column)
+
+```tsx
+const SERVICES = [
+  { id: 'send', label: 'Send', icon: 'paper-plane', route: '/send-money/select-recipient' },
+  { id: 'vouchers', label: 'My Vouchers', icon: 'gift', route: '/(tabs)/vouchers' },
+  { id: 'bills', label: 'Pay Bills', icon: 'document-text', route: '/bills' },
+  { id: 'loans', label: 'Loans', icon: 'cash', route: '/loans' },
+  { id: 'agents', label: 'Agent Network', icon: 'location', route: '/agents' },
+  { id: 'cashout', label: 'Cash Out', icon: 'wallet', route: '/wallets' },
+];
+
+// Grid JSX
+<View style={styles.servicesGrid}>
+  {SERVICES.map((s) => (
+    <TouchableOpacity key={s.id} style={styles.serviceBtn} onPress={...} activeOpacity={0.8}>
+      <View style={styles.serviceIconWrap}>
+        <Ionicons name={s.icon as never} size={24} color="#4B5563" />
+      </View>
+      <Text style={styles.serviceLabel} numberOfLines={2}>{s.label}</Text>
+    </TouchableOpacity>
+  ))}
+</View>
+
+// Styles
+servicesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+serviceBtn: {
+  width: '30%', minWidth: 100,
+  alignItems: 'center', gap: 8,
+  paddingVertical: 16,
+  backgroundColor: '#fff', borderRadius: 16,
+  borderWidth: 1, borderColor: '#E5E7EB',
+},
+serviceIconWrap: {
+  width: 48, height: 48, borderRadius: 24,
+  backgroundColor: '#F9FAFB',
+  justifyContent: 'center', alignItems: 'center',
+},
+serviceLabel: { fontSize: 11, fontWeight: '500', color: '#374151', textAlign: 'center', lineHeight: 15 },
+```
+
+---
+
+### §18.7 Transaction Row Pattern
+
+Used on Home and Transactions screens:
+
+```tsx
+const POSITIVE_TYPES = ['receive', 'voucher_redeem', 'add_money', 'loan_disbursement'];
+
+<TouchableOpacity style={styles.txRow} onPress={...} activeOpacity={0.8}>
+  <View style={[styles.txIconWrap, isPositive ? styles.txIconReceived : styles.txIconSent]}>
+    <Ionicons name={isPositive ? 'arrow-down' : 'arrow-up'} size={18} color="#fff" />
+  </View>
+  <View style={styles.txBody}>
+    <Text style={styles.txLabel} numberOfLines={1}>{tx.counterparty ?? formatTransactionType(tx.type)}</Text>
+    <Text style={styles.txMeta}>{formatTransactionType(tx.type)}</Text>
+  </View>
+  <View style={styles.txRight}>
+    <Text style={[styles.txAmount, pos ? styles.txAmountPos : styles.txAmountNeg]}>
+      {formatTransactionAmount(tx)}
+    </Text>
+    <Text style={[styles.txStatus, tx.status === 'success' && styles.txStatusSuccess]}>
+      {tx.status}
+    </Text>
+  </View>
+</TouchableOpacity>
+
+// Styles
+txRow: {
+  flexDirection: 'row', alignItems: 'center',
+  backgroundColor: '#fff', padding: 14,
+  borderRadius: 16, marginBottom: 8,
+  borderWidth: 1, borderColor: '#E5E7EB',
+},
+txIconWrap: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginRight: 14 },
+txIconSent: { backgroundColor: '#E11D48' },
+txIconReceived: { backgroundColor: '#22C55E' },
+txBody: { flex: 1, minWidth: 0 },
+txLabel: { fontSize: 15, fontWeight: '600', color: '#111827' },
+txMeta: { fontSize: 12, color: '#9CA3AF', marginTop: 2 },
+txRight: { alignItems: 'flex-end' },
+txAmount: { fontSize: 15, fontWeight: '700' },
+txAmountPos: { color: '#22C55E' },
+txAmountNeg: { color: '#111827' },
+txStatus: { fontSize: 11, marginTop: 2, color: '#9CA3AF' },
+txStatusSuccess: { color: '#22C55E' },
+txStatusPending: { color: '#F59E0B' },
+txStatusFailed: { color: '#E11D48' },
+```
+
+---
+
+### §18.8 VoucherCard Pattern
+
+```tsx
+const VOUCHER_TYPE_INFO = {
+  'child':             { icon: '👶', bg: '#DBEAFE', color: '#2563EB', label: 'Child Grant' },
+  'basic-income':      { icon: '💰', bg: '#D1FAE5', color: '#22C55E', label: 'Basic Income' },
+  'old-age-disability':{ icon: '🛡️', bg: '#F3E8FF', color: '#7C3AED', label: 'Old Age & Disability' },
+  'other':             { icon: '📋', bg: '#F1F5F9', color: '#64748B', label: 'Grant' },
+};
+
+// STATUS_CONFIG
+const STATUS_CONFIG = {
+  available: { label: 'Available', color: '#22C55E', bg: '#DCFCE7', icon: 'checkmark-circle' },
+  redeemed:  { label: 'Redeemed', color: '#64748B', bg: '#F1F5F9', icon: 'checkmark-done-circle' },
+  expired:   { label: 'Expired',  color: '#E11D48', bg: '#FEF2F2', icon: 'close-circle' },
+  pending:   { label: 'Pending',  color: '#F59E0B', bg: '#FEF3C7', icon: 'time' },
+};
+
+// Card JSX
+<TouchableOpacity style={styles.voucherCard} onPress={...} activeOpacity={0.85}>
+  <View style={styles.cardTop}>
+    <View style={[styles.typeIconWrap, { backgroundColor: typeInfo.bg }]}>
+      <Text style={styles.typeIcon}>{typeInfo.icon}</Text>
+    </View>
+    <View style={styles.cardMid}>
+      <Text style={styles.typeLabel}>{typeInfo.label}</Text>
+      <Text style={styles.programme} numberOfLines={1}>{v.programme}</Text>
+    </View>
+    <View style={[styles.statusBadge, { backgroundColor: statusConf.bg }]}>
+      <Ionicons name={statusConf.icon as never} size={12} color={statusConf.color} />
+      <Text style={[styles.statusText, { color: statusConf.color }]}>{statusConf.label}</Text>
+    </View>
+  </View>
+  <Text style={styles.amountValue}>N$ {v.amount.toFixed(2)}</Text>
+  <View style={styles.datesRow}>
+    <Text style={styles.dateText}>Issued: {formatDate(v.issuedAt)}</Text>
+    <Text style={styles.dateText}>Expires: {formatDate(v.expiresAt)}</Text>
+  </View>
+  {v.status === 'available' && v.amount > 0 && (
+    <View style={styles.progressBar}>
+      <View style={[styles.progressFill, { width: `${Math.min((v.redeemedAmount / v.amount) * 100, 100)}%`, backgroundColor: typeInfo.color }]} />
+    </View>
+  )}
+</TouchableOpacity>
+
+// Styles
+voucherCard: {
+  backgroundColor: '#fff', borderRadius: 20,
+  padding: 20, marginBottom: 12,
+  borderWidth: 1, borderColor: '#E5E7EB',
+  shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
+},
+cardTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
+typeIconWrap: { width: 48, height: 48, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+typeIcon: { fontSize: 24 },
+cardMid: { flex: 1, minWidth: 0, marginRight: 8 },
+typeLabel: { fontSize: 13, fontWeight: '600', color: '#020617' },
+programme: { fontSize: 12, color: '#64748B', marginTop: 2 },
+statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 9999 },
+statusText: { fontSize: 12, fontWeight: '600' },
+amountValue: { fontSize: 24, fontWeight: '700', color: '#020617', marginBottom: 10 },
+datesRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
+dateText: { fontSize: 12, color: '#94A3B8' },
+progressBar: { height: 6, backgroundColor: '#F1F5F9', borderRadius: 3, overflow: 'hidden' },
+progressFill: { height: '100%', borderRadius: 3 },
+```
+
+---
+
+### §18.9 Gradient Loan Summary Card
+
+```tsx
+import { LinearGradient } from 'expo-linear-gradient';
+
+<LinearGradient
+  colors={['#2563EB', '#06B6D4']}
+  style={styles.summaryCard}
+  start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+>
+  <View style={styles.summaryRow}>
+    <View>
+      <Text style={styles.summaryLabel}>Total Grant Value</Text>
+      <Text style={styles.summaryValue}>N$ {totalVoucherValue.toLocaleString()}</Text>
+    </View>
+    <View>
+      <Text style={styles.summaryLabel}>Max Loan (1/3)</Text>
+      <Text style={styles.summaryValue}>N$ {maxLoan.toLocaleString()}</Text>
+    </View>
+  </View>
+  <View style={styles.progressBar}>
+    {maxLoan > 0 && <View style={[styles.progressFill, { width: '33%' }]} />}
+  </View>
+  <Text style={styles.progressHint}>15% APR • Auto-repayment from future grants</Text>
+</LinearGradient>
+
+// Styles
+summaryCard: { borderRadius: 24, padding: 24, marginBottom: 16 },
+summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
+summaryLabel: { fontSize: 12, color: 'rgba(255,255,255,0.8)', marginBottom: 4 },
+summaryValue: { fontSize: 24, fontWeight: '700', color: '#fff' },
+progressBar: { height: 8, backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 4, overflow: 'hidden', marginBottom: 8 },
+progressFill: { height: '100%', backgroundColor: '#fff', borderRadius: 4 },
+progressHint: { fontSize: 11, color: 'rgba(255,255,255,0.9)' },
+```
+
+---
+
+### §18.10 Loan Tier Cards (gradient icon)
+
+```tsx
+const LOAN_TIERS = [
+  { id: 'quick',    label: 'Quick Cash Advance',  pct: 50,  term: '1 month',      colors: ['#2563EB', '#06B6D4'] as [string,string], amount: Math.floor(maxLoan * 0.5) },
+  { id: 'standard', label: 'Standard Grant Loan', pct: 75,  term: '3 months',     colors: ['#7C3AED', '#A78BFA'] as [string,string], amount: Math.floor(maxLoan * 0.75) },
+  { id: 'maximum',  label: 'Maximum Grant Loan',  pct: 100, term: '6-12 months',  colors: ['#22C55E', '#10B981'] as [string,string], amount: maxLoan },
+];
+
+{LOAN_TIERS.map((tier) => (
+  <TouchableOpacity key={tier.id} style={styles.tierCard} onPress={...} activeOpacity={0.8}>
+    <LinearGradient colors={tier.colors} style={styles.tierIconWrap} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+      <Ionicons name="cash-outline" size={24} color="#fff" />
+    </LinearGradient>
+    <View style={styles.tierBody}>
+      <Text style={styles.tierLabel}>{tier.label}</Text>
+      <Text style={styles.tierAmount}>N$ {tier.amount.toLocaleString()}</Text>
+      <Text style={styles.tierTerm}>{tier.term} • {tier.pct}% of max</Text>
+    </View>
+    <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+  </TouchableOpacity>
+))}
+
+// Styles
+tierCard: {
+  flexDirection: 'row', alignItems: 'center',
+  backgroundColor: '#fff', padding: 16,
+  borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB', marginBottom: 12,
+},
+tierIconWrap: { width: 52, height: 52, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginRight: 16 },
+tierBody: { flex: 1 },
+tierLabel: { fontSize: 15, fontWeight: '600', color: '#111827' },
+tierAmount: { fontSize: 20, fontWeight: '700', color: '#111827', marginTop: 2 },
+tierTerm: { fontSize: 12, color: '#9CA3AF', marginTop: 2 },
+```
+
+---
+
+### §18.11 Wallet Detail – Emoji Icon Circle
+
+```tsx
+// Wallet emoji map
+const WALLET_EMOJI: Record<string, string> = { main: '📊', savings: '💰', grant: '🎁' };
+function walletEmoji(w: Wallet): string { return WALLET_EMOJI[w.type] ?? '💼'; }
+
+// Icon circle
+<View style={styles.iconCircle}>
+  <Text style={styles.iconEmoji}>{walletEmoji(wallet)}</Text>
+</View>
+<Text style={styles.balanceAmount}>
+  N$ {wallet.balance.toLocaleString('en-NA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+</Text>
+<Text style={styles.balanceLabel}>Available Balance</Text>
+
+// Action pill buttons
+<View style={styles.actionsRow}>
+  <TouchableOpacity style={styles.primaryBtn} onPress={...} activeOpacity={0.8}>
+    <Ionicons name="add" size={18} color="#fff" />
+    <Text style={styles.primaryBtnText}>Add Funds</Text>
+  </TouchableOpacity>
+  <TouchableOpacity style={styles.secondaryBtn} onPress={...} activeOpacity={0.8}>
+    <Ionicons name="arrow-up" size={18} color="#020617" />
+    <Text style={styles.secondaryBtnText}>Transfer</Text>
+  </TouchableOpacity>
+</View>
+
+// Styles
+iconCircle: {
+  width: 80, height: 80, borderRadius: 40,
+  backgroundColor: '#D9EAF3',
+  borderWidth: 1, borderColor: '#0F172A',
+  justifyContent: 'center', alignItems: 'center', marginBottom: 16,
+},
+iconEmoji: { fontSize: 36 },
+balanceAmount: { fontSize: 36, fontWeight: '700', color: '#020617', marginBottom: 4 },
+balanceLabel: { fontSize: 14, color: '#64748B' },
+actionsRow: { flexDirection: 'row', gap: 12, marginBottom: 28 },
+primaryBtn: {
+  flex: 1, height: 48, borderRadius: 9999,
+  backgroundColor: '#020617',
+  flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+},
+primaryBtnText: { fontSize: 14, color: '#fff', fontWeight: '600' },
+secondaryBtn: {
+  flex: 1, height: 48, borderRadius: 9999,
+  backgroundColor: '#F8FAFC',
+  borderWidth: 1, borderColor: '#E2E8F0',
+  flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+},
+secondaryBtnText: { fontSize: 14, color: '#020617', fontWeight: '600' },
+```
+
+---
+
+### §18.12 Add Wallet – Emoji Picker & Pill Input
+
+```tsx
+// Emoji grid constants
+const EMOJI_ROWS = [
+  ['📊', '💰', '🎁', '💼', '🏦', '🎮', '✈️', '🏠'],
+  ['🎓', '🚗', '💊', '🛍️', '🌱', '🎵', '⚽', '🍕'],
+  ['❤️', '🌟', '🔥', '💎', '🎯', '📱', '🎨', '🏋️'],
+];
+
+// Tappable icon circle
+<TouchableOpacity style={styles.iconWrap} onPress={() => setShowEmojiPicker(true)} activeOpacity={0.8}>
+  <View style={styles.iconCircle}>
+    <Text style={styles.iconEmoji}>{selectedIcon}</Text>
+  </View>
+  <Text style={styles.setIconLabel}>Tap to change icon</Text>
+</TouchableOpacity>
+
+// Pill name input
+<View style={[styles.inputWrap, nameFocused && styles.inputWrapFocused]}>
+  <TextInput
+    style={styles.input}
+    placeholder="e.g. My Savings"
+    placeholderTextColor="#94A3B8"
+    value={walletName}
+    onChangeText={(t) => { setWalletName(t); setError(null); }}
+    onFocus={() => setNameFocused(true)}
+    onBlur={() => setNameFocused(false)}
+    returnKeyType="done"
+    maxLength={50}
+  />
+</View>
+
+// Success ping animation
+const pingAnim = useRef(new Animated.Value(1)).current;
+Animated.sequence([
+  Animated.timing(pingAnim, { toValue: 1.3, duration: 400, useNativeDriver: true }),
+  Animated.timing(pingAnim, { toValue: 1,   duration: 300, useNativeDriver: true }),
+]).start();
+
+// Styles
+iconWrap: { alignItems: 'center', marginTop: 32, marginBottom: 28 },
+iconCircle: {
+  width: 80, height: 80, borderRadius: 40,
+  backgroundColor: '#D9EAF3',
+  borderWidth: 1, borderColor: '#0F172A',
+  justifyContent: 'center', alignItems: 'center', marginBottom: 8,
+},
+iconEmoji: { fontSize: 36 },
+inputWrap: {
+  height: 48, borderRadius: 9999,
+  backgroundColor: '#F8FAFC',
+  borderWidth: 2, borderColor: '#E2E8F0',
+  paddingHorizontal: 20, justifyContent: 'center',
+},
+inputWrapFocused: { borderColor: '#020617', backgroundColor: '#fff' },
+input: { fontSize: 16, color: '#020617', padding: 0 },
+saveBtn: { height: 52, borderRadius: 9999, backgroundColor: '#020617', justifyContent: 'center', alignItems: 'center' },
+saveBtnDisabled: { opacity: 0.5 },
+saveBtnText: { fontSize: 16, fontWeight: '600', color: '#fff' },
+```
+
+---
+
+### §18.13 Voucher Detail – Gradient Card & Method Selection
+
+```tsx
+// Gradient voucher card
+<LinearGradient
+  colors={['#2563EB', '#06B6D4']}
+  style={styles.voucherGradientCard}
+  start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+>
+  <Text style={styles.vcProgramme}>{voucher.programme}</Text>
+  <Text style={styles.vcAmount}>N$ {voucher.amount.toFixed(2)}</Text>
+  <View style={styles.vcRow}>
+    <Text style={styles.vcLabel}>Status</Text>
+    <Text style={styles.vcValue}>{voucher.status}</Text>
+  </View>
+  <View style={styles.vcRow}>
+    <Text style={styles.vcLabel}>Issued</Text>
+    <Text style={styles.vcValue}>{formatDate(voucher.issuedAt)}</Text>
+  </View>
+  <View style={styles.vcRow}>
+    <Text style={styles.vcLabel}>Expires</Text>
+    <Text style={styles.vcValue}>{formatDate(voucher.expiresAt)}</Text>
+  </View>
+</LinearGradient>
+
+// Redemption methods
+const METHODS = [
+  { id: 'wallet',   label: 'Wallet Deposit',   desc: 'Instantly to your Buffr wallet',       colors: ['#2563EB','#06B6D4'] as [string,string], icon: 'wallet-outline' },
+  { id: 'nampost',  label: 'NamPost Branch',   desc: 'Scan QR at any NamPost outlet',         colors: ['#F59E0B','#EF4444'] as [string,string], icon: 'business-outline' },
+  { id: 'smartpay', label: 'SmartPay Agent',   desc: 'Redeem at certified SmartPay agents',   colors: ['#22C55E','#10B981'] as [string,string], icon: 'people-outline' },
+];
+
+{METHODS.map((m) => (
+  <TouchableOpacity
+    key={m.id}
+    style={[styles.methodCard, selectedMethod === m.id && styles.methodCardSelected]}
+    onPress={() => setSelectedMethod(m.id)}
+    activeOpacity={0.8}
+  >
+    <LinearGradient colors={m.colors} style={styles.methodIconWrap} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+      <Ionicons name={m.icon as never} size={22} color="#fff" />
+    </LinearGradient>
+    <View style={styles.methodText}>
+      <Text style={styles.methodLabel}>{m.label}</Text>
+      <Text style={styles.methodDesc}>{m.desc}</Text>
+    </View>
+    {selectedMethod === m.id ? (
+      <Ionicons name="checkmark-circle" size={22} color="#0029D6" />
+    ) : (
+      <View style={styles.radioOuter}><View style={styles.radioInner} /></View>
+    )}
+  </TouchableOpacity>
+))}
+
+// Styles
+voucherGradientCard: { borderRadius: 24, padding: 24, marginBottom: 24 },
+vcProgramme: { fontSize: 14, color: 'rgba(255,255,255,0.8)', marginBottom: 4 },
+vcAmount: { fontSize: 48, fontWeight: '700', color: '#fff', marginBottom: 16 },
+vcRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+vcLabel: { fontSize: 13, color: 'rgba(255,255,255,0.7)' },
+vcValue: { fontSize: 13, color: '#fff', fontWeight: '600' },
+methodCard: {
+  flexDirection: 'row', alignItems: 'center',
+  backgroundColor: '#fff', borderRadius: 16,
+  padding: 16, marginBottom: 10,
+  borderWidth: 2, borderColor: '#E5E7EB',
+},
+methodCardSelected: { borderColor: '#0029D6', backgroundColor: '#EFF6FF' },
+methodIconWrap: { width: 48, height: 48, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginRight: 14 },
+methodText: { flex: 1 },
+methodLabel: { fontSize: 16, fontWeight: '600', color: '#020617' },
+methodDesc: { fontSize: 13, color: '#64748B', marginTop: 2 },
+radioOuter: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: '#CBD5E1', justifyContent: 'center', alignItems: 'center' },
+radioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#E5E7EB' },
+```
+
+---
+
+### §18.14 Filter Chips Pattern (Scrollable)
+
+Used on Transactions and Vouchers screens:
+
+```tsx
+type FilterKey = 'all' | 'sent' | 'received' | 'vouchers' | 'bills';
+const FILTERS: Array<{ key: FilterKey; label: string }> = [
+  { key: 'all', label: 'All' },
+  { key: 'sent', label: 'Sent' },
+  { key: 'received', label: 'Received' },
+  { key: 'vouchers', label: 'Vouchers' },
+  { key: 'bills', label: 'Bills' },
+];
+
+<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+  {FILTERS.map((f) => {
+    const isActive = filter === f.key;
+    return (
+      <TouchableOpacity
+        key={f.key}
+        style={[styles.filterChip, isActive && styles.filterChipActive]}
+        onPress={() => setFilter(f.key)}
+        activeOpacity={0.8}
+      >
+        <Text style={[styles.filterText, isActive && styles.filterTextActive]}>{f.label}</Text>
+      </TouchableOpacity>
+    );
+  })}
+</ScrollView>
+
+// Styles
+filterRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 24, paddingBottom: 12 },
+filterChip: {
+  paddingHorizontal: 16, paddingVertical: 8,
+  borderRadius: 9999,
+  backgroundColor: '#fff',
+  borderWidth: 1, borderColor: '#E5E7EB',
+},
+filterChipActive: { backgroundColor: '#0029D6', borderColor: '#0029D6' },
+filterText: { fontSize: 13, fontWeight: '500', color: '#6B7280' },
+filterTextActive: { color: '#fff' },
+```
+
+---
+
+### §18.15 iOS Action Sheet Delete Modal
+
+Used on Wallet Detail (and any destructive confirm):
+
+```tsx
+<Modal visible={showDeleteConfirm} transparent animationType="slide">
+  <View style={styles.modalBackdrop}>
+    <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowDeleteConfirm(false)} activeOpacity={1} />
+    <View style={styles.deleteSheet}>
+      <View style={styles.deleteTitleWrap}>
+        <Text style={styles.deleteTitle}>Delete "{wallet?.name}"?</Text>
+        <Text style={styles.deleteSub}>
+          This wallet and all its settings will be permanently removed. Any remaining balance will be transferred to your Main Wallet.
+        </Text>
+      </View>
+      <View style={styles.deleteActions}>
+        <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} activeOpacity={0.7}>
+          <Text style={styles.deleteBtnText}>Delete Wallet</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowDeleteConfirm(false)} activeOpacity={0.7}>
+          <Text style={styles.cancelBtnText}>Cancel</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={styles.homeIndicatorWrap}><View style={styles.homeIndicatorPill} /></View>
+    </View>
+  </View>
+</Modal>
+
+// Styles
+modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
+deleteSheet: {
+  backgroundColor: '#F2F2F7',
+  borderTopLeftRadius: 14, borderTopRightRadius: 14,
+  paddingHorizontal: 16, paddingBottom: 8,
+},
+deleteTitleWrap: { paddingVertical: 20, alignItems: 'center' },
+deleteTitle: { fontSize: 16, color: '#020617', marginBottom: 8, textAlign: 'center', fontWeight: '600' },
+deleteSub: { fontSize: 13, color: '#8E8E93', textAlign: 'center', lineHeight: 18 },
+deleteActions: { backgroundColor: '#fff', borderRadius: 14, overflow: 'hidden', marginTop: 8 },
+deleteBtn: { paddingVertical: 14, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#E5E5EA' },
+deleteBtnText: { fontSize: 20, color: '#E11D48' },
+cancelBtn: { paddingVertical: 14, alignItems: 'center' },
+cancelBtnText: { fontSize: 20, color: '#3B82F6' },
+homeIndicatorWrap: { height: 21, justifyContent: 'flex-end', alignItems: 'center', paddingBottom: 8, marginTop: 8 },
+homeIndicatorPill: { width: 139, height: 5, backgroundColor: '#000', borderRadius: 100 },
+```
+
+---
+
+### §18.16 Header Pattern (Stack.Screen)
+
+Standard header used across push screens:
+
+```tsx
+<Stack.Screen
+  options={{
+    headerShown: true,
+    headerTitle: 'Screen Title',
+    headerTitleStyle: { fontSize: 18, fontWeight: '600', color: '#020617' },
+    headerBackTitleVisible: false,
+    headerTintColor: '#1E293B',
+    headerStyle: { backgroundColor: '#fff' },
+  }}
+/>
+```
+
+---
+
+### §18.17 Pull-to-Refresh Pattern
+
+```tsx
+<ScrollView
+  refreshControl={
+    <RefreshControl
+      refreshing={refreshing}
+      onRefresh={() => { setRefreshing(true); load(); }}
+      tintColor="#0029D6"
+    />
+  }
+>
+```
+
+---
+
+### §18.18 Empty State Pattern
+
+```tsx
+<View style={styles.emptyState}>
+  <Ionicons name="document-text-outline" size={48} color="#D1D5DB" />
+  <Text style={styles.emptyTitle}>No [items] found</Text>
+  <Text style={styles.emptyDesc}>Try adjusting your search or filters</Text>
+</View>
+
+// Styles
+emptyState: { alignItems: 'center', paddingVertical: 48 },
+emptyTitle: { fontSize: 16, fontWeight: '600', color: '#6B7280', marginTop: 16 },
+emptyDesc: { fontSize: 14, color: '#9CA3AF', marginTop: 4 },
+```
+
+---
+
+### §18.19 Key Dependencies (package.json)
+
+```json
+{
+  "expo-linear-gradient": "~15.0.8",
+  "expo-router": "~4.0.17",
+  "react-native-safe-area-context": "4.14.0",
+  "@expo/vector-icons": "^14.0.4"
+}
+```
+
+All icons are from `Ionicons` (via `@expo/vector-icons`). The reference design uses FontAwesome; G2P uses Ionicons for minimal dependency footprint.
+
+---
+
+### §18.20 Screen File Map (Upgraded)
+
+| Screen | File | §PRD |
+|---|---|---|
+| Home | `app/(tabs)/index.tsx` | §3.4 / Figma 45:837 |
+| Vouchers | `app/(tabs)/vouchers.tsx` | §3.5 / Figma 44:477 |
+| Transactions | `app/(tabs)/transactions.tsx` | §3.5 / Figma 114:302 |
+| Loans | `app/loans/index.tsx` | §3.6 / Figma 108:276 |
+| Wallet Detail | `app/wallets/[id].tsx` | §3.6 / Figma 116:629 |
+| Add Wallet | `app/add-wallet.tsx` | §3.4 / Figma 151:391 |
+| Voucher Detail | `app/utilities/vouchers/[id].tsx` | §3.5 / Figma 116:547 |
+

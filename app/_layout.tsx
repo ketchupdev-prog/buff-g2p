@@ -1,59 +1,53 @@
-import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+/**
+ * Root layout – Buffr G2P.
+ * Loads fonts, wraps app in providers, defines Stack. Entry: app/index.tsx.
+ * SafeAreaProvider: Expo Router includes it; if not, wrap with SafeAreaProvider from react-native-safe-area-context (see §11.0).
+ */
+import 'react-native-gesture-handler';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import 'react-native-reanimated';
+import { AppProviders } from '@/contexts/AppProviders';
 
-import { useColorScheme } from '@/components/useColorScheme';
+export { ErrorBoundary } from 'expo-router';
 
-export {
-  // Catch any errors thrown by the Layout component.
-  ErrorBoundary,
-} from 'expo-router';
-
-export const unstable_settings = {
-  // Ensure that reloading on `/modal` keeps a back button present.
-  initialRouteName: '(tabs)',
-};
-
-// Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-    ...FontAwesome.font,
+    // No custom fonts required for G2P; empty object. To add: Inter: require('./assets/fonts/Inter.ttf') per §11.0 (Expo fonts doc).
   });
 
-  // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
-    if (error) throw error;
-  }, [error]);
-
-  useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync();
-    }
+    if (loaded) SplashScreen.hideAsync().catch(() => {});
   }, [loaded]);
 
-  if (!loaded) {
-    return null;
-  }
-
-  return <RootLayoutNav />;
-}
-
-function RootLayoutNav() {
-  const colorScheme = useColorScheme();
+  if (!loaded) return null;
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
+    <AppProviders>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          animation: 'fade',
+          animationDuration: 200,
+          presentation: 'card',
+        }}
+      >
+        <Stack.Screen name="index" />
+        <Stack.Screen name="onboarding" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="utilities" options={{ presentation: 'card' }} />
+        <Stack.Screen name="wallets" options={{ presentation: 'card' }} />
+        <Stack.Screen name="send-money" options={{ presentation: 'card' }} />
+        <Stack.Screen name="merchants" options={{ presentation: 'card' }} />
+        <Stack.Screen name="receive" options={{ presentation: 'card', headerShown: true }} />
+        <Stack.Screen name="proof-of-life" options={{ presentation: 'card' }} />
+        <Stack.Screen name="add-wallet" options={{ presentation: 'card' }} />
+        <Stack.Screen name="scan-qr" options={{ presentation: 'card' }} />
+        <Stack.Screen name="groups" options={{ presentation: 'card' }} />
       </Stack>
-    </ThemeProvider>
+    </AppProviders>
   );
 }
