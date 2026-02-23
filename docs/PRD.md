@@ -6230,6 +6230,79 @@ Implementers and reviewers should be aware of the following; they do not block s
 
 This guide maps the PRD’s requirements to an Expo Router project created with the **tabs** template. Use it as the main path for scaffolding and implementing the Buffr G2P app.
 
+#### 11.11.0 Expo Tabs Template – Generated File Structure
+
+After running `npx create-expo-app@latest <name> -t tabs`, the project has the following structure. Use this as the baseline before applying PRD mappings (§11.11.2) and adding screens/folders.
+
+**Tree (excluding `node_modules` and `.git`):**
+
+```
+.
+├── .vscode/
+│   ├── extensions.json
+│   └── settings.json
+├── app/
+│   ├── (tabs)/
+│   │   ├── _layout.tsx    # Tab bar layout (Tab One, Tab Two by default)
+│   │   ├── index.tsx      # First tab screen
+│   │   └── two.tsx        # Second tab screen
+│   ├── +html.tsx          # Web-only HTML shell
+│   ├── +not-found.tsx     # 404 screen
+│   ├── _layout.tsx        # Root layout: Stack, fonts, ThemeProvider
+│   └── modal.tsx          # Example modal screen
+├── assets/
+│   ├── adaptive-icon.png
+│   ├── favicon.png
+│   ├── fonts/
+│   │   └── SpaceMono-Regular.ttf
+│   ├── icon.png
+│   ├── images/            # Optional; add app images (e.g. banks/, card-designs/, logos) per §11.1
+│   └── splash-icon.png
+├── components/
+│   ├── __tests__/
+│   │   └── StyledText-test.js
+│   ├── EditScreenInfo.tsx
+│   ├── ExternalLink.tsx
+│   ├── StyledText.tsx
+│   ├── Themed.tsx
+│   ├── useClientOnlyValue.ts
+│   ├── useClientOnlyValue.web.ts
+│   ├── useColorScheme.ts
+│   └── useColorScheme.web.ts
+├── constants/
+│   └── Colors.ts
+├── docs/                  # (add PRD.md and other docs here)
+├── app.json
+├── babel.config.js
+├── package.json
+├── package-lock.json
+└── tsconfig.json
+```
+
+**Directory listing by level (for reference):**
+
+| Level | Path | Contents |
+|-------|------|----------|
+| Root | `/` | `.gitignore`, `.vscode/`, `app/`, `app.json`, `babel.config.js`, `assets/`, `components/`, `constants/`, `docs/`, `node_modules/`, `package.json`, `package-lock.json`, `tsconfig.json` |
+| App | `app/` | `(tabs)/`, `+html.tsx`, `+not-found.tsx`, `_layout.tsx`, `modal.tsx` |
+| Tabs | `app/(tabs)/` | `_layout.tsx`, `index.tsx`, `two.tsx` |
+| Assets | `assets/` | `adaptive-icon.png`, `favicon.png`, `fonts/`, `icon.png`, `images/`, `splash-icon.png` |
+| Components | `components/` | `EditScreenInfo.tsx`, `ExternalLink.tsx`, `StyledText.tsx`, `Themed.tsx`, `useClientOnlyValue.ts`, `useClientOnlyValue.web.ts`, `useColorScheme.ts`, `useColorScheme.web.ts`, `__tests__/` |
+| Constants | `constants/` | `Colors.ts` |
+
+**Key files (template defaults):**
+
+- **`app/_layout.tsx`** – Root layout: loads SpaceMono font, wraps app in `ThemeProvider`, renders `Stack` with `(tabs)` and `modal`; keeps splash visible until fonts load.
+- **`app/(tabs)/_layout.tsx`** – Tab bar: two tabs (`index` = “Tab One”, `two` = “Tab Two”), FontAwesome tab icons, header link to `/modal`.
+- **`app/(tabs)/index.tsx`** – First tab content (placeholder).
+- **`app/(tabs)/two.tsx`** – Second tab content (placeholder).
+- **`app/modal.tsx`** – Example modal screen (presented as modal).
+- **`constants/Colors.ts`** – Light/dark theme colors (e.g. `tint`, `text`, `tabIconDefault`).
+- **`components/useColorScheme.ts`** – Hook for light/dark mode; used by tab layout and themes.
+- **`components/useClientOnlyValue.ts`** – Avoids hydration mismatch on web (e.g. for `headerShown`).
+
+When implementing the Buffr G2P app, replace or extend the tabs in `app/(tabs)/` (e.g. add `transactions.tsx`, `vouchers.tsx`, `profile.tsx`), add stacks under `app/` (e.g. `onboarding/`, `wallets/`, `send-money/`), and reuse or replace the template components and constants as specified in the rest of §11.
+
 #### 11.11.1 Create the project with tabs template
 
 ```bash
@@ -6279,7 +6352,65 @@ Install packages referenced in the PRD (§11.3) with `expo install` for SDK comp
 npx expo install expo-router @react-native-async-storage/async-storage expo-secure-store expo-auth-session expo-web-browser expo-camera expo-crypto expo-file-system expo-sharing expo-local-authentication react-native-safe-area-context react-native-screens @expo/vector-icons react-native-qrcode-svg react-native-reanimated
 ```
 
-Add `expo-constants` and `expo-splash-screen` if not already present.
+Add `expo-constants` and `expo-splash-screen` if not already present. For dev builds and native modules (e.g. Reanimated, Gesture Handler), also install:
+
+```bash
+npx expo install expo-dev-client react-native-reanimated react-native-gesture-handler
+```
+
+#### 11.11.3a Babel config
+
+Ensure `babel.config.js` includes the Reanimated plugin and that it is **last** in the `plugins` array (required for react-native-reanimated):
+
+```js
+module.exports = function (api) {
+  api.cache(true);
+  return {
+    presets: ['babel-preset-expo'],
+    plugins: [
+      // Reanimated plugin must be last.
+      'react-native-reanimated/plugin',
+    ],
+  };
+};
+```
+
+After changing Babel config, clear Metro cache when starting: `npx expo start --clear`.
+
+#### 11.11.3b Prebuild (native projects)
+
+After initial installation and Babel config, generate the native `android/` and `ios/` directories:
+
+```bash
+npx expo prebuild
+```
+
+- **Android package name:** Prompted; use e.g. `com.thependalorian.buffrg2p` or your own (reverse-DNS).
+- **Apple bundle identifier:** Prompted; use e.g. `com.thependalorian.buffrg2p` or match Android.
+- Prebuild creates native directories and runs **CocoaPods** for iOS (may take a few minutes).
+- **Optional:** If you see `userInterfaceStyle: Install expo-system-ui in your project to enable this feature`, install with `npx expo install expo-system-ui` to control light/dark from app config.
+
+Re-run `npx expo prebuild` after adding or upgrading native modules, or use `npx expo prebuild --clean` to regenerate from scratch.
+
+**After a successful prebuild** you should see:
+
+```
+✔ Created native directories
+✔ Updated package.json
+» android: userInterfaceStyle: Install expo-system-ui in your project to enable this feature.
+✔ Finished prebuild
+✔ Installed CocoaPods
+```
+
+Root directory then includes the new native folders:
+
+```
+android/          ios/              app/             assets/          components/
+constants/        docs/            node_modules/    app.json         babel.config.js
+package.json      package-lock.json  tsconfig.json
+```
+
+Use `android/` and `ios/` for native builds (Android Studio, Xcode) or `npx expo run:android` / `npx expo run:ios`.
 
 #### 11.11.4 Root layout
 
