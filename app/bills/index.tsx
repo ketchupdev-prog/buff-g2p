@@ -2,12 +2,14 @@
  * Pay Bills – Buffr G2P. §3.4. Bill categories.
  */
 import React, { useCallback, useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, Stack } from 'expo-router';
+import { useUser } from '@/contexts/UserContext';
 import { designSystem } from '@/constants/designSystem';
+import { AppHeader } from '@/components/layout';
 
 const BILL_CATEGORIES = [
   { id: 'electricity', label: 'Electricity', icon: 'flash-outline' },
@@ -17,6 +19,7 @@ const BILL_CATEGORIES = [
 ];
 
 export default function BillsIndexScreen() {
+  const { profile } = useUser();
   const [search, setSearch] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => { setRefreshing(true); setRefreshing(false); }, []);
@@ -27,13 +30,16 @@ export default function BillsIndexScreen() {
       <LinearGradient colors={['#F3F4F6', '#fff', '#F9FAFB']} style={StyleSheet.absoluteFill} />
       <SafeAreaView style={styles.safe} edges={['top']}>
         <Stack.Screen options={{ headerShown: false }} />
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Pay Bills</Text>
-        </View>
-        <View style={styles.searchWrap}>
-          <Ionicons name="search-outline" size={18} color={designSystem.colors.neutral.textTertiary} style={styles.searchIcon} />
-          <TextInput style={styles.searchInput} placeholder="Search billers..." placeholderTextColor={designSystem.colors.neutral.textTertiary} value={search} onChangeText={setSearch} />
-        </View>
+        <AppHeader
+          searchPlaceholder="Search billers..."
+          searchValue={search}
+          onSearchChange={setSearch}
+          showSearch
+          onNotificationPress={() => router.push('/(tabs)/profile/notifications' as never)}
+          onAvatarPress={() => router.push('/(tabs)/profile' as never)}
+          avatarUri={profile?.photoUri ?? null}
+          notificationBadge
+        />
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={designSystem.colors.brand.primary} />}>
           <Text style={styles.sectionTitle}>Categories</Text>
@@ -55,11 +61,6 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   backgroundFallback: { ...StyleSheet.absoluteFillObject, backgroundColor: designSystem.colors.neutral.background },
   safe: { flex: 1 },
-  header: { paddingHorizontal: designSystem.spacing.g2p.horizontalPadding, paddingVertical: designSystem.spacing.g2p.verticalPadding, borderBottomWidth: 1, borderBottomColor: designSystem.colors.neutral.border, backgroundColor: designSystem.colors.neutral.surface },
-  headerTitle: { ...designSystem.typography.textStyles.title, color: designSystem.colors.neutral.text },
-  searchWrap: { flexDirection: 'row', alignItems: 'center', marginHorizontal: designSystem.spacing.g2p.horizontalPadding, marginVertical: 12, paddingHorizontal: 16, height: 48, backgroundColor: designSystem.colors.neutral.surface, borderRadius: 9999, borderWidth: 1, borderColor: designSystem.colors.neutral.border },
-  searchIcon: { marginRight: 10 },
-  searchInput: { flex: 1, fontSize: 15, color: designSystem.colors.neutral.text },
   scroll: { flex: 1 },
   scrollContent: { padding: designSystem.spacing.g2p.horizontalPadding, paddingTop: 8 },
   sectionTitle: { ...designSystem.typography.textStyles.titleSm, color: designSystem.colors.neutral.text, marginBottom: 12 },

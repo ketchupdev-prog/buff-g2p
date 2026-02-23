@@ -14,6 +14,12 @@ export interface Wallet {
   type: 'main' | 'savings' | 'grant';
   balance: number;
   currency: 'NAD';
+  /** Optional card design frame ID (2–32) from assets/images/card-designs; used to represent this wallet with user context. */
+  cardDesignFrameId?: number;
+  /** When set, this wallet is a savings goal; progress = balance towards 100% of targetAmount. */
+  targetAmount?: number;
+  /** User-chosen emoji from keyboard (device input); shown on wallet card when set. */
+  icon?: string;
   createdAt?: string;
 }
 
@@ -72,7 +78,10 @@ export async function getWallet(id: string): Promise<Wallet | null> {
 
 export async function createWallet(
   name: string,
-  type: Wallet['type']
+  type: Wallet['type'],
+  cardDesignFrameId?: number,
+  targetAmount?: number,
+  icon?: string
 ): Promise<{ success: boolean; wallet?: Wallet; error?: string }> {
   if (API_BASE_URL) {
     try {
@@ -80,7 +89,7 @@ export async function createWallet(
       const res = await fetch(`${API_BASE_URL}/api/v1/mobile/wallets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeader },
-        body: JSON.stringify({ name, type }),
+        body: JSON.stringify({ name, type, cardDesignFrameId, targetAmount, icon }),
       });
       const data = (await res.json()) as { wallet?: Wallet; error?: string };
       if (res.ok) return { success: true, wallet: data.wallet };
@@ -99,6 +108,9 @@ export async function createWallet(
       type,
       balance: 0,
       currency: 'NAD',
+      ...(cardDesignFrameId != null && { cardDesignFrameId }),
+      ...(targetAmount != null && targetAmount > 0 && { targetAmount }),
+      ...(icon != null && icon.trim() !== '' && { icon: icon.trim() }),
       createdAt: new Date().toISOString(),
     };
     wallets.push(newWallet);

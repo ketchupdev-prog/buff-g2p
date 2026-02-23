@@ -1,14 +1,18 @@
 /**
  * Find Agents & ATMs – Buffr G2P.
  * §3.5 screen 38. Map: agents, NamPost, SmartPay units, ATMs; filters; list view.
+ * Uses device location (expo-location) via services/device.ts. §11.3.2.
  */
-import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack } from 'expo-router';
 import { router } from 'expo-router';
+import { useUser } from '@/contexts/UserContext';
 import { designSystem } from '@/constants/designSystem';
+import { AppHeader } from '@/components/layout';
+import { getCurrentLocation, type Coords } from '@/services/device';
 
 const FILTERS = [
   { key: 'all', label: 'All' },
@@ -25,27 +29,42 @@ const PLACEHOLDER_LOCATIONS = [
 ];
 
 export default function LocationScreen() {
+  const { profile } = useUser();
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
+  const [location, setLocation] = useState<Coords | null>(null);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
+
+  const refreshLocation = useCallback(async () => {
+    setLocationLoading(true);
+    setLocationError(null);
+    try {
+      const coords = await getCurrentLocation();
+      setLocation(coords);
+      if (!coords) setLocationError('Location unavailable. Enable location in settings.');
+    } catch {
+      setLocationError('Could not get location.');
+    } finally {
+      setLocationLoading(false);
+    }
+  }, []);
 
   return (
     <View style={styles.screen}>
       <View style={styles.backgroundFallback} />
       <SafeAreaView style={styles.safe} edges={['top']}>
         <Stack.Screen options={{ headerShown: false }} />
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Find Agents & ATMs</Text>
-        </View>
-        <View style={styles.searchWrap}>
-          <Ionicons name="search-outline" size={18} color={designSystem.colors.neutral.textTertiary} style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search area or address..."
-            placeholderTextColor={designSystem.colors.neutral.textTertiary}
-            value={search}
-            onChangeText={setSearch}
-          />
-        </View>
+        <AppHeader
+          searchPlaceholder="Search area or address..."
+          searchValue={search}
+          onSearchChange={setSearch}
+          showSearch
+          onNotificationPress={() => router.push('/(tabs)/profile/notifications' as never)}
+          onAvatarPress={() => router.push('/(tabs)/profile' as never)}
+          avatarUri={profile?.photoUri ?? null}
+          notificationBadge
+        />
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={styles.filterRow}>
           {FILTERS.map((f) => {
             const isActive = filter === f.key;
@@ -62,7 +81,32 @@ export default function LocationScreen() {
           })}
         </ScrollView>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          <TouchableOpacity style={styles.mapPlaceholder} onPress={() => router.push('/agents/nearby' as never)}>
+          <TouchableOpacity
+            style={styles.mapPlaceholder}
+            onPress={refreshLocation}
+            disabled={locationLoading}
+          >
+            {locationLoading ? (
+              <ActivityIndicator size="large" color={designSystem.colors.brand.primary} />
+            ) : (
+              <Ionicons name="locate-outline" size={48} color={designSystem.colors.brand.primary} />
+            )}
+            <Text style={styles.mapPlaceholderText}>
+              {location ? 'Your location' : 'Get my location'}
+            </Text>
+            <Text style={styles.mapPlaceholderSub}>
+              {location
+                ? `${location.latitude.toFixed(5)}, ${location.longitude.toFixed(5)}`
+                : 'Tap to use device location for nearby agents and ATMs'}
+            </Text>
+            {locationError ? (
+              <Text style={styles.locationError}>{locationError}</Text>
+            ) : null}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.mapPlaceholder, styles.mapButton]}
+            onPress={() => router.push('/(tabs)/home/agents/nearby' as never)}
+          >
             <Ionicons name="map-outline" size={48} color={designSystem.colors.neutral.textTertiary} />
             <Text style={styles.mapPlaceholderText}>Map view</Text>
             <Text style={styles.mapPlaceholderSub}>Tap to open map with nearby points</Text>
@@ -95,28 +139,6 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   backgroundFallback: { ...StyleSheet.absoluteFillObject, backgroundColor: designSystem.colors.neutral.background },
   safe: { flex: 1 },
-  header: {
-    paddingHorizontal: designSystem.spacing.g2p.horizontalPadding,
-    paddingVertical: designSystem.spacing.g2p.verticalPadding,
-    borderBottomWidth: 1,
-    borderBottomColor: designSystem.colors.neutral.border,
-    backgroundColor: designSystem.colors.neutral.surface,
-  },
-  headerTitle: { ...designSystem.typography.textStyles.title, color: designSystem.colors.neutral.text },
-  searchWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: designSystem.spacing.g2p.horizontalPadding,
-    marginTop: 16,
-    paddingHorizontal: 16,
-    height: 44,
-    backgroundColor: designSystem.colors.neutral.surface,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: designSystem.colors.neutral.border,
-  },
-  searchIcon: { marginRight: 10 },
-  searchInput: { flex: 1, fontSize: 15, color: designSystem.colors.neutral.text },
   filterScroll: { flexGrow: 0, flexShrink: 0 },
   filterRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: designSystem.spacing.g2p.horizontalPadding, paddingVertical: 12 },
   filterChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 9999, backgroundColor: designSystem.colors.neutral.surface, borderWidth: 1, borderColor: designSystem.colors.neutral.border },
@@ -136,6 +158,8 @@ const styles = StyleSheet.create({
   },
   mapPlaceholderText: { ...designSystem.typography.textStyles.titleSm, color: designSystem.colors.neutral.text, marginTop: 12 },
   mapPlaceholderSub: { ...designSystem.typography.textStyles.bodySm, color: designSystem.colors.neutral.textSecondary, marginTop: 4 },
+  mapButton: { marginTop: 12 },
+  locationError: { ...designSystem.typography.textStyles.bodySm, color: designSystem.colors.semantic.error, marginTop: 8 },
   sectionTitle: { ...designSystem.typography.textStyles.titleSm, color: designSystem.colors.neutral.text, marginBottom: 12 },
   locationCard: {
     flexDirection: 'row',

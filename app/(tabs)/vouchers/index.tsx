@@ -10,7 +10,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -18,6 +17,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
+import { useUser } from '@/contexts/UserContext';
+import { designSystem } from '@/constants/designSystem';
+import { AppHeader } from '@/components/layout';
 import { getVouchers, type Voucher, type VoucherStatus } from '@/services/vouchers';
 
 // Voucher type metadata matching reference VoucherCardG2P
@@ -70,6 +72,7 @@ function formatDate(iso: string): string {
 }
 
 export default function VouchersScreen() {
+  const { profile } = useUser();
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<VoucherStatus | 'all'>('all');
@@ -108,22 +111,17 @@ export default function VouchersScreen() {
       <View style={styles.backgroundFallback} />
       <LinearGradient colors={['#EFF6FF', '#ECFEFF', '#fff']} style={StyleSheet.absoluteFill} />
       <SafeAreaView style={styles.safe} edges={['top']}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>My Vouchers</Text>
-        </View>
-
-        {/* Search */}
-        <View style={styles.searchWrap}>
-          <Ionicons name="search-outline" size={18} color="#9CA3AF" style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search vouchers..."
-            placeholderTextColor="#9CA3AF"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-        </View>
+        {/* Header: Search (left) + Notification + Avatar (right) – §6.4 */}
+        <AppHeader
+          searchPlaceholder="Search vouchers..."
+          searchValue={searchQuery}
+          onSearchChange={setSearchQuery}
+          showSearch
+          onNotificationPress={() => router.push('/(tabs)/profile/notifications' as never)}
+          onAvatarPress={() => router.push('/(tabs)/profile' as never)}
+          avatarUri={profile?.photoUri ?? null}
+          notificationBadge
+        />
 
         {/* Type filter chips (scrollable) */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.typeScrollWrap} contentContainerStyle={styles.typeScroll}>
@@ -247,34 +245,8 @@ export default function VouchersScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  backgroundFallback: { ...StyleSheet.absoluteFillObject, backgroundColor: '#F9FAFB' },
+  backgroundFallback: { ...StyleSheet.absoluteFillObject, backgroundColor: designSystem.colors.neutral.background },
   safe: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-    backgroundColor: '#fff',
-  },
-  headerTitle: { fontSize: 20, fontWeight: '700', color: '#111827' },
-  searchWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: 24,
-    marginTop: 16,
-    marginBottom: 12,
-    height: 44,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    paddingHorizontal: 16,
-  },
-  searchIcon: { marginRight: 10 },
-  searchInput: { flex: 1, fontSize: 14, color: '#020617' },
   typeScroll: { flexDirection: 'row', gap: 8, paddingHorizontal: 24, paddingBottom: 12 },
   typeScrollWrap: { flexGrow: 0, flexShrink: 0 },
   typeChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 9999, backgroundColor: '#fff', borderWidth: 1, borderColor: '#E5E7EB' },

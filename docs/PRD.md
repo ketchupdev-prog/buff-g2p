@@ -3,7 +3,7 @@
 **Ketchup Software Solutions**  
 **Ecosystem:** Government-to-Person (G2P) – Beneficiary Platform (Mobile App)  
 **Date:** March 2026  
-**v1.5 updates:** Screen header and back navigation consistency (§6.4): every stack screen must provide back or Home; Agent Network and entry screens must fallback to Home when history is empty; header patterns and quick reference table. **v1.6 gap analysis (senior developer review):** §11.12–§11.21 – Offline architecture, Push notifications, Analytics & monitoring, Testing strategy, Deployment & CI/CD, Security implementation details, Accessibility, Internationalization (i18n), Edge case handling, Performance budget.  
+**v1.5 updates:** Screen header and back navigation consistency (§6.4): every stack screen must provide back or Home; Agent Network and entry screens must fallback to Home when history is empty; header patterns and quick reference table. **v1.6 gap analysis (senior developer review):** §11.12–§11.21 – Offline architecture, Push notifications, Analytics & monitoring, Testing strategy, Deployment & CI/CD, Security implementation details, Accessibility, Internationalization (i18n), Edge case handling, Performance budget. **Card and wallet model (§3.4, §4.3b):** Cards are for the main Buffr account (primary wallet) and can represent additional wallets with user context (name, balance, type; optional cardDesignFrameId per wallet).  
 **Status:** Specification – Build in `buffr_g2p`  
 **Self-contained:** This PRD is the **full specification**: wireframes (§3.7), **complete Figma screen index** (§3.8), user flows and flow logic (§7, §7.6), API request/response shapes (§9.4), design system (§5), **full component hierarchy organism→atom** (§4.7, §8.2), project structure and copy-paste code (§11, §11.7–§11.8). **No TODOs**—entry, onboarding, contexts, 2FA, compliance, NAMQR, and Open Banking are fully specified. Implement from this document with **100% confidence**. Use **Archon MCP** with this PRD for code generation (§9.5, §11.9).  
 **Design sources:** Figma MCP (Buffr App Design; file key `VeGAwsChUvwTBZxAU6H8VQ`), Archon (CONSOLIDATED_PRD, BUFFR_G2P_FINAL_ARCHITECTURE).  
@@ -30,7 +30,7 @@ All QR‑based transactions, payment flows, API interactions, security measures,
 6. [Layouts & Navigation](#6-layouts--navigation)
 7. [User Flows](#7-user-flows)
 8. [Data Hierarchy (Organism → Atom)](#8-data-hierarchy-organism--atom) (§8.2 UI component hierarchy from Figma)
-9. [Tech Stack & Implementation](#9-tech-stack--implementation) (§9.5 Using Archon MCP for implementation – 100% confidence)
+9. [Tech Stack & Implementation](#9-tech-stack--implementation) (§9.2b Design & Code Reference for Expo/production; §9.5 Using Archon MCP for implementation – 100% confidence)
 10. [Compliance & Security (App)](#10-compliance--security-app)
 11. [Implementation File Map](#11-implementation-file-map--code-self-contained) (§11.0 Expo docs; §11.4 copy-paste code; §11.11 Expo Tabs Template Implementation Guide; §11.7–§11.8 Legal & NAMQR/Open Banking)
 11.12–11.21 [Gap Analysis & Recommendations for v1.6](#1112-1121-gap-analysis--recommendations-for-v16-senior-developer-review) (Offline, Push, Analytics, Testing, Deployment, Security, Accessibility, i18n, Edge Cases, Performance)
@@ -238,11 +238,13 @@ Every screen below is planned for implementation in `buffr_g2p`. **Route** = Exp
 
 **Cash-out layout:** Stack under `wallets/[id]/cash-out/`; scanner invoked for Till/Agent/Merchant/ATM flows.
 
+**Design reference – Wallet Cash-Out:** Buffr G2P Complete Code Reference §7 (Wallet & Cash Out) and Implementation Guide – Wallet Cash-Out System: **Wallet Cash-Out Hub** compares 5 methods (Bank N$5 / 1–2 days; Till free / instant; Agent N$5 / instant; Merchant N$3 / instant; ATM N$8 / instant) with fee, time, and limit; **Cash at Till** (CashbackTillScreen): retailer selection → amount → 2FA → till code (e.g. 8-char, 7-day expiry); **Cash at Agent** (CashOutAtAgent): agent selection → amount → source wallet → 2FA → transaction code/QR (e.g. 6-char, 30-min expiry); **Bank Transfer**: bank selection → OAuth consent → 2FA → confirmation. Code/expiry rules: agent 30 min, NamPost until branch closing, SmartPay 2 h, till 7 days.
+
 ### 3.4 Home & Wallet Payments (10 screens)
 
 | # | Screen name | Route | Layout | Key components / Layout notes |
 |---|-------------|--------|--------|--------------------------------|
-| 25 | Home | `/(tabs)/index` or `/(tabs)` | Tab | Header (avatar, notifications); Search (pill); “Send to” contacts; Balance card; Wallets carousel; Services grid; FABs (Send, QR); bottom tabs |
+| 25 | Home | `/(tabs)/index` or `/(tabs)` | Tab | Header (avatar, notifications); Search (pill); “Send to” contacts; Balance card; **Buffr Card** (main Buffr account / primary wallet); Wallets carousel; Services grid; FABs (Send, QR); bottom tabs |
 | 26 | Add Money Modal | Modal from Home | Modal | 3 methods: Bank Transfer, Debit Card, Redeem Voucher (→ Vouchers) |
 | 27 | Send Money – Select recipient | `/send-money/select-recipient` | Stack | Contacts list, search, “Send to” selection |
 | 28 | Send Money – Amount | `/send-money/amount` | Stack | Amount input, note, “Continue” |
@@ -258,6 +260,10 @@ Every screen below is planned for implementation in `buffr_g2p`. **Route** = Exp
 | 34e | Card added | `/add-card/success` | Stack | Success state; Figma 45:660 |
 
 **Home layout:** Tab layout for Home, Transactions, (optional) Vouchers/Merchants/Profile; Stack for each flow.
+
+**Card and wallet model:** Card designs (e.g. `assets/images/card-designs/frame-2.svg` … `frame-32.svg`) are used for (1) the **main Buffr account (primary wallet)**—the Buffr Card on Home represents the user’s primary wallet with user context (display name, masked card number); (2) **additional wallets**—the same designs can represent user-created wallets, each with user context (wallet name, balance, type) and an optional card design frame ID (2–32) per wallet. The Buffr Card block on Home is the primary wallet; each item in the Wallets carousel may use a card design (by `cardDesignFrameId`) to show a consistent visual identity. See `constants/CardDesign.ts`, Wallet type `cardDesignFrameId` (§9.4 / implementation), and Add Wallet optional step 2 (card design picker, §11.4.14).
+
+**Design reference – wallet flows & Auto Pay:** For full UI/UX and code patterns, see the **Buffr G2P Complete Code Reference** and **Implementation Guide**: (1) **Add Wallet** – Step 1: icon picker (emoji grid), name (pill input), **Auto Pay** toggle + config (frequency: weekly/bi-weekly/monthly; deduct date/time; amount N$; repayments; payment method). Step 2 (optional): card design selection. Save → success ping (scale animation) → navigate home. (2) **Wallet Cash-Out Hub** – 5 method cards (Bank, Till, Agent, Merchant, ATM) with fee, time, and limit per method; comparison table; direct navigation to each flow. (3) **WalletCard** – icon circle, name, balance, owner (user context); optional card design color by `cardDesignFrameId`. (4) **Cash-out flows** – Cash at Till (retailer selection → code); Cash at Agent (agent selection → amount → code/QR); Bank Transfer (bank selection → OAuth/2FA). Align implementation with `AddWallet.tsx` (state-flow), `WalletCashOutScreen.tsx`, `CashOutAtAgent.tsx`, `CashbackTillScreen.tsx` patterns and UserContext for owner/display name.
 
 ### 3.5 Profile & Management (5 screens)
 
@@ -554,8 +560,8 @@ All carousels use **horizontal scroll**, **snap** (duration 400ms per §5.1 `ani
 
 | Carousel | Content | Where used | Spec |
 |----------|---------|------------|------|
-| **Cards carousel** | Physical/linked cards (CardFlipView per item); front = number/name/expiry, back = CVV | Home balance block, Cards View (§3.4 34b) | CardDesign.ts: 340×214, radius 12; flip 600ms; snap 400ms |
-| **Wallets carousel** | WalletCard per wallet (icon circle 999px + name + "Show"/"Add") + "Add Wallet +" card | Home (§3.4 screen 25) | effect_E7Q5GM shadow; card radius 16px; scale on focus |
+| **Cards carousel** | Physical/linked cards (CardFlipView per item); front = number/name/expiry, back = CVV. Buffr Card on Home = main Buffr account (primary wallet); same designs can represent additional wallets with user context (name, balance, type; optional cardDesignFrameId per wallet). | Home balance block, Cards View (§3.4 34b) | CardDesign.ts: 340×214, radius 12; flip 600ms; snap 400ms |
+| **Wallets carousel** | WalletCard per wallet (icon circle 999px + name + balance; optional card design color by cardDesignFrameId) + "Add Wallet +" card; each wallet displays user context (name, balance, type). | Home (§3.4 screen 25) | effect_E7Q5GM shadow; card radius 16px; scale on focus |
 | **Vouchers carousel** | VoucherCard per voucher (amount, status, expiry); optional horizontal strip on Home or Vouchers tab | Home or `/(tabs)/vouchers` | Same card radius 12px; snap 400ms |
 | **Contacts carousel** | ContactChip per contact (avatar + name); horizontal scroll, no snap required | Home "Send to" row, Send flow select-recipient, Create group selected members | Pill 999px; effect_WHEBAW; §4.7 Send-to row |
 | **Groups carousel** | Group row per group (name + member avatars/count) | Groups list or Home "Groups" section | Group row component; tap → group detail |
@@ -1017,9 +1023,10 @@ This section aligns the PRD with **Figma Buffr App Design** (file key `VeGAwsChU
 
 **Create wallet flow (buffr)**  
 - **App route:** `app/add-wallet.tsx` – multi-step with `AddWalletForm`; on success `addWallet` (context), `refreshWallets`, toast, `router.replace('/(tabs)')`.  
-- **State-flow:** `components/state-flow/AddWallet.tsx` – Step 1: icon picker (emoji), name (pill), Auto Pay toggle + config (frequency weekly/bi-weekly/monthly, deduct date/time, amount N$, repayments, payment method). Step 2 (optional in some flows): card design selection. Save → success ping (scale animation) → navigate home with new wallet.  
+- **State-flow:** `components/state-flow/AddWallet.tsx` – Step 1: icon picker (emoji), name (pill), **Auto Pay** toggle + config (frequency weekly/bi-weekly/monthly, deduct date/time, amount N$, repayments, payment method). Step 2 (optional in some flows): card design selection. Save → success ping (scale animation) → navigate home with new wallet.  
 - **Fields:** name, purpose?, type (personal|business|savings|…), icon, cardDesign?, autoPayEnabled, autoPayFrequency, deductDate/Time, amount, repayments, paymentMethodId.  
-- **G2P PRD:** Add Wallet = modal or stack; name, type (main/savings), “Create”; optional 2-step. Align with buffr for icon + name + optional Auto Pay when building.
+- **G2P PRD:** Add Wallet = modal or stack; name, type (main/savings), “Create”; optional 2-step. Align with buffr for icon + name + optional Auto Pay when building.  
+- **Design reference:** Buffr G2P Complete Code Reference §7 (Wallet & Cash Out): `AddWallet.tsx` (2-step, Auto Pay config), `WalletCashOutScreen.tsx` (5 methods comparison), `CashOutAtAgent.tsx` (amount → code/QR), `CashbackTillScreen.tsx` (retailer → code); Implementation Guide – Wallet Cash-Out System (5 methods, fees, limits, codes/expiry).
 
 **Create group flow (buffr)**  
 - **App route:** `app/create-group.tsx` – full screen: LinearGradient background, header “Create Group”, group name + description inputs, pill search, device/API contacts list with checkboxes, selected members as chips (avatar + name), add-by-phone input; “Create” calls API then navigates to group view.  
@@ -1098,7 +1105,7 @@ app/
 
 ### 6.4 Screen header and back navigation consistency
 
-**Requirement:** Every non-tab, non-terminal screen must provide a clear way to go back or to Home so users are never stuck. Tab screens (Home, Transactions, Profile) use the tab bar; success/terminal screens use a primary CTA (e.g. "Done", "View receipt") instead of a header back.
+**Requirement:** Every non-tab, non-terminal screen must provide a clear way to go back or to Home so users are never stuck. Tab screens (Home, Transactions, Vouchers; profile is in header, not a tab) use the tab bar; success/terminal screens use a primary CTA (e.g. "Done", "View receipt") instead of a header back.
 
 **Header patterns (implement consistently):**
 
@@ -1121,10 +1128,42 @@ app/
 | Stack with ScreenHeader / StandardScreenLayout | Left arrow → back or replace to (tabs) when no history |
 | Add Bank / Add Wallet / Wallet sub-screens | Custom back arrow → `router.back()` |
 | State-flow | Custom back → `onNavigate('home')` or previous state |
-| Tab (Home, Transactions, Profile) | No back; tab bar only |
+| Tab (Home, Transactions, Vouchers; no Profile tab) | No back; tab bar only; profile via header avatar (§6.4.2) |
 | Success / terminal | No back; use "Done" / "View receipt" / "Back to group" |
 
 **Implementation note:** In `buffr` (reference app), `ScreenHeader` is in `components/common/ScreenHeader.tsx`; `StandardScreenLayout` in `components/layouts/StandardScreenLayout.tsx`. When building `buffr_g2p`, reuse or port these so every stack screen has a consistent header and back behaviour. See also §4 (StackScreen: "Header (back, title, optional right action)").
+
+### 6.4.1 App header with search (tab and list screens)
+
+**Requirement:** On tab and list screens where search is applicable, **search lives in the header**, not below it. The header is a single row: **search bar (left)** and **notification bell + user avatar (right)** in a compact group, same light grey rounded style as the search pill.
+
+**Layout:**
+
+| Element | Position | Spec |
+|--------|----------|------|
+| Search bar | Left (flex) | Elongated rounded pill; magnifying-glass icon; placeholder e.g. "Search anything…", "Search transactions…", "Search vouchers…", "Search billers…", "Search area or agent…" per screen. |
+| Right group | Right | Single rounded container: notification bell (with red badge when unread) + user avatar (photo or placeholder). Tapping bell → Notifications; tapping avatar → Profile. |
+
+**Screens that use this header (search in header):**
+
+| Screen | Route | Search placeholder |
+|--------|--------|---------------------|
+| Home | `/(tabs)/home` or `/(tabs)` | "Search anything…" |
+| Transactions | `/(tabs)/transactions` | "Search transactions…" |
+| Vouchers | `/(tabs)/vouchers` | "Search vouchers…" |
+| Pay Bills | `/(tabs)/home/bills` | "Search billers…" |
+| Agent Network | `/(tabs)/home/agents` | "Search area or agent…" |
+| Find Agents & ATMs | `/(tabs)/profile/location` (or equivalent) | "Search area or address…" |
+
+**Implementation:** Use the shared component `components/layout/AppHeader.tsx` (`AppHeader`). Props: `searchPlaceholder`, `searchValue`, `onSearchChange`, `showSearch`, `onNotificationPress`, `onAvatarPress`, `avatarUri` (from UserContext `profile.photoUri`), `notificationBadge`. For screens without search (e.g. Settings, Notifications), use `showSearch={false}` and `title` for a title-only header with the same right group (notification + avatar).
+
+### 6.4.2 No profile tab on home; profile in header
+
+**Requirement:** There is **no Profile (or "Me") tab** in the bottom tab bar on the home flow. Profile is reached via the **header avatar** (next to the notification bell). The tab bar shows only: **Home**, **Transactions**, **Vouchers**. The profile route (`/(tabs)/profile`) remains available for deep links and for navigation from the header avatar; it is hidden from the tab bar using `href: null` in the tabs layout.
+
+**Rationale:** The design places the user avatar in the header on every screen with the app header; a separate profile tab is redundant and clutters the tab bar.
+
+**Implementation:** In `app/(tabs)/_layout.tsx`, set `href: null` (or equivalent) on the profile `Tabs.Screen` so the profile tab is not visible. Ensure `onAvatarPress` in `AppHeader` navigates to `/(tabs)/profile`.
 
 ---
 
@@ -1409,6 +1448,36 @@ Design components follow the same organism → atom structure for consistent imp
 | **ETA** | Electronic Transactions Act 4 of 2019 | Data messages, electronic signatures, retention, admissibility of evidence |
 | **PSD-12, PSD-1, PSD-3** | Bank of Namibia Determinations | Cybersecurity (2FA, encryption, incident reporting, RTO/RPO); licensing; e‑money (trust account, AML/CFT) |
 
+### 9.2b Design & Code Reference for Expo Build (Production)
+
+**Purpose:** This subsection is the **design and code reference** for the Buffr G2P React/Expo app and for extending to production. Use it alongside Figma (§9.2) and §11 Implementation File Map.
+
+**Canonical references (for implementers and AI):**
+
+- **Buffr G2P Complete Code Reference** – Full source of 62+ component files, App.tsx, and styles/globals.css, organised by feature area (Entry & Styles, Core Infrastructure, Shared UI, Onboarding, Home & Navigation, Voucher System, Wallet & Cash Out, Send Money, Merchant Payments, Agent Network, Groups & P2P, Loans, Bill Payments, AI Chat, Gamification, Financial Literacy, Analytics, Profile & Settings, Transactions, Utility Components).
+- **Buffr G2P Implementation Guide** – Architecture (voucher 3 methods, wallet cash-out 5 methods), complete screen inventory (40+), user journeys, business rules, technical stack (React Native + Expo SDK 52, Python/FastAPI backend), security & compliance (PSD-1, PSD-3, PSD-12), API endpoints, database schema, production readiness.
+
+**Key design and flow areas to align Expo implementation with:**
+
+| Area | Reference behaviour / patterns |
+|------|-------------------------------|
+| **Wallet flows** | Add Wallet (2-step: icon + name → pay-from, date, amount, payment count); WalletCashOutScreen (5 methods: Bank, Till, Agent, Merchant, ATM) with fees/times/limits; WalletDetailScreen (balance, Add Funds, Transfer, Auto Pay toggle and config). |
+| **Auto Pay** | Toggle in Add Wallet and Wallet Detail; frequency (weekly/bi-weekly/monthly), Deduct On (date + time), Amount, Number of Repayments, Payment Method selector; iOS-style roller pickers for date/time; Edit Auto Pay screen. |
+| **Cards** | BuffrCard (user name, card number, NamPost badge, profile picture or initials from UserContext); WalletCard (name, balance, icon, owner from UserContext); CardViewScreen (swipeable Buffr + linked cards, CVV show/hide, Remove/Change/Edit). |
+| **Send Money** | SendMoneyFlow: Select Recipient → Enter Amount → Select Method → Receiver Details → Payment Success; SelectRecipient (recents, favorites, all contacts, QR); EnterAmount (N$ display, quick amounts, note); TwoFactorVerification before success. |
+| **Groups & P2P** | GroupsScreen (My Groups / Activity tabs, stats card, group list); GroupViewScreen (stacked avatars, Send/Request, request bubbles with status); GroupSendScreen / GroupRequestScreen (amount, note, 2FA for send); GroupPaymentSuccess / GroupRequestSuccess; GroupSettingsScreen (name, members, deactivate). SendToScreen (recents, favorites, contacts) → ReceiverDetailsScreen. |
+| **Voucher system** | VouchersScreen (filters, VoucherCard list); VoucherDetailScreen (3 redemption methods: Buffr Wallet, NamPost, SmartPay); NamPostScreen (branch list → detail → booking code + QR); CashbackTillScreen (retailer → amount → till code); SmartPayUnitsScreen (mobile units). |
+| **Shared UI** | StatusBar, HomeIndicator, ThemeToggle, TwoFactorVerification (6-digit PIN, Face ID), NotificationCenter, AddMoneyModal (amount, Bank Transfer / Debit Card / Redeem Voucher), MobileContainer primitives. |
+| **Context & state** | UserContext (user profile, setUser, updateUser, getFullName, getInitials, generateBuffrId, generateCardNumber); ThemeContext (light/dark); optional wallet list in context (addWallet, updateWallet, removeWallet) for Add Wallet / Wallet Detail. |
+
+**Common Expo/React Native build error and fix:**
+
+- **Error:** `SyntaxError: Identifier 'StyleSheet' has already been declared. (18:21)` in `app/(tabs)/home/index.tsx`.
+- **Cause:** Duplicate import from `'react-native'`: two lines such as `} from 'react-native';` followed by `import { Dimensions, StyleSheet, View } from 'react-native';`. Dimensions, StyleSheet, and View are already in the first import block.
+- **Fix:** Remove the **second** `import { ... } from 'react-native';` entirely. Keep only the single block that imports ActivityIndicator, Dimensions, Image, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View (and any other RN symbols used) in one statement.
+
+**Production extension:** When adding or changing screens, align with the component inventory and navigation map in the Complete Code Reference (e.g. onboarding → home → transactions | loans | qr-code | send-money | …; vouchers → voucher-detail → nampost | smartpay-units | wallet redeem; wallet-cash-out → cashback-till | agent-network | merchants | location-services). Reuse patterns from UserContext, BuffrCard, WalletCard, TwoFactorVerification, and the 5-method cash-out hub for consistency.
+
 ### 9.3 API (backend contract)
 
 - **Base URL:** Env `EXPO_PUBLIC_API_URL` (Buffr backend).  
@@ -1608,6 +1677,8 @@ This PRD is the **single source of truth** for implementing the Buffr G2P app. Y
 ## 11. Implementation File Map & Code (Self-Contained)
 
 This section is the **single source of truth** for the Buffr G2P app: full project structure, environment, dependencies, and implementation code. **All code that will be implemented is completed here in the PRD first** (§11.4 copy-paste code, §11.7 Legal & Compliance, §11.8 NAMQR & Open Banking). Implementers must copy from these code blocks into the repo; do not create implementation files before the PRD code for that file is complete. Use Archon (Expo docs) and Figma MCP for reference when needed.
+
+**Design reference – Buffr G2P Complete Code Reference & Implementation Guide:** For wallet flows, Auto Pay, and full component patterns, use the **Buffr G2P Complete Code Reference** (62 components, App.tsx, globals.css) and **Implementation Guide**: §7 Wallet & Cash Out (AddWallet 2-step + Auto Pay; WalletCashOutScreen 5 methods; CashOutAtAgent; CashbackTillScreen); voucher system §6; send money §8; UserContext/ThemeContext §2; BuffrCard, WalletCard, VoucherCard §3; TwoFactorVerification, NotificationCenter §3; navigation map and business rules (voucher 3 methods, wallet cash-out 5 methods, code expiry). Align Expo/React Native implementation with these patterns; see also §3.4 and §3.3 design reference paragraphs above.
 
 ### 11.0 Expo documentation reference (from Archon MCP)
 
@@ -1861,6 +1932,8 @@ buffr_g2p/
     api.ts
     vouchers.ts
     wallets.ts
+    send.ts                    # P2P, contacts (expo-contacts when no API) §11.3.2
+    device.ts                  # Location, gallery, camera picker, biometrics §11.3.2
     ussdHandler.ts             # Core USSD menu logic, session management (backend-only; used by app/api/ussd) §3.10, §7.6.6–7.6.7
     auth.ts
     tokenVault.ts
@@ -1952,6 +2025,31 @@ Use `.env` / `.env.local` and load via `expo-constants` or `process.env.EXPO_PUB
 ```
 
 Add as needed: `expo-auth-session`, `expo-web-browser`, `expo-camera`, `react-native-qrcode-svg`, and any auth SDK. Use `npx expo install <pkg>` to keep Expo SDK compatibility.
+
+#### 11.3.2 Device integration & required packages
+
+The app integrates with device capabilities for contacts, location, gallery, camera, and biometrics. All of the following packages must be installed for full functionality. Use the single install command below for SDK compatibility.
+
+| Package | Purpose | Usage in app |
+|--------|---------|---------------|
+| **expo-contacts** | Device address book | Send flow (select recipient), Recent Contacts, Create Group; contacts from device when API not configured (§11.4, send.ts). |
+| **expo-location** | GPS / device location | Location Services screen (§3.5 screen 38), Agents/NamPost/ATMs map, nearby points; `GET /api/v1/mobile/agents/nearby` etc. with lat/lng. |
+| **expo-image-picker** | Gallery & camera picker | Onboarding photo (§3.1 screen 5), profile photo; `launchImageLibraryAsync` (gallery), `launchCameraAsync` (capture). |
+| **expo-camera** | Camera stream (e.g. QR scan) | QR Code Scanner (§4.5, §11.8), NAMQR scan; onboarding photo capture option. |
+| **expo-local-authentication** | Biometrics (Face ID / fingerprint) | 2FA modal (§11.4.13), proof-of-life verification (§2.4, §7.6.5), Face ID setup in onboarding (§3.1 screen 6). |
+
+**Install all device packages (run from project root):**
+
+```bash
+npx expo install expo-contacts expo-location expo-image-picker expo-camera expo-local-authentication
+```
+
+**Configuration:**
+
+- **iOS:** Add usage descriptions in `app.json` (or `app.config.js`) for contacts and location. Example: `ios.infoPlist.NSContactsUsageDescription`, `NSLocationWhenInUseUsageDescription`. expo-contacts and expo-location plugins add these when included in `plugins`.
+- **Android:** Permissions (READ_CONTACTS, ACCESS_FINE_LOCATION, CAMERA, USE_BIOMETRIC) are declared by the Expo modules; no extra config for standard use.
+
+**Implementation:** See `services/device.ts` (location helpers), `services/send.ts` (contacts via expo-contacts), `app/scan-qr.tsx` (expo-camera), TwoFA modal and proof-of-life screens (expo-local-authentication), onboarding/photo (expo-image-picker).
 
 #### 11.3.1 babel.config.js
 
@@ -6405,6 +6503,12 @@ Install packages referenced in the PRD (§11.3) with `expo install` for SDK comp
 
 ```bash
 npx expo install expo-router @react-native-async-storage/async-storage expo-secure-store expo-auth-session expo-web-browser expo-camera expo-crypto expo-file-system expo-sharing expo-local-authentication react-native-safe-area-context react-native-screens @expo/vector-icons react-native-qrcode-svg react-native-reanimated
+```
+
+Install device integration packages (§11.3.2) for contacts, location, gallery, camera, and biometrics:
+
+```bash
+npx expo install expo-contacts expo-location expo-image-picker expo-camera expo-local-authentication
 ```
 
 Add `expo-constants` and `expo-splash-screen` if not already present. For dev builds and native modules (e.g. Reanimated, Gesture Handler), also install:

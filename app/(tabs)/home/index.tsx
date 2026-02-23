@@ -3,32 +3,29 @@
  * Design: reference state-flow HomeScreen.tsx patterns.
  * §3.4 screen 25 / Figma nodeId 45:837.
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Image,
+  Dimensions,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import Svg, { Defs, LinearGradient as SvgLinearGradient, Rect, Stop } from 'react-native-svg';
+import { useFocusEffect, router } from 'expo-router';
 import { useUser } from '@/contexts/UserContext';
 import { getWallets, type Wallet } from '@/services/wallets';
+import { getContacts, type Contact } from '@/services/send';
 import { getTransactions, formatTransactionType, formatTransactionAmount, transactionIcon, type Transaction } from '@/services/transactions';
-
-// Wallet emoji by type
-const WALLET_EMOJI: Record<string, string> = {
-  main: '📊',
-  savings: '💰',
-  grant: '🎁',
-};
+import { designSystem } from '@/constants/designSystem';
+import CardFrame from '@/components/cards/CardFrame';
+import { AppHeader } from '@/components/layout';
+import { WalletCarousel, RecentContactsCarousel } from '@/components/home';
 
 // Figma 575-4252: Mobile, Recharge, Buy Tickets, Subscriptions, Sponsored; Explore Utilities
 const SERVICES_ROW1 = [
@@ -53,16 +50,12 @@ const SERVICES = [
   { id: 'cashout', label: 'Cash Out', icon: 'cash-outline' as const, route: '/wallets' },
 ];
 
-function walletEmoji(w: Wallet): string {
-  return WALLET_EMOJI[w.type] ?? '💼';
-}
-
-const CONTACT_CHIPS = ['Clara', 'Lukas', 'Rachel', 'Simon', 'Peter'];
 
 export default function HomeScreen() {
   const { profile, buffrId, cardNumberMasked } = useUser();
 
   const [wallets, setWallets] = useState<Wallet[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const [recentTx, setRecentTx] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -79,11 +72,13 @@ export default function HomeScreen() {
   const loadData = useCallback(async () => {
     setLoadError(null);
     try {
-      const [ws, txs] = await Promise.all([
+      const [ws, cs, txs] = await Promise.all([
         getWallets(),
+        getContacts(),
         getTransactions({ limit: 5 }),
       ]);
       setWallets(ws);
+      setContacts(cs);
       setRecentTx(txs);
     } catch {
       setLoadError('Could not load data. Tap to retry.');
@@ -95,27 +90,50 @@ export default function HomeScreen() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  const isFirstFocus = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (isFirstFocus.current) {
+        isFirstFocus.current = false;
+        return;
+      }
+      loadData();
+    }, [loadData])
+  );
+
   const onRefresh = () => { setRefreshing(true); loadData(); };
 
-  const walletCount = wallets.length;
+  // Background: Buffr App Design (BuffrCrew) — teal→blue gradient via SVG so it works without expo-linear-gradient native module.
+  const bg = (designSystem.colors as Record<string, unknown>).backgroundGradient as { screenColors: string[]; screenLocations: number[] } | undefined;
+  const bgColors = bg?.screenColors ?? ['#FFFFFF', '#E8FBF9', '#D6EBFE', '#93C5FD', '#C7DAFA', '#EFF6FF'];
+  const bgLocations = bg?.screenLocations ?? [0, 0.25, 0.4, 0.5, 0.6, 1];
+  const { width, height } = Dimensions.get('window');
 
   return (
     <View style={styles.screen}>
-      <LinearGradient colors={['#EFF6FF', '#F5F3FF', '#FDF2F8']} style={StyleSheet.absoluteFill} />
+      <Svg width={width} height={height} style={StyleSheet.absoluteFill}>
+        <Defs>
+          <SvgLinearGradient id="homeBg" x1="0" y1="0" x2="0" y2="1">
+            {bgColors.map((color, i) => (
+              <Stop key={i} offset={String(bgLocations[i] ?? i / (bgColors.length - 1))} stopColor={color} />
+            ))}
+          </SvgLinearGradient>
+        </Defs>
+        <Rect x={0} y={0} width={width} height={height} fill="url(#homeBg)" />
+      </Svg>
       <SafeAreaView style={styles.safe} edges={['top']}>
 
-        {/* ── Header: Buffr + Notifications (Figma 575-4252) ── */}
-        <View style={styles.header}>
-          <Text style={styles.buffrLogo}>Buffr</Text>
-          <TouchableOpacity
-            style={styles.bellBtn}
-            onPress={() => router.push('/(tabs)/profile/notifications' as never)}
-            accessibilityLabel="Notifications"
-          >
-            <Ionicons name="notifications-outline" size={24} color="#4B5563" />
-            <View style={styles.bellDot} />
-          </TouchableOpacity>
-        </View>
+        {/* ── Header: Search (left) + Notification + Avatar (right) – §6.4 ── */}
+        <AppHeader
+          searchPlaceholder="Search anything..."
+          searchValue={searchQuery}
+          onSearchChange={setSearchQuery}
+          showSearch
+          onNotificationPress={() => router.push('/(tabs)/profile/notifications' as never)}
+          onAvatarPress={() => router.push('/(tabs)/profile' as never)}
+          avatarUri={profile?.photoUri ?? null}
+          notificationBadge
+        />
 
         <ScrollView
           style={styles.scroll}
@@ -124,20 +142,6 @@ export default function HomeScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0029D6" />}
           keyboardShouldPersistTaps="handled"
         >
-          {/* ── Search ── */}
-          <View style={styles.searchRow}>
-            <View style={styles.searchWrap}>
-              <Ionicons name="search-outline" size={20} color="#94A3B8" style={styles.searchIcon} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search anything..."
-                placeholderTextColor="#94A3B8"
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-              />
-            </View>
-          </View>
-
           {/* ── Balance + Show / Add (Figma) ── */}
           <View style={styles.balanceSection}>
             <Text style={styles.balanceAmount}>
@@ -149,77 +153,56 @@ export default function HomeScreen() {
                 <Text style={styles.pillBtnText}>{balanceVisible ? 'Hide' : 'Show'}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.pillBtn} onPress={() => router.push('/add-wallet' as never)} accessibilityLabel="Add wallet">
-                <Text style={styles.pillBtnText}>Add</Text>
+                <Text style={styles.pillBtnText}>+ Add</Text>
               </TouchableOpacity>
             </View>
           </View>
 
-          {/* ── Buffr Card: user name, card number, View (Figma) ── */}
+          {/* Buffr Card = main Buffr account (primary wallet); card designs also represent additional wallets with user context (name, balance, type). */}
           <TouchableOpacity
             style={styles.buffrCardBlock}
             onPress={() => router.push('/wallets' as never)}
             activeOpacity={0.9}
           >
-            <View style={styles.buffrCardTop}>
-              <Text style={styles.buffrCardTitle}>Buffr Card</Text>
-              <TouchableOpacity onPress={() => router.push('/wallets' as never)} hitSlop={12}>
-                <Text style={styles.buffrCardView}>View</Text>
-              </TouchableOpacity>
+            <View style={styles.buffrCardThumbWrap}>
+              <View style={styles.buffrCardThumbScale}>
+                <CardFrame
+                  userName={displayName || 'Eino Nashikoto'}
+                  cardNumber={cardNumberMasked || '••018 4756 9018'}
+                  expiryDate="••/••"
+                />
+              </View>
             </View>
-            <Text style={styles.buffrCardName}>{displayName || 'Eino Nashikoto'}</Text>
-            <Text style={styles.buffrCardNumber}>{cardNumberMasked || '••018 4756 9018'}</Text>
+            <View style={styles.buffrCardTextBlock}>
+              <View style={styles.buffrCardTop}>
+                <Text style={styles.buffrCardTitle}>Buffr Card</Text>
+                <TouchableOpacity onPress={() => router.push('/wallets' as never)} hitSlop={12}>
+                  <Text style={styles.buffrCardView}>View &gt;</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.buffrCardName}>{displayName || 'Eino Nashikoto'}</Text>
+              <Text style={styles.buffrCardNumber}>{cardNumberMasked || '••018 4756 9018'}</Text>
+            </View>
           </TouchableOpacity>
 
-          {/* ── Wallets ── */}
+          {/* ── Wallets (real data: create/delete/modify from add-wallet and wallet detail) ── */}
           <View style={styles.sectionRow}>
             <Text style={styles.sectionTitle}>Wallets</Text>
           </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.walletsScroll}>
-            {loading ? (
-              <View style={styles.walletCardLoading}><ActivityIndicator color="#0029D6" /></View>
-            ) : (
-              <>
-                {wallets.map((w, index) => (
-                  <TouchableOpacity
-                    key={w.id}
-                    style={styles.walletCard}
-                    onPress={() => router.push(`/wallets/${w.id}` as never)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.walletBadge}>{index + 1}/{walletCount}</Text>
-                    <Text style={styles.walletEmoji}>{walletEmoji(w)}</Text>
-                    <Text style={styles.walletName} numberOfLines={1}>{w.name}</Text>
-                    <Text style={styles.walletBalance}>N$ {w.balance.toLocaleString('en-NA', { minimumFractionDigits: 2 })}</Text>
-                    <View style={[styles.walletBar, { backgroundColor: '#0029D6' }]} />
-                  </TouchableOpacity>
-                ))}
-                <TouchableOpacity
-                  style={styles.addWalletCard}
-                  onPress={() => router.push('/add-wallet' as never)}
-                  activeOpacity={0.8}
-                  accessibilityLabel="Add a new wallet"
-                >
-                  <Ionicons name="add" size={28} color="#2563EB" />
-                  <Text style={styles.addWalletText}>Add Wallet</Text>
-                </TouchableOpacity>
-              </>
-            )}
-          </ScrollView>
+          <WalletCarousel
+            wallets={wallets}
+            loading={loading}
+            onWalletPress={(w) => router.push(`/wallets/${w.id}` as never)}
+            onAddWalletPress={() => router.push('/add-wallet' as never)}
+          />
 
-          {/* ── Contact chips (Figma: Clara, Lukas, Rachel, Simon, Peter) ── */}
-          <View style={styles.sectionRow}>
-            <Text style={styles.sectionTitle}>Send to</Text>
-          </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll} contentContainerStyle={styles.chipsRow}>
-            {CONTACT_CHIPS.map((name) => (
-              <TouchableOpacity key={name} style={styles.contactChip} onPress={() => router.push('/send-money/select-recipient' as never)} activeOpacity={0.8}>
-                <View style={styles.contactChipAvatar}>
-                  <Text style={styles.contactChipLetter}>{name[0]}</Text>
-                </View>
-                <Text style={styles.contactChipName}>{name}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+          {/* ── Recent Contacts (real data from getContacts(); empty = section hidden) ── */}
+          {/* CONTACT_CHIPS alias kept for cached-bundle compatibility; UI uses RecentContactsCarousel */}
+          <RecentContactsCarousel
+            contacts={contacts}
+            limit={8}
+            onContactPress={(c) => router.push({ pathname: '/send-money/amount', params: { recipientPhone: c.phone, recipientName: c.name } } as never)}
+          />
 
           <View style={styles.divider} />
 
@@ -376,28 +359,9 @@ function formatDate(iso: string): string {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   safe: { flex: 1 },
-  // Header (Figma: Buffr + notifications)
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-    backgroundColor: 'rgba(255,255,255,0.9)',
-  },
-  buffrLogo: { fontSize: 22, fontWeight: '700', color: '#0029D6' },
-  bellBtn: { padding: 8, position: 'relative' },
-  bellDot: { position: 'absolute', top: 6, right: 6, width: 8, height: 8, backgroundColor: '#E11D48', borderRadius: 4 },
   // Scroll
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 200 },
-  // Search
-  searchRow: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16 },
-  searchWrap: { flexDirection: 'row', alignItems: 'center', height: 48, backgroundColor: '#F8FAFC', borderRadius: 9999, borderWidth: 1, borderColor: '#E2E8F0', paddingHorizontal: 16 },
-  searchIcon: { marginRight: 8 },
-  searchInput: { flex: 1, fontSize: 15, color: '#020617' },
   // Balance
   balanceSection: { paddingHorizontal: 16, paddingVertical: 20, alignItems: 'center' },
   balanceAmount: { fontSize: 48, fontWeight: '700', color: '#020617', letterSpacing: -1, marginBottom: 4 },
@@ -405,36 +369,20 @@ const styles = StyleSheet.create({
   showAddRow: { flexDirection: 'row', gap: 10 },
   pillBtn: { backgroundColor: '#EFF6FF', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 9999 },
   pillBtnText: { fontSize: 13, fontWeight: '600', color: '#0029D6' },
-  // Buffr Card block (Figma)
-  buffrCardBlock: { marginHorizontal: 16, marginTop: 20, backgroundColor: '#fff', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: '#E5E7EB' },
-  buffrCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  // Buffr Card block (Figma): card asset thumbnail (CardFrame from assets/card-designs) + text; bell icon kept in header.
+  buffrCardBlock: { marginHorizontal: 16, marginTop: 20, backgroundColor: '#fff', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: '#E5E7EB', flexDirection: 'row', alignItems: 'center', gap: 16 },
+  buffrCardThumbWrap: { width: 76, height: 48, borderRadius: 10, overflow: 'hidden' },
+  buffrCardThumbScale: { width: 340, height: 214, transform: [{ scale: 0.22 }], marginLeft: -132, marginTop: -83 },
+  buffrCardTextBlock: { flex: 1, minWidth: 0 },
+  buffrCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   buffrCardTitle: { fontSize: 14, fontWeight: '600', color: '#64748B' },
   buffrCardView: { fontSize: 14, fontWeight: '600', color: '#0029D6' },
   buffrCardName: { fontSize: 18, fontWeight: '700', color: '#111827', marginBottom: 6 },
   buffrCardNumber: { fontSize: 16, fontWeight: '500', color: '#6B7280', letterSpacing: 2 },
-  // Contact chips (Figma)
-  chipsScroll: { marginBottom: 8 },
-  chipsRow: { flexDirection: 'row', gap: 12, paddingHorizontal: 16, paddingVertical: 4 },
-  contactChip: { alignItems: 'center', minWidth: 56 },
-  contactChipAvatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', marginBottom: 6 },
-  contactChipLetter: { fontSize: 18, fontWeight: '700', color: '#0029D6' },
-  contactChipName: { fontSize: 12, fontWeight: '500', color: '#374151' },
-  displayName: { fontSize: 18, fontWeight: '700', color: '#111827' },
   // Section headers
   sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginBottom: 12 },
   sectionTitle: { fontSize: 14, fontWeight: '600', color: '#64748B' },
   sectionLink: { fontSize: 14, color: '#2563EB', fontWeight: '500' },
-  // Wallets
-  walletsScroll: { flexDirection: 'row', gap: 12, paddingHorizontal: 16, paddingBottom: 8 },
-  walletCard: { width: 160, backgroundColor: '#fff', borderRadius: 24, padding: 20, borderWidth: 1, borderColor: '#E5E7EB', overflow: 'hidden' },
-  walletCardLoading: { width: 160, height: 120, justifyContent: 'center', alignItems: 'center' },
-  walletBadge: { position: 'absolute', top: 12, right: 16, fontSize: 11, color: '#94A3B8' },
-  walletEmoji: { fontSize: 28, marginBottom: 10 },
-  walletName: { fontSize: 13, fontWeight: '500', color: '#020617', marginBottom: 4 },
-  walletBalance: { fontSize: 18, fontWeight: '700', color: '#020617' },
-  walletBar: { height: 4, borderRadius: 9999, marginTop: 12, width: '100%' },
-  addWalletCard: { width: 160, backgroundColor: '#fff', borderRadius: 24, padding: 20, borderWidth: 2, borderStyle: 'dashed', borderColor: '#E5E7EB', justifyContent: 'center', alignItems: 'center', gap: 8 },
-  addWalletText: { fontSize: 13, fontWeight: '500', color: '#2563EB' },
   // Divider
   divider: { height: 1, backgroundColor: '#E5E7EB', marginHorizontal: 16, marginVertical: 24 },
   // Services

@@ -42,9 +42,11 @@ const WALLET_TYPES: Array<{ key: WalletType; label: string; description: string;
 export default function AddWalletScreen() {
   const [walletName, setWalletName] = useState('');
   const [selectedIcon, setSelectedIcon] = useState('📊');
+  const [customIcon, setCustomIcon] = useState('');
   const [type, setType] = useState<WalletType>('main');
   const [autoPayEnabled, setAutoPayEnabled] = useState(false);
   const [nameFocused, setNameFocused] = useState(false);
+  const [iconFocused, setIconFocused] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,7 +59,8 @@ export default function AddWalletScreen() {
     setError(null);
     setLoading(true);
     try {
-      const result = await createWallet(trimmed, type);
+      const iconToSave = customIcon.trim() || selectedIcon;
+      const result = await createWallet(trimmed, type, undefined, undefined, iconToSave);
       if (result.success) {
         setSaveSuccess(true);
         Animated.sequence([
@@ -105,13 +108,31 @@ export default function AddWalletScreen() {
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
 
-          {/* Emoji icon picker */}
-          <TouchableOpacity style={styles.iconWrap} onPress={() => setShowEmojiPicker(true)} activeOpacity={0.8}>
-            <View style={styles.iconCircle}>
-              <Text style={styles.iconEmoji}>{selectedIcon}</Text>
+          {/* Icon: from keyboard (device) or tap to pick from grid */}
+          <View style={styles.iconWrap}>
+            <TouchableOpacity onPress={() => setShowEmojiPicker(true)} activeOpacity={0.8}>
+              <View style={styles.iconCircle}>
+                <Text style={styles.iconEmoji}>{customIcon.trim() || selectedIcon}</Text>
+              </View>
+              <Text style={styles.setIconLabel}>Tap to pick from grid</Text>
+            </TouchableOpacity>
+            <View style={styles.iconInputRow}>
+              <Text style={styles.fieldLabel}>Or type emoji (keyboard)</Text>
+              <View style={[styles.inputWrap, iconFocused && styles.inputWrapFocused]}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. 🧁 🎓 💰"
+                  placeholderTextColor="#94A3B8"
+                  value={customIcon}
+                  onChangeText={(t) => { setCustomIcon(t); setError(null); }}
+                  onFocus={() => setIconFocused(true)}
+                  onBlur={() => setIconFocused(false)}
+                  returnKeyType="done"
+                  maxLength={4}
+                />
+              </View>
             </View>
-            <Text style={styles.setIconLabel}>Tap to change icon</Text>
-          </TouchableOpacity>
+          </View>
 
           {/* Wallet name field */}
           <View style={styles.field}>
@@ -239,7 +260,9 @@ const styles = StyleSheet.create({
   iconWrap: { alignItems: 'center', marginTop: 32, marginBottom: 28 },
   iconCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#D9EAF3', borderWidth: 1, borderColor: '#0F172A', justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
   iconEmoji: { fontSize: 36 },
-  setIconLabel: { fontSize: 13, color: '#64748B' },
+  setIconLabel: { fontSize: 13, color: '#64748B', marginBottom: 16 },
+  iconInputRow: { width: '100%', maxWidth: 280, marginTop: 8 },
+  iconInputRowFieldLabel: { fontSize: 14, color: '#64748B', marginBottom: 8, fontWeight: '500' },
   // Name field
   field: { marginBottom: 20 },
   fieldLabel: { fontSize: 14, color: '#64748B', marginBottom: 8, fontWeight: '500' },

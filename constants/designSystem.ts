@@ -60,6 +60,13 @@ export const designSystem = {
       "purple": "#7C3AED",
       "blue": "#3B82F6",
       "sky": "#0EA5E9"
+    },
+    "backgroundGradient": {
+      "description": "Buffr App Design (BuffrCrew): Home screen gradient blob — teal → blue → dark blue, ~80% opacity on white",
+      "blobColors": ["#5EEAD4", "#3B82F6", "#1D4ED8"],
+      "blobLocations": [0, 0.712, 1],
+      "screenColors": ["#FFFFFF", "#E8FBF9", "#D6EBFE", "#93C5FD", "#C7DAFA", "#EFF6FF"],
+      "screenLocations": [0, 0.25, 0.4, 0.5, 0.6, 1]
     }
   },
   "typography": {

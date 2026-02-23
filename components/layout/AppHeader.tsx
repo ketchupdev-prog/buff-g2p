@@ -1,0 +1,150 @@
+/**
+ * AppHeader – Buffr G2P.
+ * Standard app header: search bar (left) + notification bell + user avatar (right).
+ * Design: elongated search pill; compact right group (bell with badge, avatar) in same style.
+ * Use on Home, Transactions, Vouchers, Bills, Agents, Location and any screen with search in header.
+ * Location: components/layout/AppHeader.tsx
+ */
+import React from 'react';
+import {
+  Image,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+
+export interface AppHeaderProps {
+  /** Placeholder when search is shown. Default "Search anything..." */
+  searchPlaceholder?: string;
+  searchValue?: string;
+  onSearchChange?: (text: string) => void;
+  /** When false, show title instead of search (e.g. Settings, Notifications). */
+  showSearch?: boolean;
+  /** Title when showSearch is false. */
+  title?: string;
+  onNotificationPress?: () => void;
+  onAvatarPress?: () => void;
+  /** User photo URI (e.g. from UserContext profile.photoUri). */
+  avatarUri?: string | null;
+  /** Show red badge on notification icon. */
+  notificationBadge?: boolean;
+}
+
+const SEARCH_PLACEHOLDER = 'Search anything...';
+
+export function AppHeader({
+  searchPlaceholder = SEARCH_PLACEHOLDER,
+  searchValue = '',
+  onSearchChange,
+  showSearch = true,
+  title = '',
+  onNotificationPress,
+  onAvatarPress,
+  avatarUri = null,
+  notificationBadge = false,
+}: AppHeaderProps) {
+  return (
+    <View style={styles.header}>
+      {showSearch ? (
+        <View style={styles.searchWrap}>
+          <Ionicons name="search-outline" size={20} color="#94A3B8" style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder={searchPlaceholder}
+            placeholderTextColor="#94A3B8"
+            value={searchValue}
+            onChangeText={onSearchChange}
+            editable={onSearchChange != null}
+          />
+        </View>
+      ) : (
+        <Text style={styles.title} numberOfLines={1}>{title}</Text>
+      )}
+
+      <View style={styles.rightGroup}>
+        <TouchableOpacity
+          style={styles.iconBtn}
+          onPress={onNotificationPress}
+          accessibilityLabel="Notifications"
+        >
+          <Ionicons name="notifications-outline" size={24} color="#4B5563" />
+          {notificationBadge && <View style={styles.badge} />}
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.avatarWrap}
+          onPress={onAvatarPress}
+          accessibilityLabel="Profile"
+        >
+          {avatarUri ? (
+            <Image source={{ uri: avatarUri }} style={styles.avatar} />
+          ) : (
+            <View style={styles.avatarPlaceholder}>
+              <Ionicons name="person-outline" size={22} color="#64748B" />
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    backgroundColor: 'rgba(255,255,255,0.9)',
+  },
+  searchWrap: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 48,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 9999,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 16,
+  },
+  searchIcon: { marginRight: 8 },
+  searchInput: { flex: 1, fontSize: 15, color: '#020617', paddingVertical: 0 },
+  title: { flex: 1, fontSize: 20, fontWeight: '700', color: '#111827' },
+  rightGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 9999,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    gap: 4,
+  },
+  iconBtn: { padding: 8, position: 'relative' },
+  badge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 8,
+    height: 8,
+    backgroundColor: '#E11D48',
+    borderRadius: 4,
+  },
+  avatarWrap: { marginLeft: 0 },
+  avatar: { width: 36, height: 36, borderRadius: 18 },
+  avatarPlaceholder: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#EFF6FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});

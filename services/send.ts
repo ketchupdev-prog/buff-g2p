@@ -1,8 +1,10 @@
 /**
  * Send money service – Buffr G2P.
  * P2P transfers, recipient lookup, and contact management.
+ * Contacts: API when configured; otherwise device contacts (expo-contacts).
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ExpoContacts from 'expo-contacts';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 
@@ -30,6 +32,18 @@ async function getAuthHeader(): Promise<{ Authorization: string } | Record<strin
   }
 }
 
+/** Map device contact (expo-contacts) to app Contact. */
+function mapDeviceContact(c: ExpoContacts.ExistingContact): Contact {
+  const phone = c.phoneNumbers?.[0]?.number?.trim() ?? '';
+  return {
+    id: c.id,
+    name: c.name?.trim() ?? 'Unknown',
+    phone,
+    avatarUri: c.image?.uri,
+    isFavorite: c.isFavorite,
+  };
+}
+
 export async function getContacts(): Promise<Contact[]> {
   if (API_BASE_URL) {
     try {
@@ -39,13 +53,34 @@ export async function getContacts(): Promise<Contact[]> {
       });
       if (res.ok) {
         const data = (await res.json()) as { contacts?: Contact[]; data?: Contact[] };
-        return data.contacts ?? data.data ?? [];
+        const apiContacts = data.contacts ?? data.data ?? [];
+        if (apiContacts.length > 0) return apiContacts;
       }
     } catch (e) {
-      console.error('getContacts error:', e);
+      console.error('getContacts API error:', e);
     }
   }
-  return [];
+
+  // Device contacts (expo-contacts): user picks from their phone
+  try {
+    const available = await ExpoContacts.isAvailableAsync();
+    if (!available) return [];
+
+    const { status } = await ExpoContacts.requestPermissionsAsync();
+    if (status !== 'granted' && status !== 'limited') return [];
+
+    const { data } = await ExpoContacts.getContactsAsync({
+      fields: [ExpoContacts.Fields.Name, ExpoContacts.Fields.PhoneNumbers, ExpoContacts.Fields.Image],
+      sort: ExpoContacts.SortTypes.FirstName,
+    });
+
+    return data
+      .map(mapDeviceContact)
+      .filter((c) => c.phone.length > 0);
+  } catch (e) {
+    console.error('getContacts device error:', e);
+    return [];
+  }
 }
 
 export async function lookupRecipient(

@@ -51,10 +51,12 @@ export default function TabLayout() {
           ),
         }}
       />
+      {/* Profile: no tab bar entry – accessed via header avatar next to notification bell (§6.4.2) */}
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Me', // PRD uses "Me" for profile tab label
+          title: 'Me',
+          href: null, // Hide from tab bar; profile is in header (avatar)
           tabBarIcon: ({ color, focused }) => (
             <TabBarIcon name={focused ? 'person' : 'person-outline'} color={color} />
           ),

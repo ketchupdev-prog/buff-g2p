@@ -10,7 +10,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -18,6 +17,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
+import { useUser } from '@/contexts/UserContext';
+import { designSystem } from '@/constants/designSystem';
+import { AppHeader } from '@/components/layout';
 import {
   getTransactions,
   formatTransactionType,
@@ -73,6 +75,7 @@ function groupByDate(txs: Transaction[]): Array<{ date: string; items: Transacti
 }
 
 export default function TransactionsScreen() {
+  const { profile } = useUser();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [filter, setFilter] = useState<FilterKey>('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -111,25 +114,17 @@ export default function TransactionsScreen() {
       <View style={styles.backgroundFallback} />
       <LinearGradient colors={['#F3F4F6', '#fff', '#F9FAFB']} style={StyleSheet.absoluteFill} />
       <SafeAreaView style={styles.safe} edges={['top']}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Transactions</Text>
-          <TouchableOpacity style={styles.filterIconBtn} accessibilityLabel="Filter">
-            <Ionicons name="filter-outline" size={20} color="#4B5563" />
-          </TouchableOpacity>
-        </View>
-
-        {/* Search */}
-        <View style={styles.searchWrap}>
-          <Ionicons name="search-outline" size={18} color="#9CA3AF" style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search transactions..."
-            placeholderTextColor="#9CA3AF"
-            value={searchTerm}
-            onChangeText={setSearchTerm}
-          />
-        </View>
+        {/* Header: Search (left) + Notification + Avatar (right) – §6.4 */}
+        <AppHeader
+          searchPlaceholder="Search transactions..."
+          searchValue={searchTerm}
+          onSearchChange={setSearchTerm}
+          showSearch
+          onNotificationPress={() => router.push('/(tabs)/profile/notifications' as never)}
+          onAvatarPress={() => router.push('/(tabs)/profile' as never)}
+          avatarUri={profile?.photoUri ?? null}
+          notificationBadge
+        />
 
         {/* Filter chips */}
         <ScrollView
@@ -230,34 +225,8 @@ export default function TransactionsScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  backgroundFallback: { ...StyleSheet.absoluteFillObject, backgroundColor: '#F9FAFB' },
+  backgroundFallback: { ...StyleSheet.absoluteFillObject, backgroundColor: designSystem.colors.neutral.background },
   safe: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-    backgroundColor: '#fff',
-  },
-  headerTitle: { fontSize: 20, fontWeight: '700', color: '#111827' },
-  filterIconBtn: { padding: 8 },
-  searchWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    marginHorizontal: 24,
-    marginVertical: 12,
-    paddingHorizontal: 16,
-    height: 48,
-    borderRadius: 9999,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  searchIcon: { marginRight: 10 },
-  searchInput: { flex: 1, fontSize: 15, color: '#020617' },
   filterScroll: { flexGrow: 0, flexShrink: 0 },
   filterRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 24, paddingBottom: 12 },
   filterChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 9999, backgroundColor: '#fff', borderWidth: 1, borderColor: '#E5E7EB' },

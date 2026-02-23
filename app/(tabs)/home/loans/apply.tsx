@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native';
+import { designSystem } from '@/constants/designSystem';
 
 export default function LoansApplyScreen() {
   return (
@@ -13,7 +14,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f0f0f0',
+    backgroundColor: designSystem.colors.neutral.background,
   },
   text: {
     fontSize: 20,
