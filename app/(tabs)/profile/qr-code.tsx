@@ -5,7 +5,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import QRCode from 'react-native-qrcode-svg';
 import { designSystem } from '@/constants/designSystem';
 import { useUser } from '@/contexts/UserContext';
@@ -22,6 +22,9 @@ export default function QRCodeScreen() {
       <SafeAreaView style={styles.safe} edges={['top']}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} accessibilityLabel="Go back">
+            <Ionicons name="arrow-back" size={22} color={designSystem.colors.neutral.text} />
+          </TouchableOpacity>
           <Text style={styles.headerTitle}>My QR Code</Text>
         </View>
         <View style={styles.content}>
@@ -49,6 +52,7 @@ const styles = StyleSheet.create({
     borderBottomColor: designSystem.colors.neutral.border,
     backgroundColor: designSystem.colors.neutral.surface,
   },
+  backBtn: { padding: 4, marginRight: 12 },
   headerTitle: { ...designSystem.typography.textStyles.title, color: designSystem.colors.neutral.text },
   content: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   qrCard: {

@@ -23,25 +23,24 @@ const PROFILE_LINKS: Array<{ section: string; items: ProfileLink[] }> = [
   {
     section: 'Account',
     items: [
-      { id: 'qr', label: 'My QR Code', icon: 'qr-code', route: '/profile/qr-code' },
-      { id: 'analytics', label: 'Analytics', icon: 'bar-chart', route: '/profile/analytics' },
-      { id: 'learn', label: 'Financial Literacy', icon: 'book', route: '/profile/learn' },
-      { id: 'gamification', label: 'Rewards & Badges', icon: 'star', route: '/profile/gamification' },
+      { id: 'qr', label: 'My QR Code', icon: 'qr-code', route: '/(tabs)/profile/qr-code' },
+      { id: 'analytics', label: 'Analytics', icon: 'bar-chart', route: '/(tabs)/profile/analytics' },
+      { id: 'learn', label: 'Financial Literacy', icon: 'book', route: '/(tabs)/profile/learn' },
     ],
   },
   {
     section: 'Security',
     items: [
       { id: 'proof', label: 'Proof of Life', icon: 'shield-checkmark', route: '/proof-of-life/verify' },
-      { id: 'notifications', label: 'Notifications', icon: 'notifications', route: '/profile/notifications' },
-      { id: 'location', label: 'Find Agents & ATMs', icon: 'location', route: '/profile/location' },
-      { id: 'aichat', label: 'AI Assistant', icon: 'chatbubble-ellipses', route: '/profile/ai-chat' },
+      { id: 'notifications', label: 'Notifications', icon: 'notifications', route: '/(tabs)/profile/notifications' },
+      { id: 'location', label: 'Find Agents & ATMs', icon: 'location', route: '/(tabs)/profile/location' },
+      { id: 'aichat', label: 'AI Assistant', icon: 'chatbubble-ellipses', route: '/(tabs)/profile/ai-chat' },
     ],
   },
   {
     section: 'Settings',
     items: [
-      { id: 'settings', label: 'Settings', icon: 'settings', route: '/profile/settings' },
+      { id: 'settings', label: 'Settings', icon: 'settings', route: '/(tabs)/profile/settings' },
     ],
   },
 ];

@@ -183,7 +183,7 @@ export default function TransactionsScreen() {
                     <TouchableOpacity
                       key={tx.id}
                       style={styles.txRow}
-                      onPress={() => router.push(`/transactions/${tx.id}` as never)}
+                      onPress={() => router.push(`/(tabs)/transactions/${tx.id}` as never)}
                       activeOpacity={0.8}
                     >
                       <View style={[styles.txIconWrap, pos ? styles.txIconReceived : styles.txIconSent]}>

@@ -7,6 +7,7 @@ import { designSystem } from '@/constants/designSystem';
 import CardFrame from '@/components/cards/CardFrame';
 import { useUser } from '@/contexts/UserContext';
 import { getOrCreateBuffrId } from '@/services/auth';
+import { ensurePrimaryWallet } from '@/services/wallets';
 
 export default function OnboardingCompleteScreen() {
   const { profile, cardNumberMasked, expiryDate: contextExpiry, setBuffrId } = useUser();
@@ -27,6 +28,8 @@ export default function OnboardingCompleteScreen() {
         const { buffrId, cardNumberMasked: masked, expiryDate } = await getOrCreateBuffrId(profile.phone);
         if (!cancelled) {
           await setBuffrId(buffrId, masked, expiryDate ?? undefined);
+          // Create the Buffr Account (primary wallet) – idempotent, no-ops if already exists
+          await ensurePrimaryWallet();
           setCardReady(true);
         }
       } catch (e) {
@@ -47,8 +50,8 @@ export default function OnboardingCompleteScreen() {
     }
   };
 
-  const userName = [profile?.firstName, profile?.lastName].filter(Boolean).join(' ') || 'Buffr User';
-  const cardNumber = cardNumberMasked ?? 'XXXX XXXX XXXX ----';
+  const userName = [profile?.firstName, profile?.lastName].filter(Boolean).join(' ');
+  const cardNumber = cardNumberMasked ?? '';
   const expiryDate = contextExpiry ?? '--/--';
 
   return (

@@ -61,6 +61,22 @@ export async function getContacts(): Promise<Contact[]> {
     }
   }
 
+  // AsyncStorage demo contacts (seeded on first launch)
+  try {
+    const stored = await AsyncStorage.getItem('buffr_contacts');
+    if (stored) {
+      const demoContacts = JSON.parse(stored) as Array<{ id: string; name: string; phone: string; avatarUrl?: string }>;
+      if (demoContacts.length > 0) {
+        return demoContacts.map((c) => ({
+          id: c.id,
+          name: c.name,
+          phone: c.phone,
+          avatarUri: c.avatarUrl,
+        }));
+      }
+    }
+  } catch { /* ignore */ }
+
   // Device contacts (expo-contacts): user picks from their phone
   try {
     const available = await ExpoContacts.isAvailableAsync();

@@ -61,6 +61,13 @@ export async function getVouchers(): Promise<Voucher[]> {
       console.error('getVouchers API error:', e);
     }
   }
+  // Fallback: read from AsyncStorage (populated by seedData on first launch)
+  try {
+    const stored = await AsyncStorage.getItem('buffr_vouchers');
+    if (stored) return JSON.parse(stored) as Voucher[];
+  } catch (e) {
+    console.error('getVouchers storage error:', e);
+  }
   return [];
 }
 
@@ -79,6 +86,14 @@ export async function getVoucher(id: string): Promise<Voucher | null> {
       console.error('getVoucher API error:', e);
     }
   }
+  // Fallback: find in AsyncStorage
+  try {
+    const stored = await AsyncStorage.getItem('buffr_vouchers');
+    if (stored) {
+      const vouchers = JSON.parse(stored) as Voucher[];
+      return vouchers.find((v) => v.id === id) ?? null;
+    }
+  } catch { /* ignore */ }
   return null;
 }
 

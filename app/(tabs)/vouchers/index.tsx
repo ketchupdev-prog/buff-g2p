@@ -14,21 +14,26 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useUser } from '@/contexts/UserContext';
 import { designSystem } from '@/constants/designSystem';
 import { AppHeader } from '@/components/layout';
 import { getVouchers, type Voucher, type VoucherStatus } from '@/services/vouchers';
+import { CARD_FRAME_FILL } from '@/constants/CardDesign';
 
-// Voucher type metadata matching reference VoucherCardG2P
-type VoucherType = 'child' | 'basic-income' | 'old-age-disability' | string;
-
-const VOUCHER_TYPE_INFO: Record<string, { label: string; emoji: string; bgColor: string; textColor: string }> = {
-  'child': { label: 'Child Cash Grant', emoji: '👶', bgColor: '#DBEAFE', textColor: '#2563EB' },
-  'basic-income': { label: 'Basic Income Grant', emoji: '💰', bgColor: '#D1FAE5', textColor: '#22C55E' },
-  'old-age-disability': { label: 'Old Age & Disability', emoji: '🛡️', bgColor: '#F3E8FF', textColor: '#7C3AED' },
+// Each programme type maps to a card design frame for visual consistency.
+// Frame colors used as the accent bar + icon tint – matches WalletCard pattern.
+const VOUCHER_TYPE_INFO: Record<string, {
+  label: string;
+  icon: string;        // Ionicons name
+  frameId: number;     // card design frame → CARD_FRAME_FILL color
+}> = {
+  'child':             { label: 'Child Cash Grant',    icon: 'people-outline',          frameId: 8  },  // coral
+  'basic-income':      { label: 'Basic Income Grant',  icon: 'cash-outline',            frameId: 27 },  // indigo
+  'old-age-disability':{ label: 'Old Age & Disability',icon: 'shield-checkmark-outline',frameId: 15 },  // gold
+  'disability':        { label: 'Disability Grant',    icon: 'medical-outline',         frameId: 30 },  // teal
 };
 
 const STATUS_INFO: Record<VoucherStatus, { label: string; bgColor: string; iconName: string }> = {
@@ -58,12 +63,15 @@ const STATUS_FILTERS: Array<{ key: VoucherStatus | 'all'; label: string; activeB
   { key: 'expired', label: 'Expired', activeBg: '#DC2626' },
 ];
 
+const DEFAULT_VOUCHER_TYPE = 'basic-income';
+
 function guessType(programme: string): string {
   const p = programme.toLowerCase();
   if (p.includes('child')) return 'child';
   if (p.includes('basic') || p.includes('income')) return 'basic-income';
-  if (p.includes('old') || p.includes('disability')) return 'old-age-disability';
-  return 'basic-income';
+  if (p.includes('old') || p.includes('age') || p.includes('pension')) return 'old-age-disability';
+  if (p.includes('disab')) return 'disability';
+  return DEFAULT_VOUCHER_TYPE;
 }
 
 function formatDate(iso: string): string {
@@ -185,7 +193,9 @@ export default function VouchersScreen() {
           ) : (
             filtered.map((v) => {
               const vType = guessType(v.programme);
-              const typeInfo = VOUCHER_TYPE_INFO[vType] ?? VOUCHER_TYPE_INFO['basic-income'];
+              const typeInfo = VOUCHER_TYPE_INFO[vType] ?? VOUCHER_TYPE_INFO[DEFAULT_VOUCHER_TYPE];
+              const accentColor = CARD_FRAME_FILL[typeInfo.frameId] ?? '#0029D6';
+              const iconBg = accentColor + '20'; // ~12% opacity tint
               const statusConfig = STATUS_INFO[v.status] ?? STATUS_INFO['available'];
               const statusTextColor = STATUS_TEXT_COLOR[v.status] ?? '#6B7280';
               const isAvailable = v.status === 'available';
@@ -197,41 +207,54 @@ export default function VouchersScreen() {
                   onPress={() => router.push(`/utilities/vouchers/${v.id}` as never)}
                   activeOpacity={0.9}
                 >
-                  {/* Top row: type icon + status badge */}
-                  <View style={styles.cardTop}>
-                    <View style={styles.typeRow}>
-                      <View style={[styles.typeIcon, { backgroundColor: typeInfo.bgColor }]}>
-                        <Text style={styles.typeEmoji}>{typeInfo.emoji}</Text>
+                  {/* Accent bar – same as WalletCard */}
+                  <View style={[styles.accentBar, { backgroundColor: accentColor }]} />
+
+                  <View style={styles.cardBody}>
+                    {/* Top row: icon + label + status badge */}
+                    <View style={styles.cardTop}>
+                      <View style={styles.typeRow}>
+                        <View style={[styles.typeIcon, { backgroundColor: iconBg, borderColor: accentColor + '30' }]}>
+                          <Ionicons name={typeInfo.icon as never} size={20} color={accentColor} />
+                        </View>
+                        <View>
+                          <Text style={styles.typeLabelText}>{typeInfo.label}</Text>
+                          {v.reference ? <Text style={styles.voucherRef}>#{v.reference}</Text> : null}
+                        </View>
                       </View>
-                      <View>
-                        <Text style={styles.typeLabelText}>{typeInfo.label}</Text>
-                        {v.reference ? <Text style={styles.voucherRef}>#{v.reference}</Text> : null}
+                      <View style={[styles.statusBadge, { backgroundColor: statusConfig.bgColor }]}>
+                        <Ionicons name={statusConfig.iconName as never} size={13} color={statusTextColor} />
+                        <Text style={[styles.statusText, { color: statusTextColor }]}>{statusConfig.label}</Text>
                       </View>
                     </View>
-                    <View style={[styles.statusBadge, { backgroundColor: statusConfig.bgColor }]}>
-                      <Ionicons name={statusConfig.iconName as never} size={13} color={statusTextColor} />
-                      <Text style={[styles.statusText, { color: statusTextColor }]}>{statusConfig.label}</Text>
+
+                    {/* Amount */}
+                    <View style={styles.amountRow}>
+                      <Text style={styles.amountLabel}>Amount</Text>
+                      <Text style={styles.amountValue}>N$ {v.amount.toLocaleString()}</Text>
                     </View>
-                  </View>
 
-                  {/* Amount row */}
-                  <View style={styles.amountRow}>
-                    <Text style={styles.amountLabel}>Amount</Text>
-                    <Text style={styles.amountValue}>N$ {v.amount.toLocaleString()}</Text>
-                  </View>
+                    {/* Dates */}
+                    <View style={styles.datesRow}>
+                      <Ionicons name="calendar-outline" size={13} color="#9CA3AF" />
+                      <Text style={styles.dateText}>Issued: {formatDate(v.issuedAt)}</Text>
+                      <Ionicons name="time-outline" size={13} color="#9CA3AF" />
+                      <Text style={styles.dateText}>
+                        {isAvailable
+                          ? `Expires: ${formatDate(v.expiresAt)}`
+                          : v.redeemedAt
+                          ? `Redeemed: ${formatDate(v.redeemedAt)}`
+                          : `Expired: ${formatDate(v.expiresAt)}`}
+                      </Text>
+                    </View>
 
-                  {/* Dates */}
-                  <View style={styles.datesRow}>
-                    <Ionicons name="calendar-outline" size={13} color="#9CA3AF" />
-                    <Text style={styles.dateText}>Issued: {formatDate(v.issuedAt)}</Text>
-                    <Ionicons name="time-outline" size={13} color="#9CA3AF" />
-                    <Text style={styles.dateText}>
-                      {isAvailable ? `Expires: ${formatDate(v.expiresAt)}` : v.redeemedAt ? `Redeemed: ${formatDate(v.redeemedAt)}` : `Expired: ${formatDate(v.expiresAt)}`}
-                    </Text>
+                    {/* Progress bar for available vouchers */}
+                    {isAvailable && (
+                      <View style={styles.barTrack}>
+                        <View style={[styles.barFill, { backgroundColor: accentColor }]} />
+                      </View>
+                    )}
                   </View>
-
-                  {/* Progress bar for available */}
-                  {isAvailable && <View style={[styles.progressBar, { backgroundColor: typeInfo.textColor }]} />}
                 </TouchableOpacity>
               );
             })
@@ -264,28 +287,34 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: 'center', paddingVertical: 48 },
   emptyTitle: { fontSize: 18, fontWeight: '600', color: '#111827', marginTop: 16 },
   emptyDesc: { fontSize: 14, color: '#6B7280', marginTop: 8 },
-  // VoucherCard
+  // VoucherCard – mirrors WalletCard visual language
   voucherCard: {
     backgroundColor: '#fff',
     borderRadius: 16,
-    padding: 20,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    marginBottom: 12,
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
   },
-  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
-  typeRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  typeIcon: { width: 48, height: 48, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  typeEmoji: { fontSize: 24 },
+  accentBar: { height: 4, width: '100%' },
+  cardBody: { padding: 16 },
+  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 },
+  typeRow: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 },
+  typeIcon: { width: 44, height: 44, borderRadius: 12, borderWidth: 1, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
   typeLabelText: { fontSize: 14, fontWeight: '600', color: '#111827' },
-  voucherRef: { fontSize: 12, color: '#9CA3AF', marginTop: 2 },
-  statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 9999 },
+  voucherRef: { fontSize: 11, color: '#9CA3AF', marginTop: 2 },
+  statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 9999, flexShrink: 0 },
   statusText: { fontSize: 12, fontWeight: '500' },
-  amountRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  amountLabel: { fontSize: 14, color: '#6B7280' },
-  amountValue: { fontSize: 24, fontWeight: '700', color: '#111827' },
-  datesRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  amountRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  amountLabel: { fontSize: 13, color: '#6B7280' },
+  amountValue: { fontSize: 22, fontWeight: '700', color: '#111827' },
+  datesRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   dateText: { fontSize: 12, color: '#9CA3AF' },
-  progressBar: { height: 6, borderRadius: 9999, marginTop: 12, width: '100%' },
+  barTrack: { height: 4, borderRadius: 9999, marginTop: 12, width: '100%', backgroundColor: '#E5E7EB', overflow: 'hidden' },
+  barFill: { height: '100%', borderRadius: 9999, width: '100%' },
 });

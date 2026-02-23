@@ -5,7 +5,7 @@ import React, { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Stack } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import { designSystem } from '@/constants/designSystem';
 
 export default function ProfileAiChatScreen() {
@@ -17,8 +17,13 @@ export default function ProfileAiChatScreen() {
       <SafeAreaView style={styles.safe} edges={['top']}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>AI Assistant</Text>
-          <Text style={styles.headerSub}>Ask about vouchers, cash-out, or your account</Text>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} accessibilityLabel="Go back">
+            <Ionicons name="arrow-back" size={22} color={designSystem.colors.neutral.text} />
+          </TouchableOpacity>
+          <View>
+            <Text style={styles.headerTitle}>AI Assistant</Text>
+            <Text style={styles.headerSub}>Ask about vouchers, cash-out, or your account</Text>
+          </View>
         </View>
         <KeyboardAvoidingView style={styles.chatWrap} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={0}>
           <ScrollView style={styles.messages} contentContainerStyle={styles.messagesContent} showsVerticalScrollIndicator={false}>
@@ -44,7 +49,8 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   backgroundFallback: { ...StyleSheet.absoluteFillObject, backgroundColor: designSystem.colors.neutral.background },
   safe: { flex: 1 },
-  header: { paddingHorizontal: designSystem.spacing.g2p.horizontalPadding, paddingVertical: designSystem.spacing.g2p.verticalPadding, borderBottomWidth: 1, borderBottomColor: designSystem.colors.neutral.border, backgroundColor: designSystem.colors.neutral.surface },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: designSystem.spacing.g2p.horizontalPadding, paddingVertical: designSystem.spacing.g2p.verticalPadding, borderBottomWidth: 1, borderBottomColor: designSystem.colors.neutral.border, backgroundColor: designSystem.colors.neutral.surface },
+  backBtn: { padding: 4, marginRight: 12 },
   headerTitle: { ...designSystem.typography.textStyles.title, color: designSystem.colors.neutral.text },
   headerSub: { ...designSystem.typography.textStyles.bodySm, color: designSystem.colors.neutral.textSecondary, marginTop: 4 },
   chatWrap: { flex: 1 },

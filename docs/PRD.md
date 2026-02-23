@@ -9029,3 +9029,405 @@ All icons are from `Ionicons` (via `@expo/vector-icons`). The reference design u
 | Add Wallet | `app/add-wallet.tsx` | §3.4 / Figma 151:391 |
 | Voucher Detail | `app/utilities/vouchers/[id].tsx` | §3.5 / Figma 116:547 |
 
+
+---
+
+## 19. Cross-App Gamification & Micro-Interactions
+
+### §19.1 Philosophy: Ambient Effects, Not a Screen
+
+Gamification in Buffr G2P is **not a destination** — there is no "Rewards" tab or gamification hub. It is a layer of ambient feedback woven into existing transactional flows. The principle: every meaningful financial action the user takes is acknowledged with an appropriately-weighted physical + visual + haptic response.
+
+This approach is grounded in two constraints specific to G2P beneficiary apps:
+1. **Dignity preservation.** Leaderboards, social comparison, streak-break shaming, and points-as-currency create anxiety in welfare contexts. Buffr celebrates without competing.
+2. **Apple HIG Motion principles.** Animations must be meaningful: they communicate state change, confirm an action, or provide orientation. If an animation does not earn its cognitive load, it is excluded.
+
+The existing `app/(tabs)/profile/gamification.tsx` screen is retained as a **badge showcase** (where users can see earned badges and points) but is no longer listed in the main profile menu as "Rewards & Badges" — it can be accessed via a dedicated entry once the GamificationContext is fully wired. The screen is not the gamification system; it is just the display for one small part of it.
+
+---
+
+### §19.2 Badge Taxonomy (12 Badges)
+
+| Badge ID | Label | Icon | Trigger Event | Points | Confetti? |
+|---|---|---|---|---|---|
+| `first_send` | First Transfer | `arrow-up-circle` | First successful P2P send | +50 | Yes |
+| `first_voucher` | First Voucher | `gift-outline` | First voucher redeemed (any method) | +100 | Yes |
+| `first_cashout` | Cash Champion | `cash-outline` | First cash-out completed | +30 | Yes |
+| `onboarding_complete` | Welcome to Buffr | `sparkles` (or `star`) | Onboarding complete screen | +20 | Yes (always) |
+| `bill_payer` | Bill Payer | `receipt-outline` | First bill payment | +25 | No (toast only) |
+| `saver` | Regular Saver | `wallet-outline` | Savings wallet balance reaches 50% of goal | +40 | No (toast only) |
+| `on_time` | On Time | `checkmark-circle-outline` | Proof-of-life completed before expiry | +30 | No (SuccessIcon only) |
+| `loan_repaid` | Clean Slate | `trending-down-outline` | Loan fully repaid | +60 | No (toast only) |
+| `profile_complete` | All Set | `person-circle` | Profile photo + name + phone all set | +20 | No (toast only) |
+| `helper` | Community Helper | `people-outline` | Created or joined a group wallet | +35 | No (toast only) |
+| `three_month_streak` | 3-Month Streak | `flame-outline` | 3 consecutive months of voucher redemption | +75 | No (toast + NumberRoll) |
+| `six_month_streak` | 6-Month Streak | `medal-outline` (or `trophy`) | 6 consecutive months of voucher redemption | +150 | Yes |
+
+**Points are non-redeemable in v1.** They are a progress indicator only. No false promise of future rewards.
+
+---
+
+### §19.3 Apple HIG Alignment
+
+| HIG Principle | Buffr Application |
+|---|---|
+| **Animations must have purpose** | Every animation communicates a state change (success), a new capability unlocked (badge), or provides orientation (progress ring shows how full the savings wallet is). |
+| **Respect Reduce Motion** | `AccessibilityInfo.isReduceMotionEnabled()` is checked globally via `useReduceMotion()` hook. All spring durations collapse to 1 ms; confetti and scale bounce are suppressed. Haptics still fire (separate accessibility preference). |
+| **Avoid animating layout** | No `height`, `width`, or `position` values are animated. Only `transform` (scale, translate, rotate) and `opacity` — both run on the UI thread without layout passes. |
+| **Keep interactions under 400 ms** | Micro-interactions (SuccessIcon, haptics) complete within 300–350 ms. Badge toast slide-in: 250 ms. User is never blocked waiting for animation to finish. |
+| **Spring physics, not linear** | `withSpring` (damping 12–18, stiffness 150–200) for all scale/translate animations. `withTiming + Easing.out(Easing.quad)` for progress fills. Never `Easing.linear` for motion. |
+
+---
+
+### §19.4 Reanimated 3 Implementation Patterns
+
+**Dependency versions (from `package.json`):**
+- `react-native-reanimated: ~4.1.1`
+- `react-native-worklets: 0.5.1`
+- `react-native-gesture-handler: ~2.28.0`
+- `expo: ~54.0.33` (New Architecture enabled)
+
+All animations run on the UI thread via worklets. No `setState` inside animation callbacks (only `runOnJS(callback)` after completion).
+
+#### §19.4.1 SuccessIcon — Checkmark Scale Bounce
+
+**File:** `components/animations/SuccessIcon.tsx`
+
+Replaces static `<Ionicons name="checkmark-circle" />` on all success screens. On mount: scales from 0 → 1 via spring (`damping: 14, stiffness: 180`), producing an overshoot to ~1.12 before settling. Fires `Haptics.impactAsync(ImpactFeedbackStyle.Medium)` on the first frame.
+
+```typescript
+// components/animations/SuccessIcon.tsx
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated';
+import { useEffect } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+
+interface SuccessIconProps {
+  size?: number;
+  color?: string;
+  onAnimationComplete?: () => void;
+  reducedMotion?: boolean;
+}
+
+export function SuccessIcon({ size = 80, color = '#22C55E', onAnimationComplete, reducedMotion = false }: SuccessIconProps) {
+  const scale = useSharedValue(reducedMotion ? 1 : 0);
+
+  useEffect(() => {
+    if (reducedMotion) { onAnimationComplete?.(); return; }
+    scale.value = withSpring(1, { damping: 14, stiffness: 180, mass: 1 }, (finished) => {
+      if (finished && onAnimationComplete) runOnJS(onAnimationComplete)();
+    });
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  }, []);
+
+  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  return <Animated.View style={animatedStyle}><Ionicons name="checkmark-circle" size={size} color={color} /></Animated.View>;
+}
+```
+
+#### §19.4.2 ProgressRing — Savings Goal
+
+**File:** `components/animations/ProgressRing.tsx`
+
+SVG circular ring using `react-native-svg` (already a dependency). `strokeDashoffset` animates from full gap to `progress * circumference` over 800 ms with `Easing.out(Easing.quad)`. Used on wallet detail screen to show savings goal completion. Spring constants: `duration: 800, easing: Easing.out(Easing.quad)`.
+
+#### §19.4.3 BadgeUnlock — Scale + Rotation Reveal
+
+**File:** `components/animations/BadgeUnlock.tsx`
+
+Scale: 0.6 → 1 via spring (`damping: 12, stiffness: 160`). Rotation: -8deg → 0 via spring (`damping: 16, stiffness: 140`). Gold glow border (`#FFB800`) fades in over 200 ms then out after 600 ms delay. Haptic: `Haptics.notificationAsync(NotificationFeedbackType.Success)`.
+
+#### §19.4.4 NumberRoll — Streak Counter
+
+**File:** `components/animations/NumberRoll.tsx`
+
+Each digit: `translateY` from +20px → 0 via spring, staggered by `index * 40 ms`. Used to animate points total and monthly streak number in the gamification screen. Replaces static `<Text>{points}</Text>` with `<NumberRoll value={points} />`.
+
+#### §19.4.5 Confetti — Milestone Celebrations
+
+**File:** `components/animations/Confetti.tsx`
+
+40 Animated.View particles (reduced to 20 in low-power mode). Colors from design system: `#0029D6`, `#22C55E`, `#FFB800`, `#E11D48`, `#DBEAFE`. Duration: 1500 ms. Auto-dismisses. `pointerEvents="none"` — never blocks interaction. Triggers: `first_send`, `first_voucher_redeem`, `onboarding_complete`, `six_month_streak`.
+
+#### §19.4.6 BadgeToast — Mid-Session Badge Award
+
+**File:** `components/animations/BadgeToast.tsx`
+
+Slides in from top (`translateY: -120 → 0`, spring `damping: 16, stiffness: 200`) over 250 ms. Visible for 3 s. Slides out. Rendered in **root `app/_layout.tsx`** as global overlay — appears above all screens including modals. `GamificationContext.pendingToast` drives it. `accessibilityLiveRegion="polite"` announces badge to screen readers.
+
+---
+
+### §19.5 Haptic Feedback Map
+
+| Event | Call | When |
+|---|---|---|
+| Transaction success | `Haptics.impactAsync(ImpactFeedbackStyle.Medium)` | Send, voucher redeem, cash-out |
+| Badge unlock | `Haptics.notificationAsync(NotificationFeedbackType.Success)` | Badge earned (toast or screen) |
+| Onboarding complete | `Haptics.impactAsync(ImpactFeedbackStyle.Heavy)` | Card reveal at onboarding end |
+| Primary button press | `Haptics.impactAsync(ImpactFeedbackStyle.Light)` | On press-in of primary CTAs |
+| Error / failed action | `Haptics.notificationAsync(NotificationFeedbackType.Error)` | Transaction failed, OTP wrong, QR invalid |
+| Tab / chip selection | `Haptics.selectionAsync()` | Tab bar switch, filter chip tap |
+| Proof-of-life verified | `Haptics.impactAsync(ImpactFeedbackStyle.Light)` | Administrative; not celebratory |
+
+---
+
+### §19.6 GamificationContext Architecture
+
+**File:** `contexts/GamificationContext.tsx`
+
+AsyncStorage key: `buffr_gamification_state`
+
+```typescript
+interface GamificationState {
+  points: number;
+  badges: Record<string, { earned: boolean; earnedAt?: string }>;
+  monthStreak: number;
+  lastRedemptionMonth: string; // "2026-01"
+  pendingToast: { badge: Badge; pointsDelta: number } | null;
+}
+
+type GamificationEvent =
+  | 'first_send' | 'voucher_redeemed' | 'first_cashout'
+  | 'proof_of_life_verified' | 'onboarding_complete' | 'bill_paid'
+  | 'loan_repaid' | 'profile_complete';
+```
+
+`recordEvent(event)` evaluates badge eligibility, updates AsyncStorage, sets `pendingToast`, returns `{ badgesJustUnlocked, pointsDelta }` to the calling screen.
+
+`useReduceMotion()` hook (also lives in this context file) reads `AccessibilityInfo.isReduceMotionEnabled()` and subscribes to changes.
+
+---
+
+### §19.7 Screen Integration Checklist
+
+| Screen | Event | Confetti | Notes |
+|---|---|---|---|
+| `app/send-money/success.tsx` | `first_send` | Yes (first time) | Replace static Ionicons with `<SuccessIcon>` |
+| `app/utilities/vouchers/redeem/wallet/success.tsx` | `voucher_redeemed` | Yes (first time) | Currently stub — add full success UI |
+| `app/utilities/vouchers/redeem/nampost/success.tsx` | none | No | Physical cash handoff; `<SuccessIcon>` only |
+| `app/wallets/[id]/cash-out/success.tsx` | `first_cashout` | Yes (first time) | Currently stub — add full success UI |
+| `app/proof-of-life/success.tsx` | `proof_of_life_verified` | No | Dignified; `<SuccessIcon>` + static calendar info |
+| `app/onboarding/complete.tsx` | `onboarding_complete` | Yes (always) | Card slide already exists; add `<Confetti>` behind |
+| `app/(tabs)/home/bills.tsx` (after pay) | `bill_paid` | No | `BadgeToast` only via `pendingToast` |
+
+---
+
+### §19.8 What Is Excluded
+
+The following patterns are **explicitly out of scope** for Buffr G2P:
+
+- Leaderboards or social comparison (shame dynamics in welfare contexts)
+- "You broke your streak" messaging (silence is the correct response to absence)
+- Points redeemable for rewards in v1 (no false promise)
+- Push notification gamification ("You're close to a badge!")
+- Animated mascots or characters during loading
+- Daily login rewards (maximizes frequency, not meaningful behavior)
+- Level/tier systems (exclusionary for users with limited financial activity)
+
+---
+
+### §19.9 Design System Additions
+
+Add to `constants/designSystem.ts` under `animations`:
+
+```typescript
+gamification: {
+  successPop: { damping: 14, stiffness: 180 },
+  badgeUnlock: { scaleDamping: 12, scaleStiffness: 160, rotateDamping: 16, rotateStiffness: 140, glowDurationMs: 200, glowFadeMs: 400 },
+  progressRing: { durationMs: 800 },
+  confetti: { durationMs: 1500, pieceCount: 40, pieceCountLowPower: 20, autoDismissMs: 2000 },
+  badgeToast: { slideInDamping: 16, slideInStiffness: 200, visibleMs: 3000 },
+  numberRoll: { digitDelayMs: 40, damping: 14, stiffness: 200 },
+},
+```
+
+Color additions under `colors.brand`:
+```typescript
+badgeGold: '#FFB800',
+badgeGoldLight: '#FEF3C7',
+```
+
+
+---
+
+## 20. Adumo Online Payment Gateway Integration
+
+### §20.1 Overview
+
+Adumo Online is the card payment gateway for Buffr. The **Enterprise** integration method is used, keeping cardholders within the Buffr app environment at all times (no redirect to a hosted payment page). This requires PCI compliance.
+
+- **Test base URL:** `https://staging-apiv3.adumoonline.com`
+- **Production base URL:** `https://apiv3.adumoonline.com`
+- **Test MerchantUID:** `9BA5008C-08EE-4286-A349-54AF91A621B0`
+
+---
+
+### §20.2 Transaction Flow
+
+```
+1. OAuth 2.0 → get bearer token
+2. POST /products/payments/v1/card/initiate → get transactionId
+3. If threeDSecureAuthRequired == true:
+     a. Form POST to acsUrl (Bankserv ACS page for OTP)
+     b. GET /product/authentication/v2/tds/authenticate/{transactionId}
+4. POST /products/payments/v1/card/authorise
+5. POST /products/payments/v1/card/settle   (or auto-settle if configured)
+6. [optional] POST /products/payments/v1/card/reverse   (undo authorise)
+7. [optional] POST /products/payments/v1/card/refund    (after settle)
+```
+
+Token expires: refresh before subsequent calls. Transactions time out after **5 minutes** if not completed.
+
+---
+
+### §20.3 OAuth 2.0
+
+```http
+POST https://staging-apiv3.adumoonline.com/oauth/token
+  ?grant_type=client_credentials
+  &client_id={clientId}
+  &client_secret={clientSecret}
+```
+
+Response: `{ access_token, token_type: "bearer", expires_in, scope, jti }`
+
+Use as: `Authorization: Bearer {access_token}` on all subsequent calls.
+
+---
+
+### §20.4 Initiate Transaction
+
+```http
+POST /products/payments/v1/card/initiate
+Content-Type: application/json
+Authorization: Bearer {token}
+
+{
+  "merchantUid": "...",
+  "applicationUid": "...",
+  "cardNumber": "...",
+  "expiryMonth": 12,
+  "expiryYear": 2027,
+  "cvv": "123",
+  "cardHolderFullName": "...",
+  "value": 150.00,
+  "merchantReference": "{orderId}",
+  "ipAddress": "...",
+  "userAgent": "...",
+  "saveCardDetails": false,
+  "budgetPeriod": 0
+}
+```
+
+**Four initiation modes:**
+1. `saveCardDetails: false` — card not stored
+2. `saveCardDetails: true` (no profileUid) — creates new card profile
+3. `saveCardDetails: true` + `profileUid` — adds card to existing profile
+4. `token` instead of card number — use stored card token
+
+**Response:**
+```json
+{
+  "transactionId": "...",
+  "threeDSecureAuthRequired": true|false,
+  "acsUrl": "...",       // only if 3DS required
+  "acsPayload": "...",
+  "acsMD": "...",
+  "profileUid": "..."    // only if profile was created
+}
+```
+
+---
+
+### §20.5 3D Secure Flow (when `threeDSecureAuthRequired == true`)
+
+1. **Form POST** to `acsUrl` with fields: `PaReq={acsPayload}`, `MD={acsMD}`, `TermUrl={your callback URL}`
+2. Bankserv presents OTP page to cardholder
+3. Bankserv POSTs `TransactionIndex` + `paresPayload` to your `TermUrl`
+4. **Authenticate call** (optional but recommended for dispute evidence):
+
+```http
+GET /product/authentication/v2/tds/authenticate/{transactionId}
+```
+
+Stores CAVV, XID, ECI for chargeback dispute evidence.
+
+**ECI values to understand:**
+- `05` / `02` = fully authenticated (liability shifts to issuer)
+- `06` / `01` = authentication attempted
+- `07` / `00` = not enrolled / unavailable
+
+---
+
+### §20.6 Authorise
+
+```http
+POST /products/payments/v1/card/authorise
+
+{ "transactionId": "...", "amount": 150.00 }
+```
+
+Response: `{ statusCode, statusMessage, authorisedAmount, authorisationCode, eciFlag, cardCountry, currencyCode, autoSettle }`
+
+`statusCode: 200` = approved.
+
+---
+
+### §20.7 Settle, Reverse, Refund
+
+| Action | Endpoint | When to use |
+|---|---|---|
+| **Settle** | `POST /card/settle` | Fulfil order; required if `autoSettle: false` |
+| **Reverse** | `POST /card/reverse` | Cancel an authorisation before settle |
+| **Refund** | `POST /card/refund` | Return funds after settlement |
+
+All three take `{ "transactionId": "..." }` (reverse/refund also take `"amount"`).
+
+Association rule: **physical goods must use deferred settlement** (not auto-settle).
+
+---
+
+### §20.8 Test Cards
+
+**3D Secure (ApplicationUID: `23ADADC0-DA2D-4DAC-A128-4845A5D71293`):**
+
+| Card | Number | Result |
+|---|---|---|
+| Visa Success | `4000000000001091` | Approved |
+| Visa Fail | `4000000000001109` | Declined |
+| MC Success | `5200000000001096` | Approved |
+| MC Fail | `5200000000001104` | Declined |
+
+**3DS Frictionless (same ApplicationUID — no ACS page shown):**
+
+| Card | Number | Result |
+|---|---|---|
+| Visa Success | `4000000000001000` | Approved |
+| Visa Fail | `4000000000001018` | Declined |
+| MC Success | `5200000000001005` | Approved |
+| MC Fail | `5200000000001013` | Declined |
+
+**Non-3DS (ApplicationUID: `904A34AF-0CE9-42B1-9C98-B69E6329D154`):**
+
+| Card | Number | Result |
+|---|---|---|
+| Visa Success | `4111111111111111` | Approved |
+| Visa Declined | `4242424242424242` | Declined |
+| MC Success | `5100080000000000` | Approved |
+| MC Declined | `5404000000000001` | Declined |
+| Amex Success | `370000200000000` | Approved |
+| Amex Declined | `374200000000004` | Declined |
+
+All test cards: any future expiry, any CVV. 3DS OTP: shown on ACS page, or try `1234` or `test123`.
+
+---
+
+### §20.9 Buffr Integration Notes
+
+- **Store `MerchantUID` and `ApplicationUID`** in `EXPO_PUBLIC_ADUMO_MERCHANT_UID` / `EXPO_PUBLIC_ADUMO_APPLICATION_UID` environment variables. Never hardcode.
+- **Token management:** Cache the bearer token in memory (or `expo-secure-store`) and refresh only when expired.
+- **3DS TermUrl:** In the Buffr app, the 3DS ACS page is rendered in an `expo-web-browser` session. The `TermUrl` is a deep link back into the app (`buffr://adumo/3ds-complete`). The `paresPayload` is passed via URL params back into the native flow.
+- **PCI compliance:** Card numbers and CVV are never written to `AsyncStorage` or logs. All card fields go directly to the Adumo API. The Buffr app itself must pass a PCI SAQ-D assessment (full questionnaire) for Enterprise integration.
+- **Settlement mode:** Buffr wallet top-ups are digital goods → **auto-settle is acceptable**. Any physical cash disbursement flows should use deferred settlement.
+- **Service file:** `services/payment.ts` — implements `getAdumoBearerToken()`, `initiateCardPayment()`, `authorisePayment()`, `settlePayment()`, `refundPayment()`.
+

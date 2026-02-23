@@ -9,14 +9,21 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { AppProviders } from '@/contexts/AppProviders';
+import { useGamification } from '@/contexts/GamificationContext';
+import { BadgeToast } from '@/components/animations/BadgeToast';
 
 export { ErrorBoundary } from 'expo-router';
 
 SplashScreen.preventAutoHideAsync();
 
+function GlobalOverlays() {
+  const { pendingToast, clearToast } = useGamification();
+  return <BadgeToast badgeId={pendingToast} onDismiss={clearToast} />;
+}
+
 export default function RootLayout() {
-  const [loaded, error] = useFonts({
-    // No custom fonts required for G2P; empty object. To add: Inter: require('./assets/fonts/Inter.ttf') per §11.0 (Expo fonts doc).
+  const [loaded] = useFonts({
+    // No custom fonts required for G2P; empty object.
   });
 
   useEffect(() => {
@@ -48,6 +55,7 @@ export default function RootLayout() {
         <Stack.Screen name="scan-qr" options={{ presentation: 'card' }} />
         <Stack.Screen name="groups" options={{ presentation: 'card' }} />
       </Stack>
+      <GlobalOverlays />
     </AppProviders>
   );
 }

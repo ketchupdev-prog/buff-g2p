@@ -9,9 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack } from 'expo-router';
 import { router } from 'expo-router';
-import { useUser } from '@/contexts/UserContext';
 import { designSystem } from '@/constants/designSystem';
-import { AppHeader } from '@/components/layout';
 import { getCurrentLocation, type Coords } from '@/services/device';
 
 const FILTERS = [
@@ -29,9 +27,7 @@ const PLACEHOLDER_LOCATIONS = [
 ];
 
 export default function LocationScreen() {
-  const { profile } = useUser();
   const [filter, setFilter] = useState('all');
-  const [search, setSearch] = useState('');
   const [location, setLocation] = useState<Coords | null>(null);
   const [locationLoading, setLocationLoading] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -55,16 +51,12 @@ export default function LocationScreen() {
       <View style={styles.backgroundFallback} />
       <SafeAreaView style={styles.safe} edges={['top']}>
         <Stack.Screen options={{ headerShown: false }} />
-        <AppHeader
-          searchPlaceholder="Search area or address..."
-          searchValue={search}
-          onSearchChange={setSearch}
-          showSearch
-          onNotificationPress={() => router.push('/(tabs)/profile/notifications' as never)}
-          onAvatarPress={() => router.push('/(tabs)/profile' as never)}
-          avatarUri={profile?.photoUri ?? null}
-          notificationBadge
-        />
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} accessibilityLabel="Go back">
+            <Ionicons name="arrow-back" size={22} color={designSystem.colors.neutral.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Find Agents & ATMs</Text>
+        </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={styles.filterRow}>
           {FILTERS.map((f) => {
             const isActive = filter === f.key;
@@ -139,6 +131,17 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   backgroundFallback: { ...StyleSheet.absoluteFillObject, backgroundColor: designSystem.colors.neutral.background },
   safe: { flex: 1 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: designSystem.spacing.g2p.horizontalPadding,
+    paddingVertical: designSystem.spacing.g2p.verticalPadding,
+    borderBottomWidth: 1,
+    borderBottomColor: designSystem.colors.neutral.border,
+    backgroundColor: designSystem.colors.neutral.surface,
+  },
+  backBtn: { padding: 4, marginRight: 12 },
+  headerTitle: { ...designSystem.typography.textStyles.title, color: designSystem.colors.neutral.text },
   filterScroll: { flexGrow: 0, flexShrink: 0 },
   filterRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: designSystem.spacing.g2p.horizontalPadding, paddingVertical: 12 },
   filterChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 9999, backgroundColor: designSystem.colors.neutral.surface, borderWidth: 1, borderColor: designSystem.colors.neutral.border },

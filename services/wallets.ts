@@ -4,6 +4,7 @@
  * falls back to AsyncStorage-persisted local wallets.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { PRIMARY_WALLET_CARD_FRAME_ID } from '@/constants/CardDesign';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 const STORAGE_KEY_WALLETS = 'buffr_wallets';
@@ -14,12 +15,16 @@ export interface Wallet {
   type: 'main' | 'savings' | 'grant';
   balance: number;
   currency: 'NAD';
-  /** Optional card design frame ID (2–32) from assets/images/card-designs; used to represent this wallet with user context. */
+  /** True for the primary Buffr Account created at onboarding. */
+  isPrimary?: boolean;
+  /** Card design frame ID (2–32) from assets/images/card-designs. */
   cardDesignFrameId?: number;
-  /** When set, this wallet is a savings goal; progress = balance towards 100% of targetAmount. */
+  /** Savings goal target; progress = balance / targetAmount. */
   targetAmount?: number;
-  /** User-chosen emoji from keyboard (device input); shown on wallet card when set. */
+  /** User-chosen emoji shown on wallet card. */
   icon?: string;
+  /** Linked bank/card references (display only; actual linking managed by backend). */
+  linkedCards?: Array<{ id: string; label: string; last4: string; brand: string }>;
   createdAt?: string;
 }
 
@@ -47,7 +52,6 @@ export async function getWallets(): Promise<Wallet[]> {
       console.error('getWallets API error:', e);
     }
   }
-  // Fallback: read from AsyncStorage
   try {
     const stored = await AsyncStorage.getItem(STORAGE_KEY_WALLETS);
     if (stored) return JSON.parse(stored) as Wallet[];
@@ -81,7 +85,8 @@ export async function createWallet(
   type: Wallet['type'],
   cardDesignFrameId?: number,
   targetAmount?: number,
-  icon?: string
+  icon?: string,
+  isPrimary?: boolean,
 ): Promise<{ success: boolean; wallet?: Wallet; error?: string }> {
   if (API_BASE_URL) {
     try {
@@ -89,7 +94,7 @@ export async function createWallet(
       const res = await fetch(`${API_BASE_URL}/api/v1/mobile/wallets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeader },
-        body: JSON.stringify({ name, type, cardDesignFrameId, targetAmount, icon }),
+        body: JSON.stringify({ name, type, cardDesignFrameId, targetAmount, icon, isPrimary }),
       });
       const data = (await res.json()) as { wallet?: Wallet; error?: string };
       if (res.ok) return { success: true, wallet: data.wallet };
@@ -99,7 +104,6 @@ export async function createWallet(
       return { success: false, error: 'Network error' };
     }
   }
-  // Fallback: store locally
   try {
     const wallets = await getWallets();
     const newWallet: Wallet = {
@@ -108,6 +112,7 @@ export async function createWallet(
       type,
       balance: 0,
       currency: 'NAD',
+      ...(isPrimary && { isPrimary: true }),
       ...(cardDesignFrameId != null && { cardDesignFrameId }),
       ...(targetAmount != null && targetAmount > 0 && { targetAmount }),
       ...(icon != null && icon.trim() !== '' && { icon: icon.trim() }),
@@ -122,10 +127,28 @@ export async function createWallet(
   }
 }
 
+/**
+ * Called once at onboarding completion.
+ * Creates the Buffr Account (primary wallet) if it doesn't already exist.
+ * Uses PRIMARY_WALLET_CARD_FRAME_ID (frame 10, deep blue) by default.
+ */
+export async function ensurePrimaryWallet(
+  frameId: number = PRIMARY_WALLET_CARD_FRAME_ID,
+): Promise<void> {
+  try {
+    const wallets = await getWallets();
+    const hasPrimary = wallets.some((w) => w.isPrimary || w.type === 'main');
+    if (hasPrimary) return;
+    await createWallet('Buffr Account', 'main', frameId, undefined, undefined, true);
+  } catch (e) {
+    console.error('ensurePrimaryWallet error:', e);
+  }
+}
+
 export async function addMoneyToWallet(
   walletId: string,
   amount: number,
-  method: 'bank_transfer' | 'debit_card' | 'voucher'
+  method: 'bank_transfer' | 'debit_card' | 'voucher',
 ): Promise<{ success: boolean; error?: string }> {
   if (!API_BASE_URL) return { success: false, error: 'Backend not configured' };
   try {

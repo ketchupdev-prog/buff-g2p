@@ -6,7 +6,7 @@ import React, { useCallback, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Stack } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import { designSystem } from '@/constants/designSystem';
 
 type NotificationItem = { id: string; title: string; body: string; time: string; read: boolean };
@@ -28,6 +28,9 @@ export default function NotificationsScreen() {
       <SafeAreaView style={styles.safe} edges={['top']}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} accessibilityLabel="Go back">
+            <Ionicons name="arrow-back" size={22} color={designSystem.colors.neutral.text} />
+          </TouchableOpacity>
           <Text style={styles.headerTitle}>Notifications</Text>
         </View>
         <ScrollView
@@ -73,6 +76,7 @@ const styles = StyleSheet.create({
     borderBottomColor: designSystem.colors.neutral.border,
     backgroundColor: designSystem.colors.neutral.surface,
   },
+  backBtn: { padding: 4, marginRight: 12 },
   headerTitle: { ...designSystem.typography.textStyles.title, color: designSystem.colors.neutral.text },
   scroll: { flex: 1 },
   scrollContent: { padding: designSystem.spacing.g2p.horizontalPadding, paddingTop: 16 },

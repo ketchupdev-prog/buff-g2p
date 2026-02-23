@@ -72,6 +72,20 @@ export async function getTransactions(params?: {
       console.error('getTransactions API error:', e);
     }
   }
+  // Fallback: read from AsyncStorage (populated by seedData on first launch)
+  try {
+    const stored = await AsyncStorage.getItem('buffr_transactions');
+    if (stored) {
+      let txs = JSON.parse(stored) as Transaction[];
+      if (params?.walletId) txs = txs.filter((t) => t.walletId === params.walletId);
+      if (params?.type) txs = txs.filter((t) => t.type === params.type);
+      if (params?.offset) txs = txs.slice(params.offset);
+      if (params?.limit) txs = txs.slice(0, params.limit);
+      return txs;
+    }
+  } catch (e) {
+    console.error('getTransactions storage error:', e);
+  }
   return [];
 }
 
@@ -90,6 +104,14 @@ export async function getTransaction(id: string): Promise<Transaction | null> {
       console.error('getTransaction API error:', e);
     }
   }
+  // Fallback: find in AsyncStorage
+  try {
+    const stored = await AsyncStorage.getItem('buffr_transactions');
+    if (stored) {
+      const txs = JSON.parse(stored) as Transaction[];
+      return txs.find((t) => t.id === id) ?? null;
+    }
+  } catch { /* ignore */ }
   return null;
 }
 
