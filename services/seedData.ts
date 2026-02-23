@@ -21,6 +21,10 @@ const SEED_WALLETS: Wallet[] = [
     currency: 'NAD',
     cardDesignFrameId: 10,   // deep blue – primary account
     createdAt: '2026-01-01T08:00:00Z',
+    linkedCards: [
+      { id: 'lc_ned_001', label: 'Nedbank Cheque', last4: '2293', brand: 'Visa' },
+      { id: 'lc_bwh_001', label: 'Bank Windhoek', last4: '4184', brand: 'Mastercard' },
+    ],
   },
   {
     id: 'w_grant_001',
@@ -189,6 +193,46 @@ const SEED_VOUCHERS: Voucher[] = [
   },
 ];
 
+// ── Demo loans ────────────────────────────────────────────────────────────────
+export interface DemoLoanOffer {
+  id: string;
+  maxAmount: number;
+  interestRate: number;
+  previousVoucherAmount: number;
+  repaymentInfo: string;
+}
+
+export interface DemoActiveLoan {
+  id: string;
+  amount: number;
+  interestAmount: number;
+  totalRepayable: number;
+  disbursedAt: string;
+  status: 'active' | 'repaid' | 'overdue';
+  repaymentDue: string;
+}
+
+// Offer derived from the most recent voucher (1/3 of N$3,800 = N$1,267)
+export const SEED_LOAN_OFFER: DemoLoanOffer = {
+  id: 'offer_001',
+  maxAmount: 1267,
+  interestRate: 15,
+  previousVoucherAmount: 3800,
+  repaymentInfo: 'Auto-repaid from next grant disbursement',
+};
+
+export const SEED_ACTIVE_LOANS: DemoActiveLoan[] = [
+  {
+    id: 'loan_001',
+    amount: 500,
+    interestAmount: 75,
+    totalRepayable: 575,
+    disbursedAt: daysAgo(20),
+    status: 'active',
+    repaymentDue: new Date(now.getFullYear(), now.getMonth() + 1, 15).toISOString(),
+  },
+];
+
 // ── Demo contacts ─────────────────────────────────────────────────────────────
 export interface DemoContact {
   id: string;
@@ -220,6 +264,8 @@ export async function seedDemoDataIfNeeded(): Promise<void> {
       AsyncStorage.setItem('buffr_transactions', JSON.stringify(SEED_TRANSACTIONS)),
       AsyncStorage.setItem('buffr_vouchers', JSON.stringify(SEED_VOUCHERS)),
       AsyncStorage.setItem('buffr_contacts', JSON.stringify(SEED_CONTACTS)),
+      AsyncStorage.setItem('buffr_loan_offer', JSON.stringify(SEED_LOAN_OFFER)),
+      AsyncStorage.setItem('buffr_active_loans', JSON.stringify(SEED_ACTIVE_LOANS)),
     ]);
     await AsyncStorage.setItem(SEED_DONE_KEY, '1');
   } catch (e) {

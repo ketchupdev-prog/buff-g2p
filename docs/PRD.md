@@ -9431,3 +9431,323 @@ All test cards: any future expiry, any CVV. 3DS OTP: shown on ACS page, or try `
 - **Settlement mode:** Buffr wallet top-ups are digital goods → **auto-settle is acceptable**. Any physical cash disbursement flows should use deferred settlement.
 - **Service file:** `services/payment.ts` — implements `getAdumoBearerToken()`, `initiateCardPayment()`, `authorisePayment()`, `settlePayment()`, `refundPayment()`.
 
+---
+
+## 21. Transaction Analytics Screen (G2P Context)
+
+### §21.1 Overview
+
+The Transactions tab (`app/(tabs)/transactions/index.tsx`) provides beneficiaries with a meaningful financial analytics view — going beyond a raw list to show spending patterns, category breakdowns, and time-period comparisons. In the G2P context, understanding the flow of voucher income vs. day-to-day spending is critical for financial literacy.
+
+### §21.2 Screen Structure
+
+```
+┌─────────────────────────────────────┐
+│  AppHeader (search + avatar)        │
+├─────────────────────────────────────┤
+│  [Balance]  [Earnings]  [Spendings] │  ← Segmented control
+├─────────────────────────────────────┤
+│  ┌───────────────────────────────┐  │
+│  │ [Weekly] [Monthly] [All Time] │  │  ← Period selector
+│  │                               │  │
+│  │  Total Earned: N$ 5,000.00   │  │  ← Total + sub-stat
+│  │                               │  │
+│  │  ▁▃▅▇▅▃▇  (bar chart)        │  │  ← 7 bars (weekly) or 4 (monthly)
+│  └───────────────────────────────┘  │
+├─────────────────────────────────────┤
+│  Breakdown                          │
+│  🎫 Vouchers & Grants  N$ 5,000  ██ │
+│  💳 Transfers          N$ 200    ▌  │
+│  📄 Bills & Utilities  N$ 450    ██ │
+│  📱 Airtime & Data     N$ 50     ▌  │
+├─────────────────────────────────────┤
+│  Transactions                       │
+│  TODAY                              │
+│  [EK] Eino Kashikola   +N$ 3,800   │
+│  [NP] NamPower         -N$ 450     │
+│  YESTERDAY                          │
+│  [MN] Maria Nakashona  -N$ 200     │
+└─────────────────────────────────────┘
+```
+
+### §21.3 Tab Logic
+
+| Tab | Data Source | Chart Color | Total Label |
+|-----|-------------|-------------|-------------|
+| **Balance** | All transactions (net = earnings − spendings) | Green | Net Balance |
+| **Earnings** | `receive`, `voucher_redeem`, `add_money`, `loan_disbursement` | Green | Total Earned |
+| **Spendings** | `send`, `cash_out`, `bill_pay`, `airtime`, `loan_repayment` | Red | Total Spent |
+
+### §21.4 Period Selector
+
+| Period | Chart Buckets | Data Range |
+|--------|---------------|------------|
+| **Weekly** | 7 daily bars (Mon→Sun labels) | Last 7 days |
+| **Monthly** | 4 weekly bars (W1→W4) | Last 30 days |
+| **All Time** | No chart; 3-stat row (Earned / Spent / Net) | All transactions |
+
+Bar charts are rendered using pure React Native `View` components (no external chart library). The most recent bucket is rendered at full opacity; past buckets at 33% opacity. Bar height is proportional to the maximum bucket value, with a minimum of 4 px.
+
+### §21.5 G2P Category Breakdown
+
+Categories are adapted from generic financial apps to the Namibian G2P context:
+
+| Category | Icon | Color | Transaction Types |
+|----------|------|-------|------------------|
+| Vouchers & Grants | ticket-outline | Gold `#D97706` | `voucher_redeem`, `add_money` |
+| Transfers | swap-horizontal-outline | Brand `#0029D6` | `send`, `receive` |
+| Bills & Utilities | document-text-outline | Red `#E11D48` | `bill_pay` |
+| Airtime & Data | phone-portrait-outline | Teal `#0891B2` | `airtime` |
+| Cash Out | cash-outline | Purple `#7C3AED` | `cash_out` |
+| Loans | business-outline | Indigo `#6366F1` | `loan_disbursement`, `loan_repayment` |
+
+Each category card shows: icon, label, amount, progress bar (% of total activity), percentage label. Only categories with non-zero activity in the selected period are rendered. Sorted by amount descending.
+
+The breakdown adapts to the active tab:
+- **Earnings** tab → only income-type categories (Vouchers & Grants, Transfers-receive portion)
+- **Spendings** tab → only expense-type categories
+- **Balance** tab → all categories
+
+### §21.6 Transaction List
+
+Each transaction row shows:
+- **Avatar**: Initials circle (coloured by name hash) for person-to-person transactions; category icon circle for system transactions (vouchers, bills, airtime)
+- **Display name**: `tx.counterparty` if present, else `formatTransactionType(tx.type)`
+- **Subtitle**: `formatTransactionType(tx.type)` always shown
+- **Amount**: Green `+N$ X.XX` for income, dark `-N$ X.XX` for expenses
+- **Status pill**: Shown only for `pending` or `failed` transactions (not shown for `success`)
+
+Rows are grouped by date label (Today / Yesterday / "Mar 5" etc.), matching the existing pattern.
+
+### §21.7 Search
+
+The search bar (in AppHeader) filters the transaction list only — not the analytics card or category breakdown. Search matches `counterparty`, `description`, and `formatTransactionType(type)`.
+
+### §21.8 Implementation Notes
+
+- **No new packages required**: Bar charts use `View` components; avatar colours use a deterministic hash on the first character code of the counterparty name.
+- **Data source**: `getTransactions({ limit: 100 })` from `services/transactions.ts` (API or AsyncStorage fallback).
+- **Period filtering**: Client-side; `filterByPeriod()` filters by `createdAt` timestamp.
+- **Pull-to-refresh**: Updates all analytics, charts, and the transaction list.
+- **File**: `app/(tabs)/transactions/index.tsx`
+
+---
+
+## 22. Loan Apply Flow (Multi-Step)
+
+**Route:** `/(tabs)/home/loans/apply`
+**Params:** `offerId` (string), `tierId` ('quick'|'standard'|'maximum'), `maxAmount` (string – pre-calculated max for this tier)
+**File:** `app/(tabs)/home/loans/apply.tsx`
+
+### §22.1 Flow Steps
+
+```
+Offer Details (step 1)
+  └─ [Get Loan] ──▶ Biometric / FaceID (step 2, auto-advances ~2s)
+                       └─ [Approved] ──▶ Loan Credited! (step 3)
+                                           ├─ [Add details] ──▶ Add Details (step 4)
+                                           └─ [Skip] ──▶ /(tabs)/home/loans
+```
+
+### §22.2 Step 1 – Offer Details
+
+| Element | Description |
+|---------|-------------|
+| Blue card | Loan tier label, "Voucher-backed advance" subtitle |
+| Amount stepper | `−` / `+` buttons adjusting in N$100 increments; bounded [100, maxAmount]; large centered amount display (N$42px) |
+| Terms card | Interest Rate · Interest Amount · Total Repayable · Repayment info |
+| Auto Pay toggle | Checkbox-style; enables auto-deduction from next grant |
+| Warning banner | Amber; stamp duties / Namfisa levies disclosure |
+| Get Loan CTA | Black pill button; advances to biometric step |
+
+### §22.3 Step 2 – Biometric Verification
+
+- Pulsing fingerprint/Face ID circle (scale 1→1.12→1 loop)
+- "Verifying Identity" title + "Touch ID / Face ID authentication…" subtitle
+- Auto-advances after ~2 s (calls `applyForLoan()` in the background)
+- On failure: returns to Step 1 with error banner
+
+### §22.4 Step 3 – Loan Credited Success
+
+- Animated green checkmark (spring bounce)
+- "Loan Credited!" + disbursed amount (N$36px, primary blue)
+- "has been added to your Buffr wallet"
+- Two CTAs: **Add details** (→ Step 4) and **Skip** (→ loans index)
+
+### §22.5 Step 4 – Add Details (optional)
+
+- Large emoji icon circle (88×88); tap to open emoji picker grid (24 emojis, 3 rows)
+- Loan name text input (pill style, max 50 chars)
+- **Save** CTA → `AsyncStorage.setItem('buffr_loan_details', ...)` → `router.replace('/(tabs)/home/loans')`
+
+### §22.6 Offline / Fallback
+
+`applyForLoan()` creates a loan record in `AsyncStorage` key `buffr_active_loans` with: id, amount, interestAmount (15%), totalRepayable, disbursedAt, status:'active', repaymentDue (+1 month).
+
+---
+
+## 23. Loan Detail Screen
+
+**Route:** `/(tabs)/home/loans/[id]`
+**Params:** `id` – loan ID
+**File:** `app/(tabs)/home/loans/[id].tsx`
+
+### §23.1 Screen Structure
+
+```
+Stack header: "Loan Details" + back chevron
+Hero card      [emoji icon] [loan name]  [Active / Paid / Overdue badge]
+               Ref: loan_xxx
+Amount card    (blue) N$ X,XXX (large)
+               + Interest (15%) · Total Repayable
+               [Calendar chip: "Due DD Mon YYYY"]
+Auto Pay row   Repeat icon · "Auto Pay" · toggle (default on)
+               "Repayment deducted from next grant" | "Manual repayment required"
+Timeline       [Loan Credited] ──── [Upcoming Repayment / Loan Repaid / Overdue]
+Info banner    Blue info · repayment auto-deduction explanation
+```
+
+### §23.2 Timeline Events
+
+| Event | Dot Colour | When shown |
+|-------|-----------|-----------|
+| Loan Credited | #22C55E (green) | Always (disbursedAt date) |
+| Loan Repaid | #2563EB (blue) | When status = 'repaid' |
+| Upcoming Repayment | #D1D5DB (grey, hollow) | When status = 'active' |
+| Payment Overdue | #E11D48 (red) | When status = 'overdue' |
+
+### §23.3 Data
+
+- `getLoan(id)` → API or `AsyncStorage.getItem('buffr_active_loans')` filter by id
+- `getLoanDetails(id)` → `AsyncStorage.getItem('buffr_loan_details')` → `{ name, icon }` (defaults: 'My Loan', '💰')
+- Pull-to-refresh supported
+
+---
+
+## 24. My QR Code Screen (Redesigned)
+
+**Route:** `/(tabs)/profile/qr-code`
+**File:** `app/(tabs)/profile/qr-code.tsx`
+
+### §24.1 Screen Structure
+
+```
+Custom header: back chevron (rounded) · "My QR Code" · spacer
+
+Content (centred):
+  Avatar circle  (80×80, colour derived from name hash)
+  User name      (20px, bold)
+  QR card        (white, shadow, 28px padding)
+    QRCode       (react-native-qrcode-svg, 200×200)
+  Chips row      [card-icon  BUFFR-ID]  [call-icon  +264…]
+  Hint           "Scan to send money via any NAMQR-compatible app"
+
+Bottom actions bar (white, border-top):
+  [Share QR]   →  Share.share() with Buffr ID + phone
+  [Download QR]→  Share.share() (wraps SVG export; native file API in production)
+```
+
+### §24.2 QR Value
+
+`BUFFR:{buffrId}:{phone}` when buffrId is set; falls back to `BUFFR:RECEIVE`.
+
+### §24.3 Changes from previous version
+
+- Added avatar + name above QR
+- Replaced plain card with shadow card
+- Added Buffr ID chip + phone chip below QR
+- Updated hint text to reference NAMQR compatibility
+- Replaced single hint with two action buttons (Share QR / Download QR)
+- Rounded back button (36×36 circle)
+
+---
+
+## 25. Add Wallet – Enhanced Auto Pay Configuration
+
+**Route:** `/add-wallet`
+**File:** `app/add-wallet.tsx`
+
+### §25.1 Overview
+
+When the **Auto Pay** switch is toggled ON, a configuration card expands below the toggle with the following fields. The config is stored alongside the wallet record and used to set up a recurring top-up schedule (managed by backend; stored locally for offline preview).
+
+### §25.2 Auto Pay Config Fields
+
+| Field | UI Component | Values / Notes |
+|-------|-------------|----------------|
+| Frequency | Horizontal tabs (pill) | Weekly / Bi-weekly / Monthly |
+| Deduct On | Tappable row (calendar icon) | Opens day-picker sheet (1–28); label "Day X of the cycle" |
+| Time | Inline text input (time icon) | HH:MM string; default 09:00 |
+| Amount | Inline text input (N$ prefix) | decimal-pad keyboard |
+| Number of Repayments | Tappable row (repeat icon) | Dropdown sheet: 3 / 6 / 9 / 12 / 24 |
+| Payment Method | Tappable row | Opens **Pay From** bottom sheet (see §25.3) |
+
+### §25.3 Pay From Bottom Sheet
+
+Shared pattern also used in Send Money – Receiver Details:
+
+- Sources built from `getWallets()`: each wallet becomes a PaySource with icon, label, balance
+- Linked bank cards from `wallet.linkedCards[]` appear as additional bank sources
+- Radio-button selection (hollow circle → filled centre when selected)
+- Spring-animated slide-up from bottom (`Animated.Value(400)` → 0)
+
+### §25.4 Day Picker Sheet
+
+7-column grid of day numbers (1–28); selected day highlighted with primary blue circle.
+
+### §25.5 Repayments Picker Sheet
+
+List rows with "X repayments" label + checkmark icon on selected option.
+
+### §25.6 Seed Data – Linked Bank Cards
+
+`SEED_WALLETS[0]` (Buffr Account, `w_main_001`) includes:
+```json
+"linkedCards": [
+  { "id": "lc_ned_001", "label": "Nedbank Cheque", "last4": "2293", "brand": "Visa" },
+  { "id": "lc_bwh_001", "label": "Bank Windhoek",  "last4": "4184", "brand": "Mastercard" }
+]
+```
+
+---
+
+## 26. Send Money – Receiver Details Screen
+
+**Route:** `/send-money/amount`
+**File:** `app/send-money/amount.tsx`
+
+### §26.1 Overview
+
+When a recipient is selected from `/send-money/select-recipient`, this screen collects the payment amount and optional note, shows the recipient's details, and allows the user to choose a funding source via the Pay From bottom sheet.
+
+### §26.2 Screen Structure
+
+```
+Stack header: back chevron · recipient name
+
+Hero section (white card, top):
+  Avatar circle      (initials + name-hash colour, 72×72)
+  Recipient name     (bold 22px)
+  Banking name       (14px, grey)
+  Email              (14px, grey)
+  Phone              (14px, grey)
+
+Control row:
+  [Pay From pill]    shows selected source; opens Pay From sheet
+  [Note toggle]      shows/hides note text input
+
+Amount input:
+  "N$" prefix (20px)
+  Large editable number (52px, centered)
+
+Pay button:         Black pill · "Pay {name}" · disabled if amount = 0
+```
+
+### §26.3 Pay From Sheet
+
+Same pattern as §25.3. Default selection = primary wallet (Buffr Account).
+
+### §26.4 Routing
+
+On confirm → `/send-money/confirm` (params: recipientId, amount, note, sourceId).
+

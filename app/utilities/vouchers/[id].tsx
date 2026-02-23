@@ -16,7 +16,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useUser } from '@/contexts/UserContext';
 import { getVoucher, redeemToWallet, type Voucher } from '@/services/vouchers';
@@ -108,7 +107,6 @@ export default function VoucherDetailScreen() {
 
   return (
     <View style={styles.screen}>
-      <LinearGradient colors={['#EFF6FF', '#ECFEFF', '#fff']} style={StyleSheet.absoluteFill} />
       <SafeAreaView style={styles.safe} edges={['top']}>
         <Stack.Screen
           options={{
@@ -134,8 +132,8 @@ export default function VoucherDetailScreen() {
           </View>
         ) : (
           <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-            {/* Gradient voucher card */}
-            <LinearGradient colors={['#2563EB', '#06B6D4']} style={styles.voucherCard} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+            {/* Voucher card */}
+            <View style={styles.voucherCard}>
               <View style={styles.voucherCardTop}>
                 <View>
                   <Text style={styles.voucherCardLabel}>{voucher.programme}</Text>
@@ -156,7 +154,7 @@ export default function VoucherDetailScreen() {
                   <Text style={styles.voucherDateValue}>{formatDate(voucher.status === 'redeemed' && voucher.redeemedAt ? voucher.redeemedAt : voucher.expiresAt)}</Text>
                 </View>
               </View>
-            </LinearGradient>
+            </View>
 
             {/* Grant Information */}
             <View style={styles.grantCard}>
@@ -279,15 +277,15 @@ export default function VoucherDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1 },
   safe: { flex: 1 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   notFound: { fontSize: 16, color: '#64748B', marginBottom: 12 },
   link: { fontSize: 16, color: '#2563EB' },
   scroll: { flex: 1 },
   scrollContent: { padding: 24, paddingBottom: 48 },
-  // Gradient voucher card
-  voucherCard: { borderRadius: 24, padding: 24, marginBottom: 24 },
+  screen: { flex: 1, backgroundColor: '#F8FAFC' },
+  // Voucher card (solid brand blue, was gradient)
+  voucherCard: { borderRadius: 24, padding: 24, marginBottom: 24, backgroundColor: '#0029D6' },
   voucherCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
   voucherCardLabel: { fontSize: 14, color: 'rgba(255,255,255,0.9)', marginBottom: 4, fontWeight: '500' },
   voucherCardId: { fontSize: 12, color: 'rgba(255,255,255,0.7)' },
@@ -328,7 +326,7 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: 18, fontWeight: '700', color: '#020617', textAlign: 'center', marginBottom: 4 },
   modalSubtitle: { fontSize: 14, color: '#64748B', textAlign: 'center', marginBottom: 28 },
   pinRow: { flexDirection: 'row', justifyContent: 'center', gap: 10, marginBottom: 8 },
-  pinBox: { width: 48, height: 56, borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 12, textAlign: 'center', fontSize: 18, fontWeight: '700', color: '#020617', backgroundColor: '#F8FAFC' },
+  pinBox: { width: 48, height: 56, borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 16, textAlign: 'center', fontSize: 18, fontWeight: '700', color: '#020617', backgroundColor: '#F8FAFC' },
   pinBoxFilled: { borderColor: '#0029D6', backgroundColor: '#fff' },
   pinBoxError: { borderColor: '#E11D48' },
   pinError: { fontSize: 13, color: '#E11D48', textAlign: 'center', marginBottom: 12 },

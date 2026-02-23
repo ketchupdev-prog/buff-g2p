@@ -31,6 +31,9 @@ export interface AppHeaderProps {
   avatarUri?: string | null;
   /** Show red badge on notification icon. */
   notificationBadge?: boolean;
+  /** Show a back arrow on the left (for pushed stack screens with custom header). */
+  showBackButton?: boolean;
+  onBackPress?: () => void;
 }
 
 const SEARCH_PLACEHOLDER = 'Search anything...';
@@ -45,9 +48,21 @@ export function AppHeader({
   onAvatarPress,
   avatarUri = null,
   notificationBadge = false,
+  showBackButton = false,
+  onBackPress,
 }: AppHeaderProps) {
   return (
     <View style={styles.header}>
+      {showBackButton && (
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={onBackPress}
+          accessibilityLabel="Go back"
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="arrow-back" size={22} color="#111827" />
+        </TouchableOpacity>
+      )}
       {showSearch ? (
         <View style={styles.searchWrap}>
           <Ionicons name="search-outline" size={20} color="#94A3B8" style={styles.searchIcon} />
@@ -127,6 +142,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     gap: 4,
   },
+  backBtn: { padding: 4, marginRight: 4 },
   iconBtn: { padding: 8, position: 'relative' },
   badge: {
     position: 'absolute',

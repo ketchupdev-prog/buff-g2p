@@ -1,22 +1,16 @@
 import { View, Text, StyleSheet } from 'react-native';
+import { Stack } from 'expo-router';
 
-export default function WalletsIdCashOutTillScreen() {
+export default function CashOutTillScreen() {
   return (
     <View style={styles.container}>
-      <Text style={styles.text}>WalletsIdCashOutTill Screen</Text>
+      <Stack.Screen options={{ headerShown: true, title: 'Cash at Till', headerBackTitle: '' }} />
+      <Text style={styles.text}>Till cash-out – coming soon</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f0f0f0',
-  },
-  text: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
+  container: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC' },
+  text: { fontSize: 16, color: '#6B7280' },
 });

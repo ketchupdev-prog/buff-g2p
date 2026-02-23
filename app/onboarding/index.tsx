@@ -24,7 +24,7 @@ export default function WelcomeScreen() {
             <Text style={styles.primaryButtonText}>Get Started</Text>
           </TouchableOpacity>
 
-          <Link href="/sign-in" asChild>
+          <Link href="/onboarding/phone" asChild>
             <TouchableOpacity style={styles.secondaryButton}>
               <Text style={styles.secondaryButtonText}>Sign In</Text>
             </TouchableOpacity>

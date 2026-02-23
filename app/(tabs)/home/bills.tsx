@@ -72,6 +72,8 @@ export default function BillsIndexScreen() {
           searchValue={search}
           onSearchChange={setSearch}
           showSearch
+          showBackButton
+          onBackPress={() => router.back()}
           onNotificationPress={() => router.push('/(tabs)/profile/notifications' as never)}
           onAvatarPress={() => router.push('/(tabs)/profile' as never)}
           avatarUri={profile?.photoUri ?? null}

@@ -16,7 +16,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router, Stack } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -48,18 +47,29 @@ async function getAuthHeader() {
 }
 
 async function getLoanData(): Promise<{ offer: LoanOffer | null; activeLoans: ActiveLoan[] }> {
-  if (!API_BASE_URL) return { offer: null, activeLoans: [] };
+  if (API_BASE_URL) {
+    try {
+      const h = await getAuthHeader();
+      const res = await fetch(`${API_BASE_URL}/api/v1/mobile/loans`, {
+        headers: { 'Content-Type': 'application/json', ...h },
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { offer?: LoanOffer; activeLoans?: ActiveLoan[] };
+        return { offer: data.offer ?? null, activeLoans: data.activeLoans ?? [] };
+      }
+    } catch (e) { console.error('getLoanData:', e); }
+  }
+  // Fallback: AsyncStorage seed data
   try {
-    const h = await getAuthHeader();
-    const res = await fetch(`${API_BASE_URL}/api/v1/mobile/loans`, {
-      headers: { 'Content-Type': 'application/json', ...h },
-    });
-    if (res.ok) {
-      const data = (await res.json()) as { offer?: LoanOffer; activeLoans?: ActiveLoan[] };
-      return { offer: data.offer ?? null, activeLoans: data.activeLoans ?? [] };
-    }
-  } catch (e) { console.error('getLoanData:', e); }
-  return { offer: null, activeLoans: [] };
+    const [offerRaw, loansRaw] = await Promise.all([
+      AsyncStorage.getItem('buffr_loan_offer'),
+      AsyncStorage.getItem('buffr_active_loans'),
+    ]);
+    return {
+      offer: offerRaw ? (JSON.parse(offerRaw) as LoanOffer) : null,
+      activeLoans: loansRaw ? (JSON.parse(loansRaw) as ActiveLoan[]) : [],
+    };
+  } catch { return { offer: null, activeLoans: [] }; }
 }
 
 function formatDate(iso: string): string {
@@ -108,7 +118,6 @@ export default function LoansScreen() {
 
   return (
     <View style={styles.screen}>
-      <LinearGradient colors={['#EFF6FF', '#F5F3FF', '#fff']} style={StyleSheet.absoluteFill} />
       <SafeAreaView style={styles.safe} edges={['top']}>
         <Stack.Screen
           options={{
@@ -141,7 +150,7 @@ export default function LoansScreen() {
           ) : (
             <>
               {/* Summary card */}
-              <LinearGradient colors={['#2563EB', '#06B6D4']} style={styles.summaryCard} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+              <View style={styles.summaryCard}>
                 <View style={styles.summaryRow}>
                   <View>
                     <Text style={styles.summaryLabel}>Total Grant Value</Text>
@@ -162,7 +171,7 @@ export default function LoansScreen() {
                   </View>
                   <Text style={styles.progressHint}>15% APR • Auto-repayment from future grants</Text>
                 </View>
-              </LinearGradient>
+              </View>
 
               {/* Warning banner */}
               <View style={styles.warningBanner}>
@@ -193,9 +202,9 @@ export default function LoansScreen() {
                     onPress={() => router.push({ pathname: '/(tabs)/home/loans/apply', params: { offerId: offer.id, tierId: tier.id, maxAmount: tier.amount.toString() } } as never)}
                     activeOpacity={0.8}
                   >
-                    <LinearGradient colors={tier.colors} style={styles.tierIconWrap} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+                    <View style={[styles.tierIconWrap, { backgroundColor: tier.colors[0] }]}>
                       <Ionicons name="cash-outline" size={24} color="#fff" />
-                    </LinearGradient>
+                    </View>
                     <View style={styles.tierBody}>
                       <Text style={styles.tierLabel}>{tier.label}</Text>
                       <Text style={styles.tierAmount}>N$ {tier.amount.toLocaleString()}</Text>
@@ -263,8 +272,8 @@ const styles = StyleSheet.create({
   scrollContent: { padding: 24, paddingBottom: 60 },
   errorBox: { padding: 14, backgroundColor: '#FEE2E2', borderRadius: 12, marginTop: 40 },
   errorText: { fontSize: 13, color: '#DC2626', textAlign: 'center' },
-  // Summary gradient card
-  summaryCard: { borderRadius: 24, padding: 24, marginBottom: 16 },
+  // Summary card (solid brand blue, was gradient)
+  summaryCard: { borderRadius: 24, padding: 24, marginBottom: 16, backgroundColor: '#0029D6' },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
   summaryLabel: { fontSize: 12, color: 'rgba(255,255,255,0.8)', marginBottom: 4 },
   summaryValue: { fontSize: 24, fontWeight: '700', color: '#fff' },

@@ -1,44 +1,56 @@
 /**
- * Send Money – Amount – Buffr G2P.
- * §3.4 screen 28 / Figma 153:752.
+ * Send Money – Receiver Details – Buffr G2P.
+ * Recipient hero, Pay From selector, amount input, note, Pay CTA.
+ * §26 / Figma 153:752.
  */
 import React, { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { designSystem } from '@/constants/designSystem';
 import { getWallets, type Wallet } from '@/services/wallets';
+import { Avatar, PayFromSheet, PayFromPill, buildPaySources, type PaySource } from '@/components/ui';
 
-export default function SendAmountScreen() {
-  const { recipientPhone, recipientName } = useLocalSearchParams<{
-    recipientPhone: string;
-    recipientName: string;
-  }>();
+export default function ReceiverDetailsScreen() {
+  const { recipientPhone, recipientName, recipientEmail, recipientBankingName } =
+    useLocalSearchParams<{
+      recipientPhone: string;
+      recipientName: string;
+      recipientEmail?: string;
+      recipientBankingName?: string;
+    }>();
 
+  const insets = useSafeAreaInsets();
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
   const [wallets, setWallets] = useState<Wallet[]>([]);
-  const [selectedWalletId, setSelectedWalletId] = useState<string | null>(null);
+  const [paySource, setPaySource] = useState<PaySource | null>(null);
+  const [showPayFrom, setShowPayFrom] = useState(false);
+  const [showNoteInput, setShowNoteInput] = useState(false);
   const [amountError, setAmountError] = useState<string | null>(null);
 
   useEffect(() => {
     getWallets().then((ws) => {
       setWallets(ws);
-      if (ws.length > 0) setSelectedWalletId(ws[0].id);
+      const sources = buildPaySources(ws);
+      if (sources.length > 0) setPaySource(sources[0]);
     });
   }, []);
 
-  const selectedWallet = wallets.find((w) => w.id === selectedWalletId);
+  const selectedWallet = paySource?.sourceType === 'wallet'
+    ? wallets.find(w => w.id === paySource.id)
+    : null;
 
-  const handleContinue = () => {
+  const handlePay = () => {
     const numeric = parseFloat(amount.replace(/,/g, ''));
     if (isNaN(numeric) || numeric <= 0) {
       setAmountError('Please enter a valid amount.');
@@ -56,206 +68,169 @@ export default function SendAmountScreen() {
         recipientName,
         amount: numeric.toFixed(2),
         note,
-        walletId: selectedWalletId ?? '',
+        walletId: paySource?.id ?? wallets[0]?.id ?? '',
       },
     } as never);
   };
 
+  const canPay = parseFloat(amount) > 0;
+
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <Stack.Screen
-        options={{
-          headerShown: true,
-          headerTitle: 'Send Money',
-          headerTitleStyle: { ...designSystem.typography.textStyles.title, color: designSystem.colors.neutral.text },
-          headerBackTitleVisible: false,
-          headerTintColor: designSystem.colors.neutral.text,
-        }}
-      />
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={styles.container}>
-          {/* Recipient */}
-          <View style={styles.recipientRow}>
-            <View style={styles.recipientAvatar}>
-              <Text style={styles.recipientInitial}>
-                {(recipientName?.[0] ?? '?').toUpperCase()}
-              </Text>
-            </View>
-            <View>
+    <View style={styles.screen}>
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <Stack.Screen
+          options={{
+            headerShown: true,
+            headerTitle: 'Receiver Details',
+            headerBackTitle: '',
+            headerTintColor: '#111827',
+            headerTitleStyle: { fontSize: 17, fontWeight: '700', color: '#111827' },
+            headerRight: () => (
+              <TouchableOpacity style={{ marginRight: 16 }} accessibilityLabel="Save contact">
+                <Ionicons name="heart-outline" size={22} color="#111827" />
+              </TouchableOpacity>
+            ),
+          }}
+        />
+
+        <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+
+            {/* Hero: recipient profile */}
+            <View style={styles.hero}>
+              <View style={styles.avatarShadow}>
+                <Avatar name={recipientName ?? '?'} size={88} />
+              </View>
               <Text style={styles.recipientName}>{recipientName || 'Recipient'}</Text>
-              <Text style={styles.recipientPhone}>{recipientPhone}</Text>
+              {recipientEmail ? <Text style={styles.recipientSub}>{recipientEmail}</Text> : null}
+              <Text style={styles.recipientSub}>{recipientPhone}</Text>
+              {recipientBankingName ? <Text style={styles.recipientBank}>Banking name: {recipientBankingName}</Text> : null}
             </View>
-          </View>
 
-          {/* Amount Input */}
-          <View style={styles.amountContainer}>
-            <Text style={styles.currency}>N$</Text>
-            <TextInput
-              style={styles.amountInput}
-              placeholder="0.00"
-              placeholderTextColor={designSystem.colors.neutral.textTertiary}
-              value={amount}
-              onChangeText={(t) => { setAmount(t.replace(/[^0-9.]/g, '')); setAmountError(null); }}
-              keyboardType="decimal-pad"
-              autoFocus
-              accessibilityLabel="Amount to send"
-            />
-          </View>
-          {amountError ? <Text style={styles.amountError}>{amountError}</Text> : null}
-
-          {/* Wallet selector */}
-          {wallets.length > 0 && (
-            <View style={styles.walletSelector}>
-              <Text style={styles.walletSelectorLabel}>From:</Text>
-              {wallets.map((w) => (
-                <TouchableOpacity
-                  key={w.id}
-                  style={[styles.walletChip, selectedWalletId === w.id && styles.walletChipActive]}
-                  onPress={() => setSelectedWalletId(w.id)}
-                  accessibilityLabel={`${w.name}, balance N$ ${w.balance.toFixed(2)}`}
-                >
-                  <Text style={[styles.walletChipText, selectedWalletId === w.id && styles.walletChipTextActive]}>
-                    {w.name}
-                  </Text>
-                  <Text style={[styles.walletChipBalance, selectedWalletId === w.id && styles.walletChipTextActive]}>
-                    N$ {w.balance.toFixed(2)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+            {/* Pay From + Note row */}
+            <View style={styles.controlRow}>
+              <PayFromPill source={paySource} onPress={() => setShowPayFrom(true)} />
+              <TouchableOpacity
+                style={styles.noteBtn}
+                onPress={() => setShowNoteInput(v => !v)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="pencil-outline" size={15} color="#6B7280" />
+                <Text style={styles.noteBtnText}>Note</Text>
+              </TouchableOpacity>
             </View>
-          )}
 
-          {/* Note */}
-          <View style={styles.noteContainer}>
-            <Text style={styles.noteLabel}>Note (optional)</Text>
-            <TextInput
-              style={styles.noteInput}
-              placeholder="What is this for?"
-              placeholderTextColor={designSystem.colors.neutral.textTertiary}
-              value={note}
-              onChangeText={setNote}
-              maxLength={100}
-              returnKeyType="done"
-              accessibilityLabel="Note for recipient"
-            />
+            {showNoteInput && (
+              <TextInput
+                style={styles.noteInput}
+                placeholder="What's this for?"
+                placeholderTextColor="#9CA3AF"
+                value={note}
+                onChangeText={setNote}
+                maxLength={100}
+                returnKeyType="done"
+              />
+            )}
+
+            {/* Amount input */}
+            <View style={styles.amountWrap}>
+              <Text style={styles.amountPrefix}>N$</Text>
+              <TextInput
+                style={styles.amountInput}
+                placeholder="0"
+                placeholderTextColor="#D1D5DB"
+                value={amount}
+                onChangeText={(t) => { setAmount(t.replace(/[^0-9.]/g, '')); setAmountError(null); }}
+                keyboardType="decimal-pad"
+                autoFocus
+              />
+            </View>
+
+            {amountError ? <Text style={styles.amountError}>{amountError}</Text> : null}
+
+            {selectedWallet && (
+              <Text style={styles.balanceHint}>
+                Available: N$ {selectedWallet.balance.toLocaleString('en-NA', { minimumFractionDigits: 2 })}
+              </Text>
+            )}
+
+            <View style={{ height: 40 }} />
+          </ScrollView>
+
+          {/* Pay button */}
+          <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 24) }]}>
+            <TouchableOpacity
+              style={[styles.payBtn, !canPay && styles.payBtnDisabled]}
+              onPress={handlePay}
+              disabled={!canPay}
+              activeOpacity={0.9}
+            >
+              <Text style={styles.payBtnText}>
+                Pay {recipientName ? recipientName.split(' ')[0] : ''}
+              </Text>
+            </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
 
-        <View style={styles.footer}>
-          <TouchableOpacity
-            style={styles.continueButton}
-            onPress={handleContinue}
-            accessibilityLabel="Continue to confirm"
-          >
-            <Text style={styles.continueButtonText}>Continue</Text>
-          </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      {/* Pay From sheet */}
+      <PayFromSheet
+        visible={showPayFrom}
+        selected={paySource}
+        onSelect={setPaySource}
+        onClose={() => setShowPayFrom(false)}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: designSystem.colors.neutral.background },
+  screen: { flex: 1, backgroundColor: '#fff' },
+  safe: { flex: 1 },
   flex: { flex: 1 },
-  container: {
-    flex: 1,
-    paddingHorizontal: designSystem.spacing.g2p.horizontalPadding,
-    paddingTop: designSystem.spacing.g2p.sectionSpacing,
+  scroll: { flex: 1 },
+  scrollContent: { paddingBottom: 16 },
+
+  // Hero
+  hero: { alignItems: 'center', paddingTop: 32, paddingBottom: 24, paddingHorizontal: 24 },
+  avatarShadow: {
+    marginBottom: 16,
+    shadowColor: '#0029D6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 4,
+    borderRadius: 44,
   },
-  recipientRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: designSystem.spacing.g2p.sectionSpacing,
+  recipientName: { fontSize: 22, fontWeight: '700', color: '#111827', marginBottom: 4 },
+  recipientSub: { fontSize: 13, color: '#6B7280', marginBottom: 2 },
+  recipientBank: { fontSize: 12, color: '#9CA3AF', marginTop: 2 },
+
+  // Control row
+  controlRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 24, marginBottom: 16, gap: 10 },
+  noteBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#F8FAFC', borderWidth: 1.5, borderColor: '#E2E8F0',
+    borderRadius: 9999, paddingHorizontal: 14, paddingVertical: 10,
   },
-  recipientAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: designSystem.colors.brand.primaryMuted,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  recipientInitial: {
-    ...designSystem.typography.textStyles.body,
-    color: designSystem.colors.brand.primary,
-    fontWeight: '700',
-  },
-  recipientName: { ...designSystem.typography.textStyles.body, color: designSystem.colors.neutral.text, fontWeight: '600' },
-  recipientPhone: { ...designSystem.typography.textStyles.caption, color: designSystem.colors.neutral.textSecondary },
-  amountContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-  },
-  currency: {
-    ...designSystem.typography.textStyles.heading,
-    color: designSystem.colors.neutral.textSecondary,
-    marginRight: 8,
-    fontWeight: '700',
-  },
-  amountInput: {
-    ...designSystem.typography.textStyles.display,
-    color: designSystem.colors.neutral.text,
-    fontWeight: '700',
-    minWidth: 100,
-    textAlign: 'center',
-  },
-  amountError: {
-    ...designSystem.typography.textStyles.caption,
-    color: designSystem.colors.semantic.error,
-    textAlign: 'center',
-    marginBottom: designSystem.spacing.scale.md,
-  },
-  walletSelector: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: designSystem.spacing.scale.sm,
-    marginTop: designSystem.spacing.scale.xl,
-    marginBottom: designSystem.spacing.scale.lg,
-  },
-  walletSelectorLabel: {
-    ...designSystem.typography.textStyles.bodySm,
-    color: designSystem.colors.neutral.textSecondary,
-    fontWeight: '500',
-  },
-  walletChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: designSystem.radius.pill,
-    borderWidth: 1.5,
-    borderColor: designSystem.colors.neutral.border,
-    backgroundColor: designSystem.colors.neutral.surface,
-  },
-  walletChipActive: {
-    borderColor: designSystem.colors.brand.primary,
-    backgroundColor: designSystem.colors.brand.primary50,
-  },
-  walletChipText: { ...designSystem.typography.textStyles.caption, color: designSystem.colors.neutral.textSecondary, fontWeight: '600' },
-  walletChipBalance: { ...designSystem.typography.textStyles.caption, color: designSystem.colors.neutral.textTertiary },
-  walletChipTextActive: { color: designSystem.colors.brand.primary },
-  noteContainer: { marginTop: designSystem.spacing.scale.md },
-  noteLabel: { ...designSystem.typography.textStyles.bodySm, color: designSystem.colors.neutral.textSecondary, marginBottom: 6 },
+  noteBtnText: { fontSize: 13, fontWeight: '600', color: '#6B7280' },
+
   noteInput: {
-    height: designSystem.components.input.height,
-    backgroundColor: designSystem.colors.neutral.surface,
-    borderWidth: 1,
-    borderColor: designSystem.colors.neutral.border,
-    borderRadius: designSystem.components.input.borderRadius,
-    paddingHorizontal: 16,
-    ...designSystem.typography.textStyles.body,
-    color: designSystem.colors.neutral.text,
+    marginHorizontal: 24, marginBottom: 12, height: 48,
+    backgroundColor: '#F8FAFC', borderWidth: 1.5, borderColor: '#E2E8F0',
+    borderRadius: 9999, paddingHorizontal: 16, fontSize: 15, color: '#111827',
   },
-  footer: { padding: designSystem.spacing.g2p.horizontalPadding, paddingBottom: designSystem.spacing.g2p.sectionSpacing },
-  continueButton: {
-    height: designSystem.components.button.height,
-    backgroundColor: designSystem.colors.brand.primary,
-    borderRadius: designSystem.components.button.borderRadius,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  continueButtonText: { ...designSystem.typography.textStyles.body, color: '#fff', fontWeight: '700' },
+
+  // Amount
+  amountWrap: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, marginTop: 8 },
+  amountPrefix: { fontSize: 20, fontWeight: '600', color: '#9CA3AF', marginRight: 8 },
+  amountInput: { fontSize: 52, fontWeight: '700', color: '#111827', minWidth: 80, textAlign: 'center', padding: 0 },
+  amountError: { textAlign: 'center', fontSize: 13, color: '#E11D48', marginTop: 8 },
+  balanceHint: { textAlign: 'center', fontSize: 13, color: '#9CA3AF', marginTop: 6 },
+
+  // Footer
+  footer: { paddingHorizontal: 24, paddingTop: 16, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#F3F4F6' },
+  payBtn: { height: 54, borderRadius: 9999, backgroundColor: '#020617', justifyContent: 'center', alignItems: 'center' },
+  payBtnDisabled: { opacity: 0.4 },
+  payBtnText: { fontSize: 17, fontWeight: '700', color: '#fff' },
 });

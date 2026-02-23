@@ -141,8 +141,8 @@ export const designSystem = {
   },
   "components": {
     "searchBar": { "borderRadius": 999, "placeholder": "Search anything...", "placeholderSend": "Search phone, UPI, UID", "height": 56 },
-    "input": { "height": 56, "borderRadius": 12 },
-    "button": { "height": 56, "minTouchTarget": 44, "borderRadius": 16 },
+    "input": { "height": 56, "borderRadius": 9999 },
+    "button": { "height": 56, "minTouchTarget": 44, "borderRadius": 9999 },
     "pillButton": { "borderRadius": 999, "minTouchTarget": 44 },
     "iconButton": { "size": 40, "minTouchTarget": 44 },
     "card": { "borderRadius": 12 },

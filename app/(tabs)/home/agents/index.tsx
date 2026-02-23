@@ -6,7 +6,6 @@ import React, { useCallback, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router, Stack } from 'expo-router';
 import { useUser } from '@/contexts/UserContext';
 import { designSystem } from '@/constants/designSystem';
@@ -30,7 +29,6 @@ export default function AgentsIndexScreen() {
   return (
     <View style={styles.screen}>
       <View style={styles.backgroundFallback} />
-      <LinearGradient colors={['#F3F4F6', '#fff', '#F9FAFB']} style={StyleSheet.absoluteFill} />
       <SafeAreaView style={styles.safe} edges={['top']}>
         <Stack.Screen options={{ headerShown: false }} />
         <AppHeader

@@ -14,7 +14,6 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useUser } from '@/contexts/UserContext';
@@ -117,7 +116,6 @@ export default function VouchersScreen() {
   return (
     <View style={styles.screen}>
       <View style={styles.backgroundFallback} />
-      <LinearGradient colors={['#EFF6FF', '#ECFEFF', '#fff']} style={StyleSheet.absoluteFill} />
       <SafeAreaView style={styles.safe} edges={['top']}>
         {/* Header: Search (left) + Notification + Avatar (right) – §6.4 */}
         <AppHeader
