@@ -73,7 +73,7 @@ function computeAnalytics(txs: Transaction[], period: Period): Analytics {
   };
 }
 
-const N$ = (v: number) => `N$${v.toFixed(2)}`;
+const N$ = (v: number) => `N$${v.toFixed(2)}`; // PRD §5: no space between N$ and amount
 
 export default function ProfileAnalyticsScreen() {
   const [period, setPeriod] = useState<Period>('this_month');

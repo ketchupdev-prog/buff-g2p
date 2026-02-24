@@ -19,7 +19,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getSecureItem } from '@/services/secureStorage';
 import { designSystem } from '@/constants/designSystem';
 import { getWallets, type Wallet } from '@/services/wallets';
 
@@ -28,7 +28,7 @@ const PIN_LENGTH = 6;
 
 async function getAuthHeader(): Promise<Record<string, string>> {
   try {
-    const token = await AsyncStorage.getItem('buffr_access_token');
+    const token = await getSecureItem('buffr_access_token');
     return token ? { Authorization: `Bearer ${token}` } : {};
   } catch { return {}; }
 }
@@ -129,7 +129,7 @@ export default function MerchantPayScreen() {
               <Ionicons name="checkmark-circle-outline" size={44} color="#22C55E" />
             </View>
             <Text style={styles.successTitle}>Payment Successful!</Text>
-            <Text style={styles.successAmount}>N$ {done.amount.toLocaleString('en-NA', { minimumFractionDigits: 2 })}</Text>
+            <Text style={styles.successAmount}>N${done.amount.toLocaleString('en-NA', { minimumFractionDigits: 2 })}</Text>
             <Text style={styles.successMerchant}>paid to {merchantName}</Text>
             <View style={styles.refBox}>
               <Text style={styles.refLabel}>Reference</Text>
@@ -216,7 +216,7 @@ export default function MerchantPayScreen() {
                     <View style={styles.walletInfo}>
                       <Text style={styles.walletName}>{w.name}</Text>
                       <Text style={[styles.walletBalance, (!hasFunds && selectedWalletId === w.id) && { color: designSystem.colors.semantic.error }]}>
-                        N$ {w.balance.toLocaleString('en-NA', { minimumFractionDigits: 2 })}
+                        N${w.balance.toLocaleString('en-NA', { minimumFractionDigits: 2 })}
                       </Text>
                     </View>
                     {selectedWalletId === w.id && (
@@ -237,7 +237,7 @@ export default function MerchantPayScreen() {
               <Ionicons name="card-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
               <Text style={styles.payBtnText}>
                 {parsedAmount > 0
-                  ? `Pay N$ ${parsedAmount.toLocaleString('en-NA', { minimumFractionDigits: 2 })}`
+                  ? `Pay N$${parsedAmount.toLocaleString('en-NA', { minimumFractionDigits: 2 })}`
                   : 'Enter Amount to Pay'}
               </Text>
             </TouchableOpacity>
@@ -252,7 +252,7 @@ export default function MerchantPayScreen() {
             <View style={styles.handle} />
             <Text style={styles.pinTitle}>Confirm Payment</Text>
             <Text style={styles.pinSub}>
-              Enter your PIN to pay N$ {parsedAmount.toLocaleString('en-NA', { minimumFractionDigits: 2 })} to {merchantName}
+              Enter your PIN to pay N${parsedAmount.toLocaleString('en-NA', { minimumFractionDigits: 2 })} to {merchantName}
             </Text>
             <View style={styles.pinRow}>
               {pin.map((digit, i) => (

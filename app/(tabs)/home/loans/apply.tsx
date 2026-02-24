@@ -2,6 +2,7 @@
  * Loan Apply – Buffr G2P.
  * Multi-step: Offer Details → FaceID → Credited → Add Details.
  * §22 / Figma 108:276.
+ * Uses UserContext for profile and walletStatus.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -16,8 +17,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
+import { getSecureItem } from '@/services/secureStorage';
+import { useUser } from '@/contexts/UserContext';
 import {
   AmountStepper,
   EmojiIcon,
@@ -33,7 +34,7 @@ type Step = 'offer' | 'biometric' | 'credited' | 'details';
 
 async function getAuthHeader(): Promise<Record<string, string>> {
   try {
-    const token = await AsyncStorage.getItem('buffr_access_token');
+    const token = await getSecureItem('buffr_access_token');
     return token ? { Authorization: `Bearer ${token}` } : {};
   } catch { return {}; }
 }
@@ -107,6 +108,7 @@ const TIER_LABELS: Record<string, string> = {
 
 export default function LoansApplyScreen() {
   const { offerId, tierId, maxAmount } = useLocalSearchParams<{ offerId: string; tierId: string; maxAmount: string }>();
+  useUser();
   const max = parseInt(maxAmount ?? '0', 10);
 
   const [offer, setOffer] = useState<LoanOffer | null>(null);
@@ -196,7 +198,7 @@ export default function LoansApplyScreen() {
         <Stack.Screen options={{ headerShown: false }} />
         <SuccessScreen
           title="Loan Credited!"
-          value={`N$ ${amount.toLocaleString()}`}
+          value={`N$${amount.toLocaleString()}`}
           subtitle="has been added to your Buffr wallet."
           actions={[
             { label: 'Add details', onPress: () => setStep('details') },
@@ -264,15 +266,15 @@ export default function LoansApplyScreen() {
               onChange={setAmount}
               style={styles.stepper}
             />
-            <Text style={styles.offerMax}>Max N$ {max.toLocaleString()}</Text>
+            <Text style={styles.offerMax}>Max N${max.toLocaleString()}</Text>
           </View>
 
           {/* Terms */}
           <View style={styles.termsCard}>
             {[
               { label: 'Interest Rate', value: `${offer?.interestRate ?? 15}% APR` },
-              { label: 'Interest Amount', value: `N$ ${interest.toLocaleString()}` },
-              { label: 'Total Repayable', value: `N$ ${totalRepayable.toLocaleString()}`, highlight: true },
+              { label: 'Interest Amount', value: `N$${interest.toLocaleString()}` },
+              { label: 'Total Repayable', value: `N$${totalRepayable.toLocaleString()}`, highlight: true },
               { label: 'Repayment', value: offer?.repaymentInfo ?? 'Auto from next grant' },
             ].map((row, i, arr) => (
               <View key={row.label}>

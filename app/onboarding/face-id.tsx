@@ -1,10 +1,13 @@
+import React from 'react';
 import { StyleSheet, Text, View, Image, TouchableOpacity } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { designSystem } from '@/constants/designSystem';
+import { useUser } from '@/contexts/UserContext';
 // import * as LocalAuthentication from 'expo-local-authentication'; // Will be needed for actual implementation
 
 export default function FaceIdSetupScreen() {
+  useUser(); // Ensure UserContext is applied in onboarding flow
   const handleEnable = async () => {
     // In a real app, prompt for biometric authentication
     // const hasHardware = await LocalAuthentication.hasHardwareAsync();
@@ -35,7 +38,7 @@ export default function FaceIdSetupScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
-          headerTitle: 'Face ID',
+          headerTitle: 'Enable Authentication',
           headerTitleStyle: {
             ...designSystem.typography.textStyles.title,
             color: designSystem.colors.neutral.text,
@@ -50,7 +53,7 @@ export default function FaceIdSetupScreen() {
           style={styles.icon}
           resizeMode="contain"
         />
-        <Text style={styles.heading}>Enable Face ID</Text>
+        <Text style={styles.heading}>Enable Authentication</Text>
         <Text style={styles.instructionText}>
           Use Face ID to quickly and securely access your Buffr account.
         </Text>

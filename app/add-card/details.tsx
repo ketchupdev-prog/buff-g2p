@@ -1,6 +1,7 @@
 /**
- * Add card details – Buffr G2P. §3.4 screen 34d.
- * Stores linked card to the primary wallet's linkedCards in AsyncStorage.
+ * Add card details – Buffr G2P. §3.4 screen 34d. Buffr App Design: "Card Number", "Add Card +" CTA.
+ * Step 2 (manual) or after scan: card number, expiry, CVV, name on card.
+ * Uses UserContext for profile (name on card default) and state consistency.
  */
 import React, { useState } from 'react';
 import {
@@ -16,10 +17,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, Stack } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { designSystem } from '@/constants/designSystem';
+import { useUser } from '@/contexts/UserContext';
 import { getSecureItem } from '@/services/secureStorage';
-import { getWallets } from '@/services/wallets';
 
 const DS = designSystem;
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
@@ -43,63 +43,51 @@ function formatExpiry(raw: string): string {
   return digits;
 }
 
-async function getAuthHeader(): Promise<Record<string, string>> {
+async function getAuthToken(): Promise<string | null> {
   try {
-    const token = await getSecureItem('buffr_access_token');
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  } catch { return {}; }
+    return await getSecureItem('buffr_access_token');
+  } catch { return null; }
 }
 
-async function saveCard(number: string, expiry: string, name: string): Promise<{ success: boolean; error?: string }> {
-  const last4 = number.replace(/\s/g, '').slice(-4);
+async function saveCard(number: string, expiry: string, name: string): Promise<{ success: boolean; error?: string; sessionExpired?: boolean }> {
   const brand = detectBrand(number);
 
-  if (API_BASE_URL) {
-    try {
-      const h = await getAuthHeader();
-      const res = await fetch(`${API_BASE_URL}/api/v1/mobile/cards`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...h },
-        body: JSON.stringify({ number: number.replace(/\s/g, ''), expiry, nameOnCard: name, brand }),
-      });
-      const data = (await res.json()) as { error?: string };
-      if (res.ok) return { success: true };
-      return { success: false, error: data.error };
-    } catch { /* fall through */ }
+  const token = await getAuthToken();
+  if (!token) {
+    return { success: false, sessionExpired: true };
   }
 
-  // AsyncStorage fallback: attach to the primary wallet's linkedCards
-  const WALLETS_KEY = 'buffr_wallets';
-  const stored = await AsyncStorage.getItem(WALLETS_KEY);
-  let wallets = stored ? JSON.parse(stored) as Array<Record<string, unknown>> : [];
-
-  if (wallets.length === 0) {
-    // seed hasn't run yet – load from service and re-persist
-    const live = await getWallets();
-    wallets = live as unknown as Array<Record<string, unknown>>;
+  if (!API_BASE_URL) {
+    return { success: false, error: 'Card could not be added. Please check your connection and try again.' };
   }
 
-  if (wallets.length > 0) {
-    const primary = wallets.find(w => (w as { isPrimary?: boolean }).isPrimary) ?? wallets[0];
-    if (!Array.isArray(primary.linkedCards)) primary.linkedCards = [];
-    const linked = primary.linkedCards as Array<{ id: string; label: string; last4: string; brand: string }>;
-    // avoid duplicates by last4
-    if (!linked.find(c => c.last4 === last4)) {
-      linked.push({ id: `lc_${Date.now()}`, label: `${brand} ${name}`, last4, brand });
-    }
-    await AsyncStorage.setItem(WALLETS_KEY, JSON.stringify(wallets));
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/v1/mobile/cards`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ number: number.replace(/\s/g, ''), expiry, nameOnCard: name, brand }),
+    });
+    const data = (await res.json()) as { error?: string };
+    if (res.ok) return { success: true };
+    return { success: false, error: data.error ?? 'Card could not be added. Please check your connection and try again.' };
+  } catch {
+    return { success: false, error: 'Card could not be added. Please check your connection and try again.' };
   }
-
-  return { success: true };
 }
 
 export default function AddCardDetailsScreen() {
+  const { profile } = useUser();
+  const defaultName = [profile?.firstName, profile?.lastName].filter(Boolean).join(' ');
   const [number, setNumber] = useState('');
   const [expiry, setExpiry] = useState('');
   const [cvv, setCvv] = useState('');
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (defaultName && !name.trim()) setName(defaultName);
+  }, [defaultName]);
 
   const valid = number.replace(/\s/g, '').length >= 15 && expiry.replace(/\D/g, '').length >= 4 && cvv.length >= 3 && name.trim().length > 0;
   const brand = detectBrand(number);
@@ -112,8 +100,11 @@ export default function AddCardDetailsScreen() {
     setSaving(false);
     if (result.success) {
       router.replace('/add-card/success' as never);
+    } else if (result.sessionExpired) {
+      setError('Session expired. Please sign in again.');
+      router.replace('/onboarding/phone' as never);
     } else {
-      setError(result.error ?? 'Could not add card. Please try again.');
+      setError(result.error ?? 'Card could not be added. Please check your connection and try again.');
     }
   }
 
@@ -123,7 +114,7 @@ export default function AddCardDetailsScreen() {
       <SafeAreaView style={styles.safe} edges={['bottom']}>
         <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-
+            <Text style={styles.stepLabel}>Step 2 – Card details</Text>
             {/* Brand detector chip */}
             {number.length > 0 && (
               <View style={styles.brandChip}>
@@ -191,7 +182,7 @@ export default function AddCardDetailsScreen() {
               onPress={handleSave}
               disabled={!valid || saving}
             >
-              {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Link card</Text>}
+              {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Add Card +</Text>}
             </TouchableOpacity>
 
             <Text style={styles.secureNote}>Your card details are encrypted and stored securely.</Text>
@@ -207,6 +198,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   flex: { flex: 1 },
   content: { padding: 20, paddingBottom: 40 },
+  stepLabel: { fontSize: 13, color: DS.colors.neutral.textSecondary, marginBottom: 16 },
   brandChip: { alignSelf: 'flex-start', backgroundColor: DS.colors.brand.primaryMuted, borderRadius: 9999, paddingHorizontal: 12, paddingVertical: 4, marginBottom: 12 },
   brandText: { fontSize: 12, fontWeight: '700', color: DS.colors.brand.primary },
   label: { fontSize: 13, fontWeight: '600', color: DS.colors.neutral.textSecondary, marginBottom: 8 },

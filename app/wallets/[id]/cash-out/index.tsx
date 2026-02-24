@@ -65,7 +65,7 @@ export default function CashOutHubScreen() {
           {loading ? (
             <ActivityIndicator color={designSystem.colors.brand.primary} size="small" />
           ) : balance !== null ? (
-            <Text style={styles.balanceText}>Available: N$ {balance.toFixed(2)}</Text>
+            <Text style={styles.balanceText}>Available: {'N$'}{balance.toFixed(2)}</Text>
           ) : null}
         </View>
 

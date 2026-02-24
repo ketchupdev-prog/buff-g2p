@@ -3,6 +3,7 @@
  * Fetches transaction history and details from API.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getSecureItem } from '@/services/secureStorage';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 
@@ -35,7 +36,7 @@ export interface Transaction {
 
 async function getAuthHeader(): Promise<{ Authorization: string } | Record<string, never>> {
   try {
-    const token = await AsyncStorage.getItem('buffr_access_token');
+    const token = await getSecureItem('buffr_access_token');
     return token ? { Authorization: `Bearer ${token}` } : {};
   } catch {
     return {};
@@ -150,5 +151,5 @@ export function transactionIcon(type: TransactionType): string {
 /** Format amount with sign for display */
 export function formatTransactionAmount(tx: Transaction): string {
   const sign = tx.type === 'send' || tx.type === 'cash_out' || tx.type === 'bill_pay' || tx.type === 'airtime' || tx.type === 'loan_repayment' ? '-' : '+';
-  return `${sign}N$ ${tx.amount.toFixed(2)}`;
+  return `${sign}N$${tx.amount.toFixed(2)}`;
 }

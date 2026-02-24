@@ -3,6 +3,7 @@
  * Full-screen camera for NAMQR scanning: pay-by-QR, cash-out, voucher redemption.
  * Parses TLV payload, validates CRC (Tag 63), calls Token Vault validation (Tag 65).
  * §3.6 screen 41b / Figma 81:465.
+ * Uses UserContext for profile and walletStatus (frozen guard).
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -20,7 +21,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { designSystem } from '@/constants/designSystem';
+import { useUser } from '@/contexts/UserContext';
 import { validateQR } from '@/services/cashout';
+import { validateNAMQRCRC } from '@/utils/crc';
 
 /**
  * Minimal NAMQR TLV parser.
@@ -42,20 +45,28 @@ function parseTLV(payload: string): Map<string, string> {
   return map;
 }
 
-/** Validate NAMQR CRC (Tag 63). Payload for CRC = everything up to and including Tag 63 length. */
+/** Validate NAMQR CRC (Tag 63) via CRC16/CCITT-FALSE. PRD §4.5, §11.8. */
 function validateCRC(payload: string): boolean {
-  // CRC16/CCITT-FALSE: check tag 63 presence; full verification requires byte-level calculation
-  // For now, accept if Tag 63 is present in TLV (full CRC is verified server-side via Token Vault)
-  return payload.includes('63');
+  return validateNAMQRCRC(payload);
 }
 
 type ScanMode = 'payment' | 'cashout' | 'voucher' | 'general';
 
 export default function ScanQRScreen() {
-  const params = useLocalSearchParams<{ mode?: ScanMode; walletId?: string; voucherId?: string }>();
+  const { profile, walletStatus } = useUser();
+  const params = useLocalSearchParams<{
+    mode?: ScanMode;
+    walletId?: string;
+    voucherId?: string;
+    method?: string;
+    amount?: string;
+  }>();
   const mode: ScanMode = (params.mode as ScanMode) ?? 'general';
   const walletId = params.walletId;
   const voucherId = params.voucherId;
+  // For cashout mode: the method (till/agent/merchant/atm) and user-entered amount before scanning.
+  const cashoutMethod = params.method;
+  const presetAmount = params.amount;
 
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
@@ -75,16 +86,18 @@ export default function ScanQRScreen() {
         // Parse TLV
         const tlv = parseTLV(data);
 
-        // Basic NAMQR structure check: must have Tag 00 (format indicator) and Tag 58 (country)
+        // F7: NAMQR structure check – reject non-NAMQR before Token Vault (PRD §3.16.7).
         const formatIndicator = tlv.get('00');
         const country = tlv.get('58');
+        const looksLikeNAMQR = Boolean(formatIndicator ?? country ?? data.startsWith('BCD'));
 
-        if (!formatIndicator && !country && !data.startsWith('BCD')) {
-          // Not a NAMQR – still try to validate via Token Vault (may be another QR format)
-          setError('QR does not appear to be NAMQR compliant. Trying to validate…');
+        if (!looksLikeNAMQR) {
+          setError('This QR code is not supported. Please scan a NAMQR code.');
+          setValidating(false);
+          return;
         }
 
-        // Validate CRC
+        // Validate CRC (NAMQR Tag 63)
         const crcOk = validateCRC(data);
         if (!crcOk) {
           setError('QR code failed integrity check (CRC). Please try again or use a different code.');
@@ -96,7 +109,8 @@ export default function ScanQRScreen() {
         const result = await validateQR(data);
 
         if (!result.valid) {
-          setError(result.error ?? 'QR code is invalid or expired.');
+          const isExpired = /expired|invalid|invalid token/i.test(result.error ?? '');
+          setError(isExpired ? 'QR code has expired. Request a new one.' : (result.error ?? 'QR code is invalid. Please try again.'));
           setValidating(false);
           return;
         }
@@ -105,22 +119,41 @@ export default function ScanQRScreen() {
 
         // Route based on mode
         if (mode === 'cashout' && walletId) {
+          // F3: Route to confirm screen (not back to the hub) so user sees payee + fee + 2FA.
+          // Prefer amount from Token Vault result; fall back to user-entered preset amount.
+          const resolvedAmount = result.amount ? String(result.amount) : (presetAmount ?? '0');
           router.replace({
-            pathname: `/wallets/${walletId}/cash-out` as never,
+            pathname: `/wallets/${walletId}/cash-out/confirm` as never,
             params: {
               qrPayload: data,
               payeeName: result.payeeName ?? '',
-              amount: String(result.amount ?? 0),
+              amount: resolvedAmount,
               tokenRef: result.tokenRef ?? '',
+              method: cashoutMethod ?? 'till',
             },
           });
         } else if (mode === 'payment') {
+          // F4: Pass walletId so confirm screen knows which wallet to debit.
           router.replace({
             pathname: '/send-money/confirm' as never,
             params: {
               qrPayload: data,
               recipientName: result.payeeName ?? '',
+              recipientPhone: '',
               amount: String(result.amount ?? 0),
+              walletId: walletId ?? '',
+            },
+          });
+        } else if (mode === 'voucher' && voucherId) {
+          // PRD §18.5: After scanning branch QR, go to voucher redeem confirm.
+          const voucherAmount = params.amount ?? String(result.amount ?? 0);
+          router.replace({
+            pathname: '/utilities/vouchers/redeem/confirm' as never,
+            params: {
+              voucherId,
+              amount: voucherAmount,
+              branchName: result.payeeName ?? 'NamPost / SmartPay branch',
+              qrPayload: data,
             },
           });
         } else {
@@ -131,26 +164,46 @@ export default function ScanQRScreen() {
 
           if (hasTokenVault && walletId) {
             router.replace({
-              pathname: `/wallets/${walletId}/cash-out` as never,
-              params: { qrPayload: data, payeeName: result.payeeName ?? '', amount: String(result.amount ?? 0) },
+              pathname: `/wallets/${walletId}/cash-out/confirm` as never,
+              params: {
+                qrPayload: data,
+                payeeName: result.payeeName ?? '',
+                amount: String(result.amount ?? 0),
+                tokenRef: result.tokenRef ?? '',
+                method: 'general',
+              },
             });
           } else if (hasMerchant) {
             router.replace({
               pathname: '/send-money/confirm' as never,
-              params: { qrPayload: data, recipientName: result.payeeName ?? '', amount: String(result.amount ?? 0) },
+              params: {
+                qrPayload: data,
+                recipientName: result.payeeName ?? '',
+                recipientPhone: '',
+                amount: String(result.amount ?? 0),
+                walletId: walletId ?? '',
+              },
             });
           } else {
             // Unknown — show payee info and let user decide
-            setError(`Scanned QR: ${result.payeeName ?? 'Unknown payee'}${result.amount ? ` — N$ ${result.amount}` : ''}. Go back to choose an action.`);
+            setError(`Scanned QR: ${result.payeeName ?? 'Unknown payee'}${result.amount ? ` — N$${result.amount}` : ''}. Go back to choose an action.`);
           }
         }
       } catch (e) {
-        console.error('QR scan error:', e);
-        setError('Something went wrong processing this QR. Please try again.');
+        if (__DEV__) { console.error('QR scan error:', e); } // SEC-S10
+        const err = e as Error & { code?: string; message?: string };
+        const msg = err?.message ?? '';
+        if (msg.includes('Network request failed') || msg.includes('Failed to fetch') || msg.includes('network')) {
+          setError('No internet connection. Check your signal and try again.');
+        } else if (msg.includes('timeout') || msg.includes('Timeout') || err?.code === 'ECONNABORTED') {
+          setError('Request timed out. Please try again.');
+        } else {
+          setError('Service temporarily unavailable. Please try again shortly.');
+        }
         setValidating(false);
       }
     },
-    [scanned, validating, mode, walletId, voucherId]
+    [scanned, validating, mode, walletId, voucherId, cashoutMethod, presetAmount]
   );
 
   const resetScan = () => {
@@ -183,7 +236,7 @@ export default function ScanQRScreen() {
             {permission.canAskAgain ? 'Allow Camera' : 'Open Settings'}
           </Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backButton} onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)' as never))}>
           <Text style={styles.backButtonText}>Go Back</Text>
         </TouchableOpacity>
       </SafeAreaView>
@@ -212,7 +265,7 @@ export default function ScanQRScreen() {
         <View style={styles.topBar}>
           <TouchableOpacity
             style={styles.circleButton}
-            onPress={() => router.back()}
+            onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)' as never))}
             accessibilityLabel="Go back"
           >
             <Ionicons name="close" size={22} color="#fff" />

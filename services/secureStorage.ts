@@ -9,7 +9,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const SECURE_KEYS = new Set([
   'buffr_access_token',
   'buffr_refresh_token',
+  // SEC-S4: Reserved for future offline PIN verification (PBKDF2 hash). Not yet stored — implement with services/auth.ts PIN hash flow.
   'buffr_2fa_pin_hash',
+  'buffr_card_number_masked',
+  // S7: Token expiry timestamp stored in SecureStore alongside the access token.
+  'buffr_token_expires_at',
 ]);
 
 /**

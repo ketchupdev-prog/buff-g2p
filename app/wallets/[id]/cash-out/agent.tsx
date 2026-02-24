@@ -73,7 +73,7 @@ export default function CashOutAgentScreen() {
   function handleNext() {
     const num = parseFloat(amount);
     if (isNaN(num) || num <= 0) { setError('Enter a valid amount.'); return; }
-    if (balance !== null && num > balance) { setError(`Insufficient balance. Available: N$ ${balance.toFixed(2)}`); return; }
+    if (balance !== null && num > balance) { setError(`Insufficient balance. Available: N$${balance.toFixed(2)}`); return; }
     setError(null);
     setStep('pin');
     setTimeout(() => inputRefs.current[0]?.focus(), 100);
@@ -118,7 +118,7 @@ export default function CashOutAgentScreen() {
                 {balance !== null && (
                   <View style={styles.balanceBadge}>
                     <Text style={styles.balanceLabel}>Available</Text>
-                    <Text style={styles.balanceValue}>N$ {balance.toFixed(2)}</Text>
+                    <Text style={styles.balanceValue}>{'N$'}{balance.toFixed(2)}</Text>
                   </View>
                 )}
                 <Text style={styles.sectionLabel}>Amount</Text>
@@ -153,8 +153,8 @@ export default function CashOutAgentScreen() {
             <>
               <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
                 <View style={styles.summaryCard}>
-                  <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Amount</Text><Text style={[styles.summaryValue, { color: designSystem.colors.brand.primary, fontWeight: '700' }]}>N$ {parseFloat(amount).toFixed(2)}</Text></View>
-                  <View style={[styles.summaryRow, { borderBottomWidth: 0 }]}><Text style={styles.summaryLabel}>Fee</Text><Text style={styles.summaryValue}>N$ 5.00</Text></View>
+                  <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Amount</Text><Text style={[styles.summaryValue, { color: designSystem.colors.brand.primary, fontWeight: '700' }]}>{'N$'}{parseFloat(amount).toFixed(2)}</Text></View>
+                  <View style={[styles.summaryRow, { borderBottomWidth: 0 }]}><Text style={styles.summaryLabel}>Fee</Text><Text style={styles.summaryValue}>N$5.00</Text></View>
                 </View>
                 <Text style={styles.pinLabel}>Enter your PIN to confirm</Text>
                 <View style={styles.pinRow}>
@@ -194,7 +194,7 @@ export default function CashOutAgentScreen() {
                   <View style={styles.codeCard}>
                     <Text style={styles.codeCardLabel}>Cash Code</Text>
                     <Text style={styles.codeCardValue}>{cashRef}</Text>
-                    <Text style={styles.codeCardAmount}>N$ {parseFloat(amount).toFixed(2)}</Text>
+                    <Text style={styles.codeCardAmount}>{'N$'}{parseFloat(amount).toFixed(2)}</Text>
                     <View style={styles.timerRow}>
                       <Ionicons name="time-outline" size={14} color="rgba(255,255,255,0.7)" />
                       <Text style={styles.timerText}>Expires in {formatCountdown(countdown)}</Text>

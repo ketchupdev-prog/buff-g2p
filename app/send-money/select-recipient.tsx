@@ -1,6 +1,7 @@
 /**
  * Send Money – Select Recipient – Buffr G2P.
  * §3.4 screen 27 / Figma 92:212.
+ * Uses UserContext for profile and walletStatus (frozen guard).
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -18,6 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
 import { designSystem } from '@/constants/designSystem';
+import { useUser } from '@/contexts/UserContext';
 import { getContacts, lookupRecipient, type Contact } from '@/services/send';
 
 function initials(name: string): string {
@@ -25,6 +27,7 @@ function initials(name: string): string {
 }
 
 export default function SelectRecipientScreen() {
+  const { profile, walletStatus } = useUser();
   const [query, setQuery] = useState('');
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [lookupResult, setLookupResult] = useState<Contact | null>(null);
@@ -78,7 +81,7 @@ export default function SelectRecipientScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
-          headerTitle: 'Send Money',
+          headerTitle: 'Contact View',
           headerTitleStyle: { ...designSystem.typography.textStyles.title, color: designSystem.colors.neutral.text },
           headerBackTitleVisible: false,
           headerTintColor: designSystem.colors.neutral.text,

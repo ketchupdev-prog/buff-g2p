@@ -178,7 +178,7 @@ export default function AutoPayScreen() {
                       <Text style={styles.walletOptionEmoji}>{w.icon?.trim() || '💼'}</Text>
                       <View style={styles.walletOptionInfo}>
                         <Text style={[styles.walletOptionName, targetWalletId === w.id && { color: DS.colors.brand.primary }]}>{w.name}</Text>
-                        <Text style={styles.walletOptionBal}>N$ {w.balance.toLocaleString('en-NA', { minimumFractionDigits: 2 })}</Text>
+                        <Text style={styles.walletOptionBal}>N${w.balance.toLocaleString('en-NA', { minimumFractionDigits: 2 })}</Text>
                       </View>
                       {targetWalletId === w.id && <Ionicons name="checkmark-circle" size={20} color={DS.colors.brand.primary} />}
                     </TouchableOpacity>
@@ -246,7 +246,7 @@ export default function AutoPayScreen() {
                 <View style={styles.summaryCard}>
                   <Ionicons name="information-circle-outline" size={16} color={DS.colors.brand.primary} style={{ marginRight: 8 }} />
                   <Text style={styles.summaryText}>
-                    N$ {amount} will transfer {frequency} on the {day} from {wallet?.name ?? '…'} to {targetWalletName}.
+                    N${amount} will transfer {frequency} on the {day} from {wallet?.name ?? '…'} to {targetWalletName}.
                     {repayments !== 'Ongoing' ? ` Stops after ${repayments} transfers.` : ' Ongoing until cancelled.'}
                   </Text>
                 </View>

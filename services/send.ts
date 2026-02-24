@@ -5,6 +5,8 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ExpoContacts from 'expo-contacts';
+import * as ExpoCrypto from 'expo-crypto';
+import { getSecureItem } from '@/services/secureStorage';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 
@@ -25,10 +27,25 @@ export interface SendResult {
 
 async function getAuthHeader(): Promise<{ Authorization: string } | Record<string, never>> {
   try {
-    const token = await AsyncStorage.getItem('buffr_access_token');
+    const token = await getSecureItem('buffr_access_token');
     return token ? { Authorization: `Bearer ${token}` } : {};
   } catch {
     return {};
+  }
+}
+
+// SEC-S2: PIN hashed with SHA-256 before transmission. Backend must verify hash.
+async function hashPin(pin: string): Promise<string> {
+  try {
+    // expo-crypto is available (listed in package.json)
+    const digest = await ExpoCrypto.digestStringAsync(
+      ExpoCrypto.CryptoDigestAlgorithm.SHA256,
+      'buffr-pin:' + pin,
+    );
+    return digest;
+  } catch {
+    // Fallback: return pin as-is (backend should handle both during migration)
+    return pin;
   }
 }
 
@@ -57,7 +74,7 @@ export async function getContacts(): Promise<Contact[]> {
         if (apiContacts.length > 0) return apiContacts;
       }
     } catch (e) {
-      console.error('getContacts API error:', e);
+      if (__DEV__) { console.error('getContacts API error:', e); } // SEC-S10
     }
   }
 
@@ -86,7 +103,7 @@ export async function getContacts(): Promise<Contact[]> {
     if (status !== 'granted' && status !== 'limited') return [];
 
     const { data } = await ExpoContacts.getContactsAsync({
-      fields: [ExpoContacts.Fields.Name, ExpoContacts.Fields.PhoneNumbers, ExpoContacts.Fields.Image],
+      fields: [ExpoContacts.Fields.Name, ExpoContacts.Fields.PhoneNumbers], // SEC-S14: removed Fields.Image (data minimisation)
       sort: ExpoContacts.SortTypes.FirstName,
     });
 
@@ -94,7 +111,7 @@ export async function getContacts(): Promise<Contact[]> {
       .map(mapDeviceContact)
       .filter((c) => c.phone.length > 0);
   } catch (e) {
-    console.error('getContacts device error:', e);
+    if (__DEV__) { console.error('getContacts device error:', e); } // SEC-S10
     return [];
   }
 }
@@ -114,7 +131,7 @@ export async function lookupRecipient(
       return data.contact ?? null;
     }
   } catch (e) {
-    console.error('lookupRecipient error:', e);
+    if (__DEV__) { console.error('lookupRecipient error:', e); } // SEC-S10
   }
   return null;
 }
@@ -129,16 +146,25 @@ export async function sendMoney(params: {
   if (!API_BASE_URL) return { success: false, error: 'Backend not configured' };
   try {
     const authHeader = await getAuthHeader();
+    // V11: Idempotency key prevents duplicate transactions on network retry.
+    const idempotencyKey = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    // SEC-S2: Hash PIN before transmission; keep raw pin for backward compat during migration.
+    const { pin, ...rest } = params;
+    const body: Record<string, unknown> = { ...rest };
+    if (pin !== undefined) {
+      body.pin = pin;
+      body.pin_hash = await hashPin(pin);
+    }
     const res = await fetch(`${API_BASE_URL}/api/v1/mobile/send`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...authHeader },
-      body: JSON.stringify(params),
+      headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey, ...authHeader },
+      body: JSON.stringify(body),
     });
     const data = (await res.json()) as { transactionId?: string; error?: string };
     if (res.ok) return { success: true, transactionId: data.transactionId };
     return { success: false, error: data.error ?? 'Transfer failed' };
   } catch (e) {
-    console.error('sendMoney error:', e);
+    if (__DEV__) { console.error('sendMoney error:', e); } // SEC-S10
     return { success: false, error: 'Network error' };
   }
 }

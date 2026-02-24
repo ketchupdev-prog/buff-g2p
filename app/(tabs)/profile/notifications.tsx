@@ -1,6 +1,7 @@
 /**
  * Notifications – Buffr G2P.
  * §3.5 / §3.6 Notification Center. Loads from AsyncStorage with seeded data.
+ * Uses UserContext for state consistency.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -9,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { designSystem } from '@/constants/designSystem';
+import { useUser } from '@/contexts/UserContext';
 
 const STORAGE_KEY = 'buffr_notifications';
 
@@ -118,6 +120,7 @@ async function markRead(id: string | 'all', notifs: NotifItem[]): Promise<NotifI
 }
 
 export default function NotificationsScreen() {
+  useUser();
   const [notifs, setNotifs] = useState<NotifItem[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);

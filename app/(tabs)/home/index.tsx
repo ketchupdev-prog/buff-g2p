@@ -25,6 +25,7 @@ import { designSystem } from '@/constants/designSystem';
 import CardFrame from '@/components/cards/CardFrame';
 import { AppHeader } from '@/components/layout';
 import { WalletCarousel, RecentContactsCarousel } from '@/components/home';
+import { AddMoneyModal } from '@/components/modals';
 
 // ─── 3×3 Services Grid ────────────────────────────────────────────────────────
 // 9 tiles per Buffr app design: Proof of Life, Receive, Cash Out, Vouchers, Airtime, Bills, Loans, Groups, Find Agent. Send remains via FAB.
@@ -125,9 +126,26 @@ export default function HomeScreen() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [balanceVisible, setBalanceVisible] = useState(true);
+  const [showAddMoneyModal, setShowAddMoneyModal] = useState(false);
 
   const displayName = [profile?.firstName, profile?.lastName].filter(Boolean).join(' ');
   const totalBalance = wallets.reduce((sum, w) => sum + w.balance, 0);
+
+  // Search: filter services, recent transactions, and contacts by query (PRD SearchBar "Search anything...")
+  const q = searchQuery.trim().toLowerCase();
+  const filteredServices = q
+    ? SERVICES_GRID.filter((s) => s.label.toLowerCase().includes(q))
+    : SERVICES_GRID;
+  const filteredRecentTx = q
+    ? recentTx.filter(
+        (tx) =>
+          formatTransactionType(tx.type).toLowerCase().includes(q) ||
+          (tx.counterparty ?? '').toLowerCase().includes(q)
+      )
+    : recentTx;
+  const filteredContacts = q
+    ? contacts.filter((c) => c.name.toLowerCase().includes(q) || (c.phone ?? '').includes(q))
+    : contacts;
 
   const loadData = useCallback(async () => {
     setLoadError(null);
@@ -230,8 +248,8 @@ export default function HomeScreen() {
               {loading
                 ? '—'
                 : balanceVisible
-                ? `N$ ${totalBalance.toLocaleString('en-NA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                : 'N$ ••••'}
+                ? `N$${totalBalance.toLocaleString('en-NA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                : 'N$••••'}
             </Text>
             <Text style={styles.balanceLabel}>Total Balance</Text>
             <View style={styles.showAddRow}>
@@ -244,8 +262,8 @@ export default function HomeScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.pillBtn}
-                onPress={() => router.push('/add-wallet' as never)}
-                accessibilityLabel="Add wallet"
+                onPress={() => (wallets.length ? setShowAddMoneyModal(true) : router.push('/wallets' as never))}
+                accessibilityLabel="Add"
               >
                 <Text style={styles.pillBtnText}>+ Add</Text>
               </TouchableOpacity>
@@ -272,7 +290,7 @@ export default function HomeScreen() {
                 <Text style={styles.buffrCardTitle}>Buffr Account</Text>
                 <View style={styles.buffrCardActions}>
                   <TouchableOpacity
-                    onPress={(e) => { e.stopPropagation(); router.push(wallets.length ? `/wallets/${wallets[0].id}/add-money` as never : '/wallets' as never); }}
+                    onPress={(e) => { e.stopPropagation(); wallets.length ? setShowAddMoneyModal(true) : router.push('/wallets' as never); }}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
                     <Text style={styles.buffrCardAddMoney}>Add money</Text>
@@ -296,11 +314,12 @@ export default function HomeScreen() {
             loading={loading}
             onWalletPress={(w) => router.push(`/wallets/${w.id}` as never)}
             onAddWalletPress={() => router.push('/add-wallet' as never)}
+            onAddFundsPress={() => (wallets.length ? setShowAddMoneyModal(true) : router.push('/add-wallet' as never))}
           />
 
-          {/* ── Recent contacts ── */}
+          {/* ── Recent contacts (filtered by search) ── */}
           <RecentContactsCarousel
-            contacts={contacts}
+            contacts={filteredContacts}
             limit={8}
             onContactPress={(c) =>
               router.push({
@@ -316,22 +335,31 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.grid}>
-            {SERVICES_GRID.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                style={styles.gridCell}
-                onPress={() => router.push(item.route as never)}
-                activeOpacity={0.7}
-                accessibilityLabel={item.label}
-              >
-                <View style={[styles.gridIconWrap, { backgroundColor: item.bg }]}>
-                  <Ionicons name={item.icon} size={22} color={item.color} />
+            {filteredServices.length === 0 ? (
+              q ? (
+                <View style={[styles.gridCell, { width: '100%', paddingVertical: 24 }]}>
+                  <Ionicons name="search-outline" size={32} color="#94A3B8" />
+                  <Text style={[styles.gridLabel, { marginTop: 8 }]}>No services match "{searchQuery}"</Text>
                 </View>
-                <Text style={styles.gridLabel} numberOfLines={2}>
-                  {item.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
+              ) : null
+            ) : (
+              filteredServices.map((item) => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={styles.gridCell}
+                  onPress={() => router.push(item.route as never)}
+                  activeOpacity={0.7}
+                  accessibilityLabel={item.label}
+                >
+                  <View style={[styles.gridIconWrap, { backgroundColor: item.bg }]}>
+                    <Ionicons name={item.icon} size={22} color={item.color} />
+                  </View>
+                  <Text style={styles.gridLabel} numberOfLines={2}>
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              ))
+            )}
           </View>
 
           {/* ── Recent Transactions ── */}
@@ -348,14 +376,18 @@ export default function HomeScreen() {
             <TouchableOpacity onPress={loadData} style={styles.errorBox}>
               <Text style={styles.errorText}>{loadError}</Text>
             </TouchableOpacity>
-          ) : recentTx.length === 0 ? (
+          ) : filteredRecentTx.length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons name="time-outline" size={40} color="#CBD5E1" />
-              <Text style={styles.emptyTitle}>No transactions yet</Text>
-              <Text style={styles.emptyDesc}>Your activity will appear here.</Text>
+              <Text style={styles.emptyTitle}>
+                {q ? 'No matches for your search' : 'No transactions yet'}
+              </Text>
+              <Text style={styles.emptyDesc}>
+                {q ? 'Try a different term.' : 'Your activity will appear here.'}
+              </Text>
             </View>
           ) : (
-            recentTx.map((tx) => {
+            filteredRecentTx.map((tx) => {
               const isPositive = ['receive', 'voucher_redeem', 'add_money', 'loan_disbursement'].includes(tx.type);
               return (
                 <TouchableOpacity
@@ -404,6 +436,12 @@ export default function HomeScreen() {
             <Ionicons name="qr-code-outline" size={20} color="#fff" />
           </TouchableOpacity>
         </View>
+
+        <AddMoneyModal
+          visible={showAddMoneyModal}
+          onClose={() => setShowAddMoneyModal(false)}
+          walletId={wallets[0]?.id ?? null}
+        />
       </SafeAreaView>
     </View>
   );

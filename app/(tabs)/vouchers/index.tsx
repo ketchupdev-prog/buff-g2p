@@ -229,7 +229,7 @@ export default function VouchersScreen() {
                     {/* Amount */}
                     <View style={styles.amountRow}>
                       <Text style={styles.amountLabel}>Amount</Text>
-                      <Text style={styles.amountValue}>N$ {v.amount.toLocaleString()}</Text>
+                      <Text style={styles.amountValue}>{'N$'}{v.amount.toLocaleString()}</Text>
                     </View>
 
                     {/* Dates */}

@@ -2,10 +2,12 @@
  * Wallet Detail – Buffr G2P.
  * Design: reference WalletDetailScreen patterns (emoji icon, pill buttons, auto pay card, activity rows).
  * §3.6 screen 50 / Figma 116:629.
+ * Uses UserContext for profile, walletStatus, isLoaded.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   RefreshControl,
   ScrollView,
@@ -17,13 +19,16 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { getWallet, type Wallet } from '@/services/wallets';
+import { getWallet, deleteWallet, type Wallet } from '@/services/wallets';
 import {
   getTransactions,
   formatTransactionType,
   formatTransactionAmount,
   type Transaction,
 } from '@/services/transactions';
+import { designSystem } from '@/constants/designSystem';
+import { useUser } from '@/contexts/UserContext';
+import { AddMoneyModal } from '@/components/modals';
 
 /** User-defined icon (emoji) or neutral – per Buffr design, no predetermined types. */
 function walletDisplayIcon(w: Wallet): string {
@@ -36,11 +41,14 @@ function isDebit(tx: Transaction): boolean {
 
 export default function WalletDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { profile, walletStatus, isLoaded } = useUser();
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showAddMoneyModal, setShowAddMoneyModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -62,6 +70,18 @@ export default function WalletDetailScreen() {
   useEffect(() => { load(); }, [load]);
 
   const isMainWallet = wallet?.type === 'main';
+  const isFrozen = walletStatus === 'frozen';
+
+  if (!isLoaded) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <Stack.Screen options={{ headerShown: true, headerTitle: 'Wallet', headerTintColor: '#1E293B', headerStyle: { backgroundColor: '#fff' } }} />
+        <View style={styles.center}>
+          <ActivityIndicator color="#0029D6" />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -73,19 +93,26 @@ export default function WalletDetailScreen() {
           headerBackTitleVisible: false,
           headerTintColor: '#1E293B',
           headerStyle: { backgroundColor: '#fff' },
-          headerRight: () => !isMainWallet && wallet ? (
-            <TouchableOpacity
-              style={styles.trashBtn}
-              onPress={() => setShowDeleteConfirm(true)}
-              accessibilityLabel="Delete wallet"
-            >
-              <Ionicons name="trash-outline" size={22} color="#E11D48" />
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity style={styles.moreBtn}>
-              <Ionicons name="ellipsis-horizontal" size={22} color="#1E293B" />
-            </TouchableOpacity>
-          ),
+          headerRight: () => wallet ? (
+            <View style={styles.headerRightRow}>
+              <TouchableOpacity
+                style={styles.editBtn}
+                onPress={() => router.push({ pathname: '/wallets/[id]/edit', params: { id: wallet.id } } as never)}
+                accessibilityLabel="Edit wallet"
+              >
+                <Ionicons name="pencil-outline" size={22} color="#1E293B" />
+              </TouchableOpacity>
+              {!isMainWallet && (
+                <TouchableOpacity
+                  style={styles.trashBtn}
+                  onPress={() => setShowDeleteConfirm(true)}
+                  accessibilityLabel="Delete wallet"
+                >
+                  <Ionicons name="trash-outline" size={22} color="#E11D48" />
+                </TouchableOpacity>
+              )}
+            </View>
+          ) : null,
         }}
       />
 
@@ -109,6 +136,12 @@ export default function WalletDetailScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor="#0029D6" />
           }
         >
+          {isFrozen && (
+            <View style={styles.frozenBanner}>
+              <Ionicons name="lock-closed-outline" size={20} color={designSystem.colors.semantic.error} />
+              <Text style={styles.frozenText}>Your wallet is frozen. Complete proof-of-life to use this wallet.</Text>
+            </View>
+          )}
           {/* Balance block with user icon – per Buffr design */}
           <View style={styles.balanceBlock}>
             <View style={styles.iconCircle}>
@@ -116,7 +149,7 @@ export default function WalletDetailScreen() {
             </View>
             <Text style={styles.walletSubtitle}>{wallet.name}</Text>
             <Text style={styles.balanceAmount}>
-              N$ {wallet.balance.toLocaleString('en-NA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              N${wallet.balance.toLocaleString('en-NA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </Text>
             <Text style={styles.balanceLabel}>Total Balance</Text>
             {/* Monthly Pay line – per design; link to auto-pay when configured */}
@@ -140,7 +173,7 @@ export default function WalletDetailScreen() {
               <Ionicons name="swap-horizontal-outline" size={22} color="#64748B" />
               <Text style={styles.walletNavLabel}>Transfer</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.walletNavItem, styles.walletNavItemActive]} onPress={() => router.push(`/wallets/${wallet.id}/add-money` as never)} activeOpacity={0.8}>
+            <TouchableOpacity style={[styles.walletNavItem, styles.walletNavItemActive]} onPress={() => setShowAddMoneyModal(true)} activeOpacity={0.8}>
               <Ionicons name="add" size={22} color="#0029D6" />
               <Text style={[styles.walletNavLabel, styles.walletNavLabelActive]}>Add</Text>
             </TouchableOpacity>
@@ -200,7 +233,7 @@ export default function WalletDetailScreen() {
                 <TouchableOpacity
                   key={tx.id}
                   style={styles.txRow}
-                  onPress={() => router.push(`/transactions/${tx.id}` as never)}
+                  onPress={() => router.push(`/(tabs)/transactions/${tx.id}` as never)}
                   activeOpacity={0.8}
                 >
                   <View style={[styles.txIcon, debit ? styles.txIconDebit : styles.txIconCredit]}>
@@ -221,6 +254,11 @@ export default function WalletDetailScreen() {
         </ScrollView>
       )}
 
+      <AddMoneyModal
+        visible={showAddMoneyModal}
+        onClose={() => setShowAddMoneyModal(false)}
+        walletId={wallet?.id ?? null}
+      />
       {/* Delete confirmation sheet */}
       <Modal visible={showDeleteConfirm} transparent animationType="slide">
         <View style={styles.modalBackdrop}>
@@ -235,10 +273,19 @@ export default function WalletDetailScreen() {
             <View style={styles.deleteActions}>
               <TouchableOpacity
                 style={styles.deleteBtn}
-                onPress={() => { setShowDeleteConfirm(false); router.replace('/(tabs)' as never); }}
+                disabled={deleting}
+                onPress={async () => {
+                  if (!wallet?.id) return;
+                  setDeleting(true);
+                  const result = await deleteWallet(wallet.id);
+                  setDeleting(false);
+                  setShowDeleteConfirm(false);
+                  if (result.success) router.replace('/(tabs)' as never);
+                  else Alert.alert('Error', result.error ?? 'Could not delete wallet.');
+                }}
                 activeOpacity={0.7}
               >
-                <Text style={styles.deleteBtnText}>Delete Wallet</Text>
+                <Text style={styles.deleteBtnText}>{deleting ? 'Deleting…' : 'Delete Wallet'}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowDeleteConfirm(false)} activeOpacity={0.7}>
                 <Text style={styles.cancelBtnText}>Cancel</Text>
@@ -257,10 +304,22 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   notFound: { fontSize: 16, color: '#64748B', marginBottom: 12 },
   link: { fontSize: 16, color: '#2563EB' },
-  trashBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#FEF2F2', justifyContent: 'center', alignItems: 'center', marginRight: 8 },
-  moreBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F8FAFC', justifyContent: 'center', alignItems: 'center', marginRight: 8 },
+  headerRightRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginRight: 8 },
+  editBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F8FAFC', justifyContent: 'center', alignItems: 'center' },
+  trashBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#FEF2F2', justifyContent: 'center', alignItems: 'center' },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 24, paddingBottom: 24 },
+  frozenBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: designSystem.colors.feedback.red100,
+    padding: 14,
+    borderRadius: 12,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  frozenText: { flex: 1, fontSize: 13, color: designSystem.colors.semantic.error, lineHeight: 18 },
   // Balance block
   balanceBlock: { alignItems: 'center', paddingTop: 32, paddingBottom: 28 },
   iconCircle: {

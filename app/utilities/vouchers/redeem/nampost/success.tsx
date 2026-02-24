@@ -50,7 +50,7 @@ export default function NamPostSuccessScreen() {
   }));
 
   const displayAmount = amount
-    ? `N$ ${parseFloat(amount).toFixed(2)}`
+    ? `N$${parseFloat(amount).toFixed(2)}`
     : 'your voucher amount';
 
   return (

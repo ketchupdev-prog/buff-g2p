@@ -158,7 +158,7 @@ export default function MerchantsScreen() {
                       <View style={[styles.catPill, { backgroundColor: cfg.bg }]}>
                         <Text style={[styles.catPillText, { color: cfg.color }]}>{cfg.label}</Text>
                       </View>
-                      <Text style={styles.minTx}>Min N$ {m.minTx}</Text>
+                      <Text style={styles.minTx}>Min {'N$'}{m.minTx}</Text>
                       <View style={[styles.statusDot, { backgroundColor: m.open ? '#22C55E' : '#9CA3AF' }]} />
                       <Text style={styles.statusText}>{m.open ? 'Open' : 'Closed'}</Text>
                     </View>

@@ -65,7 +65,7 @@ export default function VoucherHistoryScreen() {
         </View>
         <View style={styles.cardRight}>
           <Text style={[styles.cardAmount, { color: isRedeemed ? '#22C55E' : '#94A3B8' }]}>
-            N$ {item.amount.toLocaleString()}
+            N${item.amount.toLocaleString()}
           </Text>
           <View style={[styles.statusBadge, { backgroundColor: isRedeemed ? '#D1FAE5' : '#F1F5F9' }]}>
             <Text style={[styles.statusBadgeText, { color: isRedeemed ? '#15803D' : '#94A3B8' }]}>

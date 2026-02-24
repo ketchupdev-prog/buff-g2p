@@ -8,7 +8,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getSecureItem } from '@/services/secureStorage';
 import { designSystem } from '@/constants/designSystem';
 import { Avatar } from '@/components/ui';
 
@@ -16,7 +16,7 @@ const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 
 async function getAuthHeader(): Promise<Record<string, string>> {
   try {
-    const token = await AsyncStorage.getItem('buffr_access_token');
+    const token = await getSecureItem('buffr_access_token');
     return token ? { Authorization: `Bearer ${token}` } : {};
   } catch { return {}; }
 }

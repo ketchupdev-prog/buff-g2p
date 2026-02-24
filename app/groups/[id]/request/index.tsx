@@ -20,6 +20,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { designSystem } from '@/constants/designSystem';
 import { getSecureItem } from '@/services/secureStorage';
 import { Avatar } from '@/components/ui';
+import { TwoFAModal } from '@/components/modals';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 const DS = designSystem;
@@ -57,14 +58,14 @@ async function getAuthHeader(): Promise<Record<string, string>> {
   } catch { return {}; }
 }
 
-async function postGroupRequest(groupId: string, amount: number, note: string): Promise<{ success: boolean; error?: string }> {
+async function postGroupRequest(groupId: string, amount: number, note: string, pin?: string): Promise<{ success: boolean; error?: string }> {
   if (API_BASE_URL) {
     try {
       const h = await getAuthHeader();
       const res = await fetch(`${API_BASE_URL}/api/v1/mobile/groups/${groupId}/request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...h },
-        body: JSON.stringify({ amount, note }),
+        body: JSON.stringify({ amount, note, ...(pin != null && { pin }) }),
       });
       const data = (await res.json()) as { error?: string };
       if (res.ok) return { success: true };
@@ -87,6 +88,7 @@ export default function GroupRequestScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isFav, setIsFav] = useState(false);
+  const [show2FA, setShow2FA] = useState(false);
 
   useEffect(() => {
     fetchGroupInfo(id ?? '').then(setGroup).catch(() => {});
@@ -95,20 +97,20 @@ export default function GroupRequestScreen() {
   const amountNum = parseFloat(amount.replace(/[^0-9.]/g, '')) || 0;
   const isValid = amountNum > 0;
 
-  async function handleSubmit() {
-    if (!isValid || loading) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await postGroupRequest(id ?? '', amountNum, note);
-      if (result.success) {
-        router.replace({ pathname: '/groups/[id]/request/success', params: { id: id ?? '', amount: amountNum.toFixed(2) } } as never);
-      } else {
-        setError(result.error ?? 'Failed to send request. Please try again.');
-      }
-    } finally {
-      setLoading(false);
+  async function handleSubmitWithPin(pin: string) {
+    const result = await postGroupRequest(id ?? '', amountNum, note, pin);
+    if (result.success) {
+      setShow2FA(false);
+      router.replace({ pathname: '/groups/[id]/request/success', params: { id: id ?? '', amount: amountNum.toFixed(2) } } as never);
+      return { success: true };
     }
+    return { success: false, error: result.error };
+  }
+
+  function handleRequestPress() {
+    if (!isValid || loading) return;
+    setError(null);
+    setShow2FA(true);
   }
 
   const visibleMembers = (group?.members ?? []).slice(0, 3);
@@ -189,13 +191,21 @@ export default function GroupRequestScreen() {
 
           <TouchableOpacity
             style={[styles.requestBtn, (!isValid || loading) && styles.requestBtnDisabled]}
-            onPress={handleSubmit}
+            onPress={handleRequestPress}
             disabled={!isValid || loading}
           >
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.requestBtnText}>Request</Text>}
+            <Text style={styles.requestBtnText}>Request</Text>
           </TouchableOpacity>
         </SafeAreaView>
       </KeyboardAvoidingView>
+
+      <TwoFAModal
+        visible={show2FA}
+        onClose={() => setShow2FA(false)}
+        onVerify={handleSubmitWithPin}
+        title="Verify group request"
+        subtitle="Enter your 6-digit PIN to confirm"
+      />
     </View>
   );
 }

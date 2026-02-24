@@ -31,7 +31,7 @@ export default function NameEntryScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
-          headerTitle: 'Your name',
+          headerTitle: "Add user's details",
           headerTitleStyle: {
             ...designSystem.typography.textStyles.title,
             color: designSystem.colors.neutral.text,

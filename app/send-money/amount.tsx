@@ -2,6 +2,7 @@
  * Send Money – Receiver Details – Buffr G2P.
  * Recipient hero, Pay From selector, amount input, note, Pay CTA.
  * §26 / Figma 153:752.
+ * Uses UserContext for profile and walletStatus (frozen guard).
  */
 import React, { useEffect, useState } from 'react';
 import {
@@ -17,10 +18,12 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
+import { useUser } from '@/contexts/UserContext';
 import { getWallets, type Wallet } from '@/services/wallets';
 import { Avatar, PayFromSheet, PayFromPill, buildPaySources, type PaySource } from '@/components/ui';
 
 export default function ReceiverDetailsScreen() {
+  const { profile, walletStatus } = useUser();
   const { recipientPhone, recipientName, recipientEmail, recipientBankingName } =
     useLocalSearchParams<{
       recipientPhone: string;
@@ -57,7 +60,7 @@ export default function ReceiverDetailsScreen() {
       return;
     }
     if (selectedWallet && numeric > selectedWallet.balance) {
-      setAmountError(`Insufficient balance. Available: N$ ${selectedWallet.balance.toFixed(2)}`);
+      setAmountError(`Insufficient balance. Available: N$${selectedWallet.balance.toFixed(2)}`);
       return;
     }
     setAmountError(null);
@@ -80,7 +83,7 @@ export default function ReceiverDetailsScreen() {
         <Stack.Screen
           options={{
             headerShown: true,
-            headerTitle: 'Receiver Details',
+            headerTitle: 'Add Amount',
             headerBackTitle: '',
             headerTintColor: '#111827',
             headerTitleStyle: { fontSize: 17, fontWeight: '700', color: '#111827' },
@@ -139,7 +142,12 @@ export default function ReceiverDetailsScreen() {
                 placeholder="0"
                 placeholderTextColor="#D1D5DB"
                 value={amount}
-                onChangeText={(t) => { setAmount(t.replace(/[^0-9.]/g, '')); setAmountError(null); }}
+                onChangeText={(t) => {
+                  const cleaned = t.replace(/[^0-9.]/g, '');
+                  const match = /^(\d*\.?\d{0,2})/.exec(cleaned);
+                  setAmount(match ? match[1] : '');
+                  setAmountError(null);
+                }}
                 keyboardType="decimal-pad"
                 autoFocus
               />
@@ -149,7 +157,7 @@ export default function ReceiverDetailsScreen() {
 
             {selectedWallet && (
               <Text style={styles.balanceHint}>
-                Available: N$ {selectedWallet.balance.toLocaleString('en-NA', { minimumFractionDigits: 2 })}
+                Available: N${selectedWallet.balance.toLocaleString('en-NA', { minimumFractionDigits: 2 })}
               </Text>
             )}
 

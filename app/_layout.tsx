@@ -37,6 +37,8 @@ export default function RootLayout() {
       <Stack
         screenOptions={{
           headerShown: false,
+          headerBackVisible: true,
+          headerBackTitle: 'Back',
           animation: 'fade',
           animationDuration: 200,
           presentation: 'card',

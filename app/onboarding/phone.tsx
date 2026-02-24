@@ -27,7 +27,7 @@ export default function PhoneEntryScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
-          headerTitle: 'Enter phone',
+          headerTitle: 'Tell us your mobile number',
           headerTitleStyle: {
             ...designSystem.typography.textStyles.title,
             color: designSystem.colors.neutral.text,

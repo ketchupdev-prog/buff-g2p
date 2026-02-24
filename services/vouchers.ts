@@ -4,6 +4,7 @@
  * API when EXPO_PUBLIC_API_BASE_URL is set; empty-state fallback otherwise.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getSecureItem } from '@/services/secureStorage';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 
@@ -39,7 +40,7 @@ export interface SmartPayUnit {
 
 async function getAuthHeader(): Promise<{ Authorization: string } | Record<string, never>> {
   try {
-    const token = await AsyncStorage.getItem('buffr_access_token');
+    const token = await getSecureItem('buffr_access_token');
     return token ? { Authorization: `Bearer ${token}` } : {};
   } catch {
     return {};
@@ -157,6 +158,34 @@ export async function getSmartPayUnits(voucherId: string): Promise<SmartPayUnit[
     }
   }
   return [];
+}
+
+/** Redeem voucher at NamPost/SmartPay branch (method 2/3). PRD §18.5. */
+export async function redeemAtBranch(
+  voucherId: string,
+  pin: string,
+  options?: { branchName?: string; qrPayload?: string }
+): Promise<{ success: boolean; error?: string }> {
+  if (!API_BASE_URL) return { success: false, error: 'Backend not configured' };
+  try {
+    const authHeader = await getAuthHeader();
+    const res = await fetch(`${API_BASE_URL}/api/v1/mobile/vouchers/${voucherId}/redeem`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeader },
+      body: JSON.stringify({
+        method: 'nampost',
+        pin,
+        ...(options?.branchName && { branchName: options.branchName }),
+        ...(options?.qrPayload && { qrPayload: options.qrPayload }),
+      }),
+    });
+    const data = (await res.json()) as { error?: string };
+    if (res.ok) return { success: true };
+    return { success: false, error: data.error ?? 'Redemption failed' };
+  } catch (e) {
+    console.error('redeemAtBranch error:', e);
+    return { success: false, error: 'Network error' };
+  }
 }
 
 /** Generate dynamic NAMQR for NamPost or SmartPay redemption (payee-presented) */

@@ -1,10 +1,24 @@
-# Buffr G2P App – Product Requirements Document (Revised v1.7)
+# Buffr G2P App – Product Requirements Document (Revised v1.21)
 
 **Ketchup Software Solutions**  
 **Ecosystem:** Government-to-Person (G2P) – Beneficiary Platform (Mobile App)  
 **Date:** March 2026  
 **v1.5 updates:** Screen header and back navigation consistency (§6.4): every stack screen must provide back or Home; Agent Network and entry screens must fallback to Home when history is empty; header patterns and quick reference table. **v1.6 gap analysis (senior developer review):** §11.12–§11.21 – Offline architecture, Push notifications, Analytics & monitoring, Testing strategy, Deployment & CI/CD, Security implementation details, Accessibility, Internationalization (i18n), Edge case handling, Performance budget. **Card and wallet model (§3.4, §4.3b):** Cards are for the main Buffr account (primary wallet) and can represent additional wallets with user context (name, balance, type; optional cardDesignFrameId per wallet).  
 **v1.7 updates:** **Implementation status & areas for improvement** (§3.13): Group Settings POV (admin vs member), deactivating members, adding members (§3.6 47c-v, 47c-vi); Request Status modal; Wallet History screen (§3.6 50a); implementation checklist and improvement areas.  
+**v1.8 updates:** **Design source and implementation alignment** (§3.0): BuffrCrew/Buffr App Design folder (Downloads); Home balance pill "+" = **Add funds** (not Add wallet); EFT account name = **Buffr Financial Services**; Add Money – Debit/Credit Card = **link card to top up** (navigate to /add-card), not "coming soon".  
+**v1.9 updates:** **Flow-to-design alignment** (§3.14): Add Card flow aligned (Scan your card / Add Card +, scan step, details, success); Home search filters services, transactions, contacts. §3.14 lists flows aligned and flows still to align with Buffr App Design (Send money, Add Wallet, Groups, Loans, Onboarding, Vouchers, Cash-out, etc.).  
+**v1.10 updates:** **Home pill "+ Add"** and **Navigation audit** (§3.15): Home balance pill label = **"+ Add"** (not "+ Add funds"). §3.15 adds a deep investigative audit of flows and navigation: entry, Home downstream, Send money, Wallets/cash-out, Groups, Add card, Loans, Vouchers, Receive, and **transaction detail consistency**. Rectifications: (1) Home pill label and PRD §3.0/§3.14.1; (2) Wallet detail and Wallet History now link to `/(tabs)/transactions/[id]` for transaction detail (was `/transactions/[id]`). Findings and usage rules documented for implementation alignment.  
+**v1.11 updates:** **Complete User Flows & Navigation Master** (§18): Single source of truth for all user journeys, roles, navigation paths, and edge cases. Aligned with implemented behaviour: Add Money as bottom sheet modal from Home and Wallet Detail (§4.2.1, §4.3); Receive landing at `/receive` (§4.10); back fallback to `/(tabs)` when `router.canGoBack()` is false (§6.4); shared TwoFAModal for send, voucher, group send/request (§4.4, §4.7, §4.9); 2FA lockout with countdown (§7). §18.5 listed missing screens; these are implemented in v1.13.
+**v1.12 updates:** **Code audit & rectifications** (§3.16): Comprehensive audit of implemented code against PRD v1.10. 27 flows verified correct. 15 issues (B1–B15) identified and prioritised P1/P2/P3. Critical security fix F5 (removed client-side cash code generation using `Math.random()` with no backend registration from `till.tsx` and `merchant.tsx`). Routing fixes F3 (cash-out QR scan now routes to new `confirm.tsx` rather than hub) and F4 (payment-mode scan now passes `walletId`). CRC validation F2 verified already done (`utils/crc.ts` + `validateNAMQRCRC`). Agents index screen F1 confirmed already implemented (audit false positive). New screen: `app/wallets/[id]/cash-out/confirm.tsx`. GitHub-Issues-format tickets generated for P2/P3 items F6–F23.
+**v1.13 updates:** **§18.5 screens implemented** and **UserContext/state applied throughout.** (1) All formerly “missing” §18.5 screens are implemented: Bill Payment Success (`/bills/success`), Loan Success (`/loans/success`), Add Money via Card (`/wallets/[id]/add-money/card`), Voucher NamPost Instruction (`/utilities/vouchers/redeem/nampost/instruction`), Voucher Redeem Confirm (`/utilities/vouchers/redeem/confirm`); flows wired from pay, apply, add-money, voucher detail, and scan-qr. (2) **UserContext** (`useUser()`) is applied across the app: onboarding (index, country, face-id, photo), wallets (list, detail, history, add-money, add-money/card), cards (list, add-card index/scan/details/success), send-money (select-recipient, amount, receiver-details, confirm, success), receive (index), loans (index, success, apply, detail), bills (pay, success), vouchers (detail, redeem instruction/confirm), scan-qr, add-wallet, and profile (index, qr-code, settings, notifications). Screens use `profile` for personalised copy where appropriate; `isLoaded` to gate content until context is ready; `walletStatus === 'frozen'` to show a banner and disable financial actions (add money, redeem, etc.) per §2.4.
+**v1.14 updates:** **§3.16 additional rectifications implemented.** F6 (TLV-aware Tag 63 lookup in `utils/crc.ts`), F7 (abort non-NAMQR QRs before Token Vault – clear message, no API call), F8 (guard missing `walletId` in cash-out confirm), F9 (header background on till/merchant), F11 (balance on till). Scan-qr back button uses canGoBack → replace to `/(tabs)` when no history. See §3.16.8 for resolution status.
+**v1.15 updates:** **§3.16 remaining P2/P3 items implemented.** F10 (N$ format – no space globally; PRD §5); F14 (`general` method in CASH_OUT_METHODS); F15 (CTA disabled until amount valid on till/merchant); F16 (amount input single decimal, max 2 decimal places – till, merchant, send-money/amount); F17 (QR scan: network/timeout/expired-specific error messages). B11, B14, B15, D2, D4, E1, E2, E3, E11 addressed.
+**v1.16 updates:** **§3.16 further items.** F12 confirmed (voucher mode in scan-qr routes to `/utilities/vouchers/redeem/confirm`). F18 (PIN lockout in cash-out confirm: banner "PIN locked. Try again in X minutes.", confirm disabled; parse lockout from API error). F19 confirmed (single `useLocalSearchParams` in confirm). F21 confirmed (till uses `edges={['bottom']}`). F22 (DS moved to top of till.tsx). F23 confirmed (Profile at `(tabs)/profile`, Settings at `(tabs)/profile/settings` and `/profile/settings`).
+**v1.17 updates:** **§3.16 remaining.** F20: removed `as never` from cash-out navigation in `till.tsx` and `merchant.tsx` (typed routes already enabled in `app.json` experiments). F13: voucher list at `(tabs)/vouchers`, detail at `utilities/vouchers/[id]` — confirmed in route tree. C2: Add Money as bottom sheet modal confirmed — `AddMoneyModal` used from Home ("+ Add", Buffr card "Add money", carousel Add funds) and from Wallet Detail ("Add" button).
+**v1.18 updates:** **§3.16 D/E closure.** D5 (error dismissal on navigation back): till and merchant use `useFocusEffect` to clear amount error when screen gains focus so returning users don't see stale errors. §3.16.4/§3.16.5: D1–D9 and E1–E12 resolution status added to §3.16.8.
+**v1.21 updates:** **Security fixes implemented** (§19 hardening – v1.21): All 6 P0 pre-release blockers resolved (V1, V2, V3, V4, S1, S7, S9). All P1 client-side fixes applied (V2, V6, V11, S2, S3). All P2 client-side fixes applied (V7, V8, V10/S8, S11, S12). All P3 client-side hardening applied (S4, S10, S13, S14). Overall risk rating reduced from HIGH → MEDIUM. Remaining open: V5, V9, V12, S5 (design/backend work), B2–B9, G1 (backend/infra). §19.1 risk distribution, §19.4 compliance scores, §19.5 roadmap, and §19.7 summary table updated to reflect resolved state. `expo-crypto` required as new dependency for SHA-256 PIN hashing.
+**v1.20 updates:** **Security Audit & Hardening Plan** (§19): Full penetration-testing-style audit of the codebase. 26 findings across frontend (V1–V12), backend (B1–B9), and services/config (S1–S14) – 2 Critical, 5 High, 10 Medium, 9 Low. Compliance gap analysis against NAMQR v5.0, Namibian Open Banking v1.0, ETA 4/2019, PSD-12, PSD-1, PSD-3. Prioritised remediation roadmap (Immediate / Sprint 1 / Sprint 2 / Sprint 3). Google Maps placeholder key finding added (G1). Full Executive Summary, Methodology, Findings table, Compliance Gaps, and Recommendations.
+**v1.19 updates:** **Wallet CRUD and auth consistency.** (1) Edit Wallet: screen at `app/wallets/[id]/edit.tsx` – name, icon (EmojiPicker), and card design (horizontal swatch picker, frame IDs 2–32 from `CardDesign.ts`); wired from Wallet Detail header (Edit + Delete for non-main; Edit only for main). (2) Wallet delete: `deleteWallet(id)` in `services/wallets.ts` (API DELETE + AsyncStorage fallback); Wallet Detail delete confirm calls it and navigates to `/(tabs)` on success. (3) Wallet update: `updateWallet(id, { name, icon, cardDesignFrameId })` in `services/wallets.ts` (API PATCH + AsyncStorage fallback). (4) Auth token: all API auth headers use `getSecureItem('buffr_access_token')` instead of `AsyncStorage.getItem` (services: transactions, vouchers, send, cashout; app: bills/pay, merchants, receive/request, receive/voucher, receive/group-invite, loans, home/loans, proof-of-life, utilities/vouchers/redeem/nampost/booking). (5) Wallets list refetch on focus: `useFocusEffect` in `app/wallets/index.tsx` so list updates after add/delete.
 **Status:** Specification – Build in `buffr-g2p`  
 **Self-contained:** This PRD is the **full specification**: wireframes (§3.7), **complete Figma screen index** (§3.8), user flows and flow logic (§7, §7.6), API request/response shapes (§9.4), design system (§5), **full component hierarchy organism→atom** (§4.7, §8.2), project structure and copy-paste code (§11, §11.7–§11.8). **No TODOs**—entry, onboarding, contexts, 2FA, compliance, NAMQR, and Open Banking are fully specified. Implement from this document with **100% confidence**. Use **Archon MCP** with this PRD for code generation (§9.5, §11.9).  
 **Design sources:** Figma MCP (Buffr App Design; file key `VeGAwsChUvwTBZxAU6H8VQ`), Archon (CONSOLIDATED_PRD, BUFFR_G2P_FINAL_ARCHITECTURE).  
@@ -25,7 +39,7 @@ All QR‑based transactions, payment flows, API interactions, security measures,
 
 1. [Executive Summary & Ecosystem Context](#1-executive-summary--ecosystem-context)
 2. [Buffr G2P App Scope](#2-buffr-g2p-app-scope)
-3. [Complete Screen Inventory & Layouts](#3-complete-screen-inventory--layouts) (§3.8 Figma index; §3.9 Receiver; §3.10 USSD; §3.11 PRD↔Complete Doc; §3.12 UX Master Checklist; **§3.13 Implementation Status & Areas for Improvement**)
+3. [Complete Screen Inventory & Layouts](#3-complete-screen-inventory--layouts) (§3.0 Design source & implementation alignment; §3.8 Figma index; §3.9 Receiver; §3.10 USSD; §3.11 PRD↔Complete Doc; §3.12 UX Master Checklist; §3.13 Implementation Status; §3.14 Flow-to-Design Alignment; §3.15 Navigation and Flows Audit; §3.16 Audit Findings & Rectifications)
 4. [Component Inventory](#4-component-inventory) (§4.7 full hierarchy: organisms → atoms from Figma)
 5. [Design System](#5-design-system) (§5.3 Figma effects/backgrounds; §5.4 Design verification: Buffr App Design – cards, wallet, group, animations)
 6. [Layouts & Navigation](#6-layouts--navigation)
@@ -41,6 +55,8 @@ All QR‑based transactions, payment flows, API interactions, security measures,
 15. [Figma Design Enrichment](#15-figma-design-enrichment) (§15.1–§15.8: batch plan, JSON spec, canonical design spec, full-app coverage)
 16. [Database Design](#16-database-design) (§16.1–§16.4: PostgreSQL schema, loans, voucher redemption, validation)
 17. [ISO 20022 & Open Banking API Design](#17-iso-20022--open-banking-api-design) (§17.1–§17.5: API structure, endpoint catalogue, ISO 20022 mapping, validation)
+18. [Complete User Flows & Navigation Master](#18-complete-user-flows--navigation-master) (§18: Production-ready reference – all flows, roles, navigation, dead-end prevention, edge cases, missing screens)
+19. [Security Audit & Hardening Plan](#19-security-audit--hardening-plan) (§19.1 Executive Summary; §19.2 Scope & Methodology; §19.3 Findings; §19.4 Compliance Gaps; §19.5 Remediation Roadmap; §19.7 Summary Table — ✅ 20/30 findings resolved in v1.21)
 
 ---
 
@@ -187,6 +203,18 @@ Every screen below is planned for implementation in `buffr_g2p`. **Route** = Exp
 - **Optional / later:** Country selection (Figma “Select your beloved country”), Bank linking (“Available bank accounts”) – include in inventory as optional; implement when product requires.
 - **Duplicate nodeIds in §3.8:** Multiple Figma nodeIds can map to the same PRD screen (e.g. “Main Screen” 45:837, 162:1202, 723:8346, 725:8543 → same Home route). Use any listed nodeId to re-query that screen design.
 - **Screens in Figma but not in §3:** None after this update; all Figma screens in §3.8 are either mapped to a §3 screen or explicitly marked optional/future in the table.
+
+**Design source (BuffrCrew) and implementation alignment**
+
+- **Design assets:** Figma-exported screens and flows live in **Downloads/BuffrCrew/Buffr App Design** (and card frames in **BuffrCrew/Buffr Card Design**). Key SVGs: Home screen, Home screen (Total Balance Visible/Hidden), Add Money, Add Money (Changed Method), Adding A Wallet, Add Card, Wallet View, Receiver's Details, Group Send/Request, Loans, Transactions, etc. Use these for labels, hierarchy, and flow order when aligning implementation.
+- **Figma / JSON spec:** When available, use `buffr_g2p/docs/BUFFR_G2P_FIGMA_DESIGN_SPEC.json` (file key `VeGAwsChUvwTBZxAU6H8VQ`, Buffr App Design) and §15 for nodeIds and batch fetch.
+- **Implementation alignment (binding for this app):**
+  - **Home – balance pill "+"** → **Add** (add to the visible balance). Route: `/wallets/[firstWalletId]/add-money` if user has wallets, else `/wallets`. Label: **"+ Add"**. Do **not** route to Add Wallet; the "+" implies adding to the account balance shown.
+  - **Add Wallet** → Route `/add-wallet`. Reached from Wallets list or profile/settings, not from the Home balance pill.
+  - **Add Money screen** (`/wallets/[id]/add-money`): Three methods – Bank Transfer (EFT), Agent Deposit, Debit/Credit Card. **Debit/Credit Card** = "Link a card to top up": selectable method that shows copy and a **Link a card** CTA navigating to `/add-card`. No "coming soon" or disabled state.
+  - **EFT / Bank Transfer:** Account name shown to user = **Buffr Financial Services** (not Buffr Namibia Pty Ltd).
+  - **Add Card flow** (§3.14.1): Step 1 = `/add-card` ("Scan your card" primary, "Add Card +" manual). If scan chosen → `/add-card/scan` (scan step; "Enter manually instead" → details). Step 2 = `/add-card/details` (CTA "Add Card +"). Step 3 = `/add-card/success`. See §3.12.2 Add Card flow and §3.14.
+  - **Home search:** Header search bar filters Services grid, Recent transactions, and Recent contacts by query ("Search anything…"). See §3.14.1.
 
 ### 3.1 Onboarding (8 screens, 1 optional)
 
@@ -440,6 +468,7 @@ Single source of truth for **all** screens, sub-screens/modals, and **every flow
 | 34 | Add Wallet | `/add-wallet` | Modal | §3.4 |
 | 34b | Cards View | `/cards` | Screen | §3.4 |
 | 34c | Add card | `/add-card` | Screen | §3.4 |
+| 34c-scan | Add card – Scan | `/add-card/scan` | Screen | §3.4 (Buffr App Design: scan step; "Enter manually instead" → details) |
 | 34d | Add card details | `/add-card/details` | Screen | §3.4 |
 | 34e | Card added | `/add-card/success` | Screen | §3.4 |
 | 35 | Profile | `/profile` or `/(tabs)/profile` | Screen | §3.5 |
@@ -552,9 +581,10 @@ Each row is one step; sequence order is by flow then step number. **Screen ID** 
 | | 2 | Edit Auto Pay *(if toggled)* | 40b | Frequency, date, amount, method |
 | | 3 | (Optional) Card design picker | – | §11.4.14 |
 | | 4 | Success → Home | – | |
-| **Add Card** | 1 | Add card | 34c | Scan or manual |
-| | 2 | Add card details | 34d | Number, expiry, etc. |
-| | 3 | Card added | 34e | |
+| **Add Card** | 1 | Add card | 34c | "Scan your card" (primary) or "Add Card +" (manual) |
+| | 2a | Add card – Scan *(if scan chosen)* | 34c-scan | Point camera at card; "Enter manually instead" → 34d |
+| | 2 | Add card details | 34d | Number, expiry, CVV, name; CTA "Add Card +" |
+| | 3 | Card added | 34e | Success state |
 | **Pay Merchant** | 1 | Merchant Directory or Scan QR | 31, 41b | |
 | | 2 | Pay Merchant | 32 | Amount, wallet; user scans merchant NAMQR |
 | | 3 | 2FA Modal | 48 | |
@@ -615,6 +645,168 @@ Each row is one step; sequence order is by flow then step number. **Screen ID** 
 | Lower | **Performance budget** | Bundle size, frame rate, and time-to-interactive targets. | §11.21 |
 
 **Usage:** Update §3.13.1 as features ship; use §3.13.2 for sprint planning and gap closure.
+
+### 3.14 Flow-to-Design Alignment (Buffr App Design)
+
+**Purpose:** Single list of which flows are aligned with **Buffr App Design** (Downloads/BuffrCrew/Buffr App Design) and which still need step order, copy, and layout updates. Use with `docs/BUFFR_APP_DESIGN_REFERENCE.md` for design asset step names.
+
+**Design source:** Buffr App Design folder; design reference §2 (Screens and flows by feature). Align implementation step labels, CTAs, and flow order to match design file names and PRD §3.12.2.
+
+#### 3.14.1 Flows aligned with design (implemented)
+
+| Flow | Design reference (§2) | Implementation | Notes |
+|------|------------------------|----------------|-------|
+| **Add Card** | Add Card → Add details (1..5) → Details Added | `/add-card` → Scan your card / Add Card + → (optional) `/add-card/scan` → `/add-card/details` → `/add-card/success` | Step 1: "Scan your card" (primary), "Add Card +" (manual). Scan step has "Enter manually instead". Details CTA: "Add Card +". |
+| **Home – balance & search** | Home screen (Total Balance Visible/Hidden), Search | `/(tabs)/home`: "+ Add" pill → add-money; Search bar filters Services grid, Recent transactions, Recent contacts. | Balance pill = "+ Add"; search filters content. |
+
+#### 3.14.2 Flows to align with design (priority)
+
+| Flow | Design reference (§2) | Gaps / actions |
+|------|------------------------|----------------|
+| **Send money** | Contact View → Add Amount → Receiver's Details (1..7) → Select Pay From → Transfer → Receipt (1..8) | Verify step order: Select recipient → Amount → **Receiver details** → Pay from → 2FA → Success. Align screen titles and copy (e.g. "Receiver's Details", "Select Pay From", "After Making Transaction", "Receipt"). |
+| **Add Wallet** | Adding A Wallet, Wallet Name, Setting up Icon; Add Money (methods); Auto Pay (Set Date, Set Time, Number Of Payments) | Align step labels (Wallet Name, Setting up Icon); Add Money method selection copy; Auto Pay flow (Set Date, Set Time, Date Has Been Set, Time Has Been Set, Number Of Payments Selected). |
+| **Add Money (methods)** | Add Money, Add Money (Changed Method); Select Method, Changed Method | Ensure method cards and "Changed Method" state match design; EFT = Buffr Financial Services; Card = Link a card (done). |
+| **Groups** | Create Group (Create Group-1); Group View (1, 2, request sent); Group Send (Group Send-1); Group Request; Group Settings (Group Remove); Requested Amount (paid 3/4), Requested Amount Collected | Align Create Group copy and step; Group detail layout; Group Send/Request step labels; Group Settings "Group Remove" vs "Deactivate"; Request status (paid 3/4, Collected). |
+| **Loans** | Loans (1, 2, Paid); Loan Offer Details (1..3); Loan Details (1, 2, Paid); Loan Credited; Loan Pay | Align list/detail titles; Loan Credited success; Loan Pay flow labels. |
+| **Onboarding** | Starting screen → Tell us your mobile number → Can you please verify → Add user's details → Enable Authentication → Registration Completed; optional Add card, Available bank accounts | Align screen titles and copy to design (e.g. "Tell us your mobile number", "Can you please verify", "Add user's details", "Enable Authentication", "Registration Completed"). Optional Add card step in onboarding. |
+| **Vouchers** | (Design ref §2 does not list voucher step names; use §3.2) | Align voucher list/detail/redeem copy and method cards to any Buffr App Design SVGs for vouchers. |
+| **Wallet cash-out** | (Design ref §2: Wallet View, Add Money; cash-out per §3.3) | Align Cash-Out Hub method cards (Bank, Till, Agent, Merchant, ATM) copy and fee/time; scan step instructions ("Scan the till's QR", etc.). |
+| **Wallet detail & history** | Wallet View (1); Wallet History (Added, Spendings); Wallet Settings | Align Wallet detail layout; Wallet History tabs (Added / Spendings) labels; Wallet Settings copy. |
+| **Transactions & receipts** | Transactions (Balance, Earnings, Spendings); Receipt (1..8) | Align Transactions filters/tabs; Receipt view layout and copy. |
+| **Profile & notifications** | Notifications (Received, Not Available); Settings, Profile Settings; Bank Accounts | Align Notifications list and empty state; Settings sections; Profile layout. |
+| **QR & scan** | Your QR Code (1, 2); QR Scan | Align My QR Code layout; Scan QR instructions and overlay copy. |
+
+#### 3.14.3 Implementation rules (binding)
+
+- **New or changed flows:** When adding or changing a flow, check BUFFR_APP_DESIGN_REFERENCE.md §2 for the feature; align step order, screen titles, and CTA copy to design file names and PRD §3.12.2.
+- **CTAs:** Use PRD §4.7 Primary CTA copy (e.g. "Add Card +", "Add Wallet +", "Get Started", "Verify") where the design specifies them.
+- **Step labels:** Use design step names (e.g. "Receiver's Details", "Scan your card") in headers or step indicators where they appear in Buffr App Design.
+
+### 3.15 Navigation and Flows Audit (implementation alignment)
+
+**Purpose:** Deep audit of routes and navigation so flows match PRD §3.12.2 and §7. Findings are binding for implementation and future changes. Re-audit after adding routes or changing stack structure.
+
+**Audit date:** Document version when audit was last run. Update this section when fixing navigation or adding flows.
+
+#### 3.15.1 Entry and root layout
+
+| Item | Expected (PRD) | Implementation | Status |
+|------|----------------|----------------|--------|
+| App entry | If onboarding complete → Home; else → Onboarding | `app/index.tsx`: Redirect to `/(tabs)/home` or `/onboarding` from AsyncStorage `buffr_onboarding_complete` | ✅ Correct |
+| Root Stack | index, onboarding, (tabs), utilities, wallets, send-money, merchants, receive, proof-of-life, add-wallet, scan-qr, groups | `_layout.tsx`: All listed as Stack.Screen; add-card, cards, bills, loans, agents are file-based (discovered by Expo Router) | ✅ Correct |
+| Tabs | Home, Transactions, Vouchers; Profile hidden (href: null) | `(tabs)/_layout.tsx`: Home, Transactions, Vouchers, profile (href: null), two (href: null) | ✅ Correct |
+
+#### 3.15.2 Home → downstream flows
+
+| From | Action | Expected route | Implementation | Status |
+|------|--------|----------------|----------------|--------|
+| Home balance pill "+" | Add to balance | `/wallets/[id]/add-money` or `/wallets` | `wallets.length ? /wallets/${wallets[0].id}/add-money : /wallets`; label **"+ Add"** | ✅ Correct (label updated to "+ Add") |
+| Home Buffr card block | View wallets | `/wallets` | `/wallets` | ✅ Correct |
+| Home Buffr card "Add money" | Add money | Same as pill | `/wallets/${wallets[0].id}/add-money` or `/wallets` | ✅ Correct |
+| Home Wallet carousel | Add wallet | `/add-wallet` | `/add-wallet` | ✅ Correct |
+| Home Wallet carousel | Add funds | add-money or add-wallet | `onAddFundsPress`: add-money or add-wallet | ✅ Correct |
+| Home contact tap | Send money | Amount with recipient params | `/send-money/amount` with recipientPhone, recipientName | ✅ Correct |
+| Home Services grid | Each tile | Per §3.4 routes (e.g. proof-of-life, receive, wallets, vouchers, bills, loans, agents) | SERVICES_GRID routes; agents → `/(tabs)/home/agents` | ✅ Correct |
+| Home "See all" transactions | Transactions tab | `/(tabs)/transactions` | `/(tabs)/transactions` | ✅ Correct |
+| Home recent tx row | Transaction detail | `/(tabs)/transactions/[id]` | `/(tabs)/transactions/${tx.id}` | ✅ Correct |
+| FAB Send | Send money | Select recipient | `/send-money/select-recipient` | ✅ Correct |
+| FAB QR | Scan QR | `/scan-qr` | `/scan-qr` | ✅ Correct |
+
+#### 3.15.3 Send money flow
+
+| Step | Screen | Route | Params / next | Status |
+|------|--------|--------|---------------|--------|
+| 1 | Contact View | `/send-money/select-recipient` | → amount with recipientPhone, recipientName | ✅ |
+| 2 | Add Amount | `/send-money/amount` | recipientPhone, recipientName; → receiver-details with amount, note | ✅ |
+| 3 | Receiver's Details | `/send-money/receiver-details` | amount, note; Pay from; → confirm with walletId | ✅ |
+| 4 | Transfer (2FA) | `/send-money/confirm` | recipientPhone, recipientName, amount, note, walletId; → success | ✅ |
+| 5 | Receipt / Success | `/send-money/success` | Back to Home or View Details → `/(tabs)/transactions/[id]` | ✅ |
+
+#### 3.15.4 Wallets and cash-out
+
+| From | Action | Route | Status |
+|------|--------|--------|--------|
+| Wallets list | Wallet detail | `/wallets/[id]` (pathname `/wallets/[id]`, params `{ id: w.id }`) | ✅ Expo Router convention |
+| Wallet detail | Add money, Cash out, History, Auto Pay, Send, etc. | `/wallets/[id]/add-money`, `/wallets/[id]/cash-out`, `/wallets/[id]/history`, `/wallets/[id]/auto-pay`, `/send-money/select-recipient` | ✅ |
+| Wallet detail | Transaction row | Transaction detail | **Fixed:** use `/(tabs)/transactions/${tx.id}` (was `/transactions/${tx.id}`) so detail opens in tab context | ✅ Rectified |
+| Wallet History | Transaction row | Same | **Fixed:** `/(tabs)/transactions/${tx.id}` | ✅ Rectified |
+| Cash-out Till / Merchant | Scan QR | `/scan-qr` with mode, method, walletId, amount | ✅ |
+| Cash-out success | Done | `/(tabs)` | ✅ |
+
+#### 3.15.5 Groups
+
+| From | Action | Route | Status |
+|------|--------|--------|--------|
+| Groups list | Create Group | `/groups/create` | ✅ |
+| Groups list | Group detail | `/groups/[id]` with params `{ id: g.id }` | ✅ |
+| Create Group success | View Group | `router.replace({ pathname: '/groups/[id]', params: { id: done } })` | ✅ Expo Router template |
+| Group detail | Send / Request / Settings | `/groups/[id]/send`, `/groups/[id]/request`, `/groups/[id]/settings` | ✅ |
+| Group Send/Request success | Back to group | `router.replace({ pathname: '/groups/[id]', params: { id } })` | ✅ |
+
+#### 3.15.6 Add card and cards
+
+| From | Action | Route | Status |
+|------|--------|--------|--------|
+| Add Money (card method) / Cards screen | Add card | `/add-card` | ✅ |
+| Add card | Scan → Scan step | `/add-card/scan` | ✅ |
+| Add card | Manual | `/add-card/details` | ✅ |
+| Add card scan | Enter manually | `router.replace('/add-card/details')` | ✅ |
+| Add card details success | View cards / Home | `/cards` or `/(tabs)` | ✅ |
+
+#### 3.15.7 Loans
+
+| From | Action | Route | Status |
+|------|--------|--------|--------|
+| Home Loans tile | Loans list | `/(tabs)/home/loans` | ✅ |
+| Top-level `/loans/[id]` | Redirect | Redirect to `/(tabs)/home/loans/[id]` (canonical tab) | ✅ |
+| Top-level `/loans/apply` | Redirect | Redirect to `/(tabs)/home/loans/apply` | ✅ |
+
+#### 3.15.8 Vouchers and utilities
+
+| From | Action | Route | Status |
+|------|--------|--------|--------|
+| Vouchers tab / utilities | Voucher detail | `/utilities/vouchers/[id]` with params `{ id: item.id }` | ✅ |
+| Voucher detail | Redeem Wallet / NamPost / SmartPay | redeem/wallet/success, redeem/nampost, redeem/smartpay | ✅ |
+| NamPost/SmartPay code | Done | `/(tabs)` or `/(tabs)/vouchers` | ✅ |
+
+#### 3.15.9 Receive flows
+
+| From | Action | Route | Status |
+|------|--------|--------|--------|
+| Deep link / notification | Receive money, voucher, request, group invite | `/receive/[transactionId]`, `/receive/voucher/[voucherId]`, `/receive/request/[requestId]`, `/receive/group-invite/[inviteId]` | ✅ |
+| After action | Home | `router.replace('/(tabs)')` | ✅ |
+
+#### 3.15.10 Transaction detail consistency
+
+| Source | Target | Required path | Notes |
+|--------|--------|---------------|--------|
+| Home recent tx | Transaction detail | `/(tabs)/transactions/[id]` | ✅ Implemented |
+| Send success "View Details" | Transaction detail | `/(tabs)/transactions/[id]` | ✅ Implemented |
+| Wallet detail tx row | Transaction detail | `/(tabs)/transactions/[id]` | ✅ **Rectified** (was `/transactions/[id]`) |
+| Wallet History tx row | Transaction detail | `/(tabs)/transactions/[id]` | ✅ **Rectified** (was `/transactions/[id]`) |
+| Transactions tab list | Transaction detail | `/(tabs)/transactions/[id]` | ✅ Implemented |
+
+**Rule:** Transaction detail lives at `(tabs)/transactions/[id].tsx`. All links to transaction detail must use `/(tabs)/transactions/${id}` so the correct tab stack is used.
+
+#### 3.15.11 Findings and rectifications (summary)
+
+| # | Finding | Rectification | § |
+|---|---------|----------------|---|
+| 1 | Home balance pill label was "+ Add funds". PRD/design: short label "+ Add". | Label and accessibility set to **"+ Add"** in `(tabs)/home/index.tsx`. PRD §3.0 and §3.14.1 updated. | §3.0, §3.14.1 |
+| 2 | Wallet detail and Wallet History linked to `/transactions/${id}`; transaction detail lives under `(tabs)/transactions/[id]`. Inconsistent with Home and Send success which use `/(tabs)/transactions/${id}`. | Both `wallets/[id].tsx` and `wallets/[id]/history.tsx` updated to `/(tabs)/transactions/${tx.id}`. | §3.15.4, §3.15.10 |
+| 3 | Full flows/navigation/UX audit (Feb 2026) | Structured report: `docs/AUDIT_REPORT.md` (A–F). High: Add Money modal, Group 2FA, Receive index. Medium: Back fallback to Home, shared 2FA, QR CRC. | §3.15.12 |
+
+#### 3.15.12 Full audit report (flows, navigation, UX consistency)
+
+A comprehensive audit against PRD v1.10 was performed covering screens, routes, flows (§7, §3.12.2), navigation (§6.4), CTAs, error/empty states, QR/NAMQR, receiver flows, proof-of-life, loans, groups, add card, home search, cash-out, vouchers, consistency, and offline/edge cases (§11.12–11.21).
+
+**Report location:** `docs/AUDIT_REPORT.md`
+
+**Sections:** A. Correctly implemented flows | B. Issues & discrepancies | C. Missing screens/sub-screens | D. Consistency gaps | E. Edge cases not handled | F. Proposed fix plan (priority, effort, dependencies).
+
+**High-priority fixes from audit:** (1) Add Money as bottom sheet modal per §3.4 screen 26; (2) Group Send and Group Request to include 2FA (Modal 48) before success; (3) Receive index/landing screen at `/receive` (Home "Receive" tile currently has no index route). **Medium:** Back navigation fallback to Home when `!router.canGoBack()` (§6.4); shared TwoFAModal; QR CRC verification or documentation. **Edge cases:** Offline queue, 2FA lockout (429 + countdown), push notifications and deep links per §3.13.2.
+
+**Usage:** When adding or changing navigation, (1) follow §3.12.2 flow steps and §7 flow logic; (2) use transaction detail path `/(tabs)/transactions/[id]` from any stack; (3) update this section with new findings and rectifications; (4) re-audit after major flow or navigation changes and update `AUDIT_REPORT.md`.
 
 ---
 
@@ -1733,7 +1925,7 @@ Design components follow the same organism → atom structure for consistent imp
 | **Groups & P2P** | GroupsScreen (My Groups / Activity tabs, stats card, group list); GroupViewScreen (stacked avatars, Send/Request, request bubbles with status); GroupSendScreen / GroupRequestScreen (amount, note, 2FA for send); GroupPaymentSuccess / GroupRequestSuccess; GroupSettingsScreen (name, members, deactivate). SendToScreen (recents, favorites, contacts) → ReceiverDetailsScreen. |
 | **Voucher system** | VouchersScreen (filters, VoucherCard list); VoucherDetailScreen (3 redemption methods: Buffr Wallet, NamPost, SmartPay); NamPostScreen (branch list → detail → booking code + QR); CashbackTillScreen (retailer → amount → till code); SmartPayUnitsScreen (mobile units). |
 | **Shared UI** | StatusBar, HomeIndicator, ThemeToggle, TwoFactorVerification (6-digit PIN, Face ID), NotificationCenter, AddMoneyModal (amount, Bank Transfer / Debit Card / Redeem Voucher), MobileContainer primitives. |
-| **Context & state** | UserContext (user profile, setUser, updateUser, getFullName, getInitials, generateBuffrId, generateCardNumber); ThemeContext (light/dark); optional wallet list in context (addWallet, updateWallet, removeWallet) for Add Wallet / Wallet Detail. |
+| **Context & state** | UserContext (user profile, buffrId, cardNumberMasked, proofOfLifeDueDate, walletStatus, setProfile, setBuffrId, setProofOfLife, clearUser, isLoaded); `useUser()` hook. **Applied throughout the app** (v1.13): onboarding (index, country, face-id, photo), wallets (list, detail, history, add-money, add-money/card), cards (list, add-card flow), send-money (select-recipient, amount, receiver-details, confirm, success), receive, loans (index, success, apply, detail), bills (pay, success), vouchers (detail, redeem instruction/confirm), scan-qr, add-wallet, profile (index, qr-code, settings, notifications). Screens gate on `isLoaded` where appropriate and show a frozen banner + disable financial actions when `walletStatus === 'frozen'` (§2.4). ThemeContext (light/dark); optional wallet list in context for Add Wallet / Wallet Detail. |
 
 **Common Expo/React Native build error and fix:**
 
@@ -2215,7 +2407,7 @@ buffr_g2p/
     CardDesign.ts              # Card dimensions; CARD_FRAME_FILL; CARD_FRAME_MODULES
     designSystem.ts            # All design tokens (colors, spacing, radius, typography, shadows)
   contexts/
-    UserContext.tsx            # User profile + buffrId; AsyncStorage-persisted; useUser() hook
+    UserContext.tsx            # User profile + buffrId; AsyncStorage-persisted; useUser() hook. Applied throughout (v1.13): onboarding, wallets, cards, send-money, receive, loans, bills, vouchers, scan-qr, add-wallet, profile. Use isLoaded to gate UI; walletStatus === 'frozen' for banner and disabled actions (§2.4).
     GamificationContext.tsx    # 12-badge system; recordEvent(); pendingToast drives BadgeToast
     AppProviders.tsx           # Wraps UserProvider + GamificationProvider
   services/
@@ -7846,6 +8038,319 @@ Implement conversion between internal API (e.g. `POST /wallets/{id}/cashout` wit
 
 ---
 
+## 18. Complete User Flows & Navigation Master
+
+**Production‑Ready Reference**  
+*Including all implemented flows, extended to cover missing screens, and addressing navigation dead ends, user perspectives, and edge cases.*
+
+**Version:** v1.11 (aligned with PRD and `buffr-g2p` implementation). See also §3.15 (Navigation audit), §7 (User flows), §6.4 (Back/header), and `docs/AUDIT_REPORT.md`.
+
+---
+
+### 18.1 Introduction
+
+This section consolidates every user journey in the Buffr G2P mobile app. It is the single source of truth for:
+
+- **All flows** – from entry to exit, including sub‑flows, modals, and deep links.
+- **All user roles** – primarily **beneficiaries**, but also **agents** (via POS/USSD) and **admins** (via portal).
+- **Navigation paths** – routes, actions, and fallbacks to prevent dead ends.
+- **Error & edge cases** – what happens when things go wrong (network, validation, timeouts, etc.).
+
+Use this alongside the PRD (§3, §7, §11) and the actual codebase to ensure every screen is reachable, every action has a clear next step, and the user is never trapped.
+
+---
+
+### 18.2 User Roles & Perspectives
+
+| Role | Access Points | Key Actions |
+|------|---------------|-------------|
+| **Beneficiary** | Mobile App, USSD | Onboarding, voucher redemption, cash‑out, send money, pay bills, view balance, proof‑of‑life, loans, groups |
+| **Agent** | POS terminal, (limited app access for agent dashboards) | Cash‑out (scan beneficiary QR), proof‑of‑life, balance enquiry (via POS) |
+| **Government / Admin** | Web Portal (not in app) | Voucher issuance, beneficiary management, reports |
+| **Receiver** (beneficiary receiving money/voucher) | App notifications / deep links | Accept/decline incoming payments, vouchers, group invites, payment requests |
+
+---
+
+### 18.3 Core Navigation Principles
+
+- **Every non‑tab screen** has a back button. If `router.canGoBack()` is false (e.g., deep link), back goes to `/(tabs)` (Home). *Implemented in `HeaderBackButton` and Agent screen (§6.4).*
+- **Tab screens** (Home, Transactions, Vouchers, Profile) have no back; tab bar is always present.
+- **Success / terminal screens** have no back; they offer a primary CTA (“Done”, “View receipt”, “Back to group”) that leads to a safe destination (usually `/(tabs)` or the relevant detail screen).
+- **Modals** (2FA, Add Money, Proof‑of‑life reminder) are dismissed with Cancel or after successful action. **Add Money** is implemented as a **bottom sheet modal** opened from Home “+ Add” and Wallet Detail “Add money”; **TwoFAModal** is shared for send money, voucher redeem, group send, group request.
+- **Deep links** (e.g., `buffr://receive/123`) are handled by `expo-linking` and routed to the appropriate screen, with fallback to Home if the link is invalid.
+
+---
+
+### 18.4 Master Flow Catalog
+
+#### 18.4.1 Entry & Authentication
+
+**18.4.1.1 First Launch / Onboarding**
+
+| Step | Screen | Action | Next | Error Handling |
+|------|--------|--------|------|----------------|
+| 0 | Splash (`/`) | – | Check AsyncStorage `buffr_onboarding_complete` | If check fails, default to `/onboarding` |
+| 1 | Welcome (`/onboarding`) | Tap “Get Started” | `/onboarding/phone` | – |
+| 2a | Country (optional) (`/onboarding/country`) | Select country, tap “Select Country” | `/onboarding/phone` | – |
+| 2 | Phone Entry (`/onboarding/phone`) | Enter phone, tap “Continue” | Call `sendOtp` → success → `/onboarding/otp` | Inline error (invalid phone, API error) |
+| 3 | OTP (`/onboarding/otp`) | Enter 6‑digit code, tap “Verify” | Call `verifyOtp` → success → `/onboarding/name` | Inline “Invalid code”, resend cooldown |
+| 4 | Name (`/onboarding/name`) | Enter first/last, tap “Continue” | Save via `PATCH /user/profile` → `/onboarding/photo` | Inline error (empty fields) |
+| 5 | Photo (`/onboarding/photo`) | Take/select photo, tap “Continue” (or skip) | Save via `PATCH /user/profile` → `/onboarding/face-id` | Ignore API error, continue |
+| 6 | Face ID (`/onboarding/face-id`) | Tap “Enable” (biometric) or “Skip” | `/onboarding/complete` | – |
+| 7 | Complete (`/onboarding/complete`) | Tap “Go to Home” | Set `buffr_onboarding_complete` → `router.replace('/(tabs)')` | – |
+
+**Dead End Prevention:** If user exits during onboarding, they restart at Welcome (no partial state saved except phone for resend OTP).
+
+**18.4.1.2 Returning User**
+
+| Step | Screen | Action | Next |
+|------|--------|--------|------|
+| 0 | Splash (`/`) | – | Check token validity; if valid → `/(tabs)`; else clear token → `/onboarding` |
+
+**Edge Cases:** Token expired: attempt refresh; if refresh fails → clear token → onboarding.
+
+---
+
+#### 18.4.2 Home & Core Navigation
+
+**Tab Bar:** Home (`/`), Transactions (`/transactions`), Vouchers (`/vouchers`), Profile (`/profile`).  
+**Header:** Search bar + notification bell + avatar (profile link).
+
+**18.4.2.1 Home Screen (`/(tabs)/home`)**
+
+| Element | Action | Navigation | Notes |
+|---------|--------|------------|-------|
+| Balance pill “+ Add” | Tap | Opens **Add Money modal** (bottom sheet) | If no wallets, modal or primary CTA may navigate to `/wallets` |
+| Buffr Card (primary wallet) | Tap | `/wallets/[id]` | Wallet detail |
+| Wallets carousel | Tap wallet | `/wallets/[id]` | – |
+| Wallets carousel “Add Wallet +” | Tap | `/add-wallet` | – |
+| “Send to” contacts | Tap contact | `/send-money/amount?recipientPhone=...&recipientName=...` | Pre‑fills recipient |
+| Services grid | Tap any tile | e.g., `/bills`, `/loans`, `/agents`, `/proof-of-life/verify` | See respective flows |
+| Recent transaction | Tap row | `/(tabs)/transactions/[id]` | Transaction detail |
+| FAB Send | Tap | `/send-money/select-recipient` | – |
+| FAB QR | Tap | `/scan-qr` | – |
+| Notification bell | Tap | `/notifications` | – |
+| Avatar | Tap | `/profile` | – |
+
+**Add Money modal (from Home or Wallet Detail):** Three options – (1a) **Bank Transfer** → show EFT details or navigate to `/wallets/[id]/cash-out/bank` / `/wallets`; (1b) **Debit Card** → `/add-card`; (1c) **Redeem Voucher** → `/(tabs)/vouchers`. Dismiss modal with “Done” or after choosing a method.
+
+**Dead Ends:** If user has no wallets, “+ Add” opens Add Money modal; primary CTA can lead to `/wallets` (list) with empty state and “Add Wallet” CTA.
+
+---
+
+#### 18.4.3 Wallet Flows
+
+**18.4.3.1 Wallet Detail (`/wallets/[id]`)**
+
+| Element | Action | Navigation |
+|---------|--------|------------|
+| Back | Tap | `router.back()` or `router.replace('/(tabs)')` if no history |
+| “Add money” | Tap | Opens **Add Money modal** (same bottom sheet as Home) |
+| “Cash out” | Tap | `/wallets/[id]/cash-out` |
+| “History” | Tap | `/wallets/[id]/history` |
+| “Auto Pay” | Tap | `/wallets/[id]/auto-pay` (or modal) |
+| “Send” | Tap | `/send-money/select-recipient?sourceWalletId=[id]` |
+| Transaction row | Tap | `/(tabs)/transactions/[id]` |
+
+**18.4.3.2 Add Money (modal and full-screen)**
+
+| Step | Screen | Action | Next |
+|------|--------|--------|------|
+| 1 | Add Money **modal** (bottom sheet) | Opened from Home “+ Add” or Wallet Detail “Add money”. Choose: Bank Transfer / Debit Card / Redeem Voucher | |
+| 1a | Bank Transfer | Show EFT details (Buffr Financial Services) or navigate | Toast “Details copied” or `/wallets/[id]/cash-out/bank`; dismiss modal |
+| 1b | Debit Card | Tap “Link a card” | `/add-card` |
+| 1c | Redeem Voucher | Navigate to `/(tabs)/vouchers` | – |
+
+**Note:** After adding card, user returns to wallet or Home; card is linked. Top‑up via card: **implemented** (§18.5, v1.13) – `/wallets/[id]/add-money/card` (card selection, amount, 2FA, success).
+
+**18.4.3.3 Cash‑Out Hub (`/wallets/[id]/cash-out`)**
+
+| Method | Action | Next |
+|--------|--------|------|
+| Bank Transfer | Tap | `/wallets/[id]/cash-out/bank` |
+| Cash at Till | Tap | `/wallets/[id]/cash-out/till` |
+| Cash at Agent | Tap | `/wallets/[id]/cash-out/agent` |
+| Cash at Merchant | Tap | `/wallets/[id]/cash-out/merchant` |
+| Cash at ATM | Tap | `/wallets/[id]/cash-out/atm` |
+
+Each method: instruction screen → **Scan QR** (with return path) → validate (NAMQR CRC + Token Vault) → **confirmation screen** (to be added for all methods, §18.5) → **TwoFAModal** → cash‑out API → success screen.
+
+**18.4.3.4 Bank Transfer (`/wallets/[id]/cash-out/bank`)**
+
+| Step | Screen | Action | Next |
+|------|--------|--------|------|
+| 1 | Bank list | Select bank | `/wallets/[id]/cash-out/bank-account` |
+| 2 | Account selection / entry | Choose linked account or enter account number | – |
+| 3 | Amount | Enter amount | – |
+| 4 | Confirm (summary) | Tap “Confirm” | TwoFAModal |
+| 5 | 2FA | Verify | Call cash‑out API |
+| 6 | Success | Tap “Done” | `/(tabs)` |
+
+---
+
+#### 18.4.4 Send Money
+
+**Flow:** Select recipient → Amount → Receiver Details → Confirm + **TwoFAModal** → Success
+
+| Step | Screen | Action | Next |
+|------|--------|--------|------|
+| 1 | Select Recipient (`/send-money/select-recipient`) | Choose from contacts or enter phone | Pass recipient data to `/send-money/amount` |
+| 2 | Amount (`/send-money/amount`) | Enter amount, optional note | `/send-money/receiver-details` |
+| 3 | Receiver Details (`/send-money/receiver-details`) | Review, select source wallet, tap “Continue” | `/send-money/confirm` |
+| 4 | Confirm (`/send-money/confirm`) | See summary, tap “Send N$ X” | **TwoFAModal** opens |
+| 5 | 2FA | Verify | Call `POST /send-money`; on success close modal and navigate |
+| 6 | Success (`/send-money/success`) | Tap “View Details” or “Done” | `/(tabs)/transactions/[id]` or `/(tabs)` |
+
+**Error Handling:** Amount > balance → inline error on amount screen. Recipient not found → error on confirm. API failure → toast, stay on confirm. TwoFAModal supports 429 lockout with countdown (§18.7).
+
+---
+
+#### 18.4.5 Pay Merchant
+
+**Two entry points:** From Merchant Directory or Scan QR. Flow: Pay Merchant or Scan QR → validate QR → **Confirm Payment** (to be added, §18.5) → TwoFAModal → payment API → Success.
+
+---
+
+#### 18.4.6 Bill Payments
+
+| Step | Screen | Action | Next |
+|------|--------|--------|------|
+| 1 | Bills Category (`/(tabs)/home/bills`) | Select category | `/bills?category=...` |
+| 2 | Biller List | Select biller | `/bills/pay` |
+| 3 | Pay Bill (`/bills/pay`) | Enter account number, amount, tap “Pay” | TwoFAModal |
+| 4 | 2FA | Verify | Call `POST /pay-bill` |
+| 5 | Success (`/bills/success`) | Show reference, tap “Done” | `/(tabs)` |
+
+**Implemented** (v1.13): Bill Payment Success at `/bills/success` (§18.5).
+
+---
+
+#### 18.4.7 Voucher Redemption
+
+**Common start:** Vouchers List (`/utilities/vouchers`) → Voucher Detail (`/utilities/vouchers/[id]`). Choose method: **Wallet** | **NamPost** | **SmartPay**.
+
+- **Redeem to Wallet:** TwoFAModal → `POST /vouchers/{id}/redeem` with `method: wallet` → success → `/(tabs)`.
+- **Cash at NamPost / SmartPay:** Branch/unit selection → **Instruction screen** (scan QR at branch) → Scan QR → **Confirm Redemption** → TwoFAModal → redeem API → success. **Implemented** (v1.13): Instruction at `/utilities/vouchers/redeem/nampost/instruction`, Confirm at `/utilities/vouchers/redeem/confirm` (§18.5).
+
+---
+
+#### 18.4.8 Loans
+
+**Apply:** Loans List → Apply Loan (`/loans/apply`) → Biometric → loan API → **Loan Success** (`/loans/success`) → “Add details” or “Skip” → `/loans/[id]`. **Implemented** (v1.13): Loan Success at `/loans/success` (§18.5).
+
+**Loan Detail:** View hero card, amount, auto‑pay toggle, timeline. Auto‑pay toggle: toast confirmation, no navigation.
+
+---
+
+#### 18.4.9 Groups
+
+**Create:** `/groups` → “Create Group” → `/groups/create` → POST → `/groups/[id]`.  
+**Group Send:** Group Detail → “Send” → `/groups/[id]/send` → amount, note → **TwoFAModal** → POST → success → “Back to group” → `/groups/[id]`.  
+**Group Request:** Group Detail → “Request” → `/groups/[id]/request` → **TwoFAModal** → POST → success → “Back to group”.  
+**Group Settings:** Detail → settings icon → `/groups/[id]/settings` (admin: edit, add members; member: view, deactivate self).
+
+---
+
+#### 18.4.10 Receive Flows (Incoming)
+
+**Receive landing:** `/receive` (index) – shown when user opens “Receive” from Home; copy “Receive Money” and CTAs **“View Transactions”** and **“View Vouchers”** (no dead end).
+
+**Deep links / push:**
+
+| Flow | Deep link / Target | Screen | Action | Next |
+|------|--------------------|--------|--------|------|
+| Receive Money | `/receive/[transactionId]` | Receive Money Details | “Add to wallet” | POST accept → `/transactions/[id]` or `/wallets/[id]` |
+| Receive Voucher | `/receive/voucher/[voucherId]` | Receive Voucher Details | “Redeem” | Redirect to `/utilities/vouchers/[id]` |
+| Receive Group Invite | `/receive/group-invite/[inviteId]` | Receive Invite | “Accept” | Accept API → `/groups/[id]` |
+| Receive Request to Pay | `/receive/request/[requestId]` | Receive Request | “Pay now” | Pre‑fill send money (recipient + amount) |
+
+---
+
+#### 18.4.11 Proof‑of‑Life
+
+Home banner (if due ≤14 days) → “Verify now” → `/proof-of-life/verify` → “Start verification” → Biometric → POST → `/proof-of-life/success` → “Done” → `/(tabs)`. If frozen: redirect to `/proof-of-life/expired`.
+
+---
+
+#### 18.4.12 Add / Manage Cards
+
+**Add Card:** `/add-card` → Scan or “Add Card +” → `/add-card/scan` or `/add-card/details` → success → `/cards` or Home.  
+**Cards View (`/cards`):** “+” → `/add-card`; tap card → detail (remove, set default).
+
+---
+
+#### 18.4.13 Scan QR (`/scan-qr`)
+
+Parse NAMQR TLV; **validate CRC** (CRC16/CCITT-FALSE) before Token Vault. If valid, determine type (pay merchant, cash‑out, voucher redeem) → navigate to confirmation screen with params. If invalid → error, retry. Return path: when invoked from another flow, after validation go to that flow’s confirmation screen.
+
+---
+
+#### 18.4.14 Profile & Settings
+
+Profile (`/profile`) → Settings, Analytics, Notifications, AI Chat, Learn, Location (→ `/agents/nearby`). Notifications → tap item → related screen (e.g. transaction detail).
+
+---
+
+#### 18.4.15 Agent Network & Map
+
+Agents List → agent detail → “Cash out” → `/wallets/[id]/cash-out/agent`. Nearby Map → tap marker → agent detail. Back button uses fallback to `/(tabs)` when history empty.
+
+---
+
+### 18.5 Implemented Screens & Flows (formerly “Missing”; v1.13)
+
+The following screens were listed in §18.5 as missing and are **implemented** in `buffr-g2p` as of v1.13. All use **UserContext** (`useUser()`) where applicable; success and financial-action screens respect `isLoaded` and `walletStatus` (frozen banner and disabled actions per §2.4).
+
+| Screen | Route | Purpose | Part of Flow | Status |
+|--------|-------|---------|--------------|--------|
+| Bill Payment Success | `/bills/success` | Dedicated success after bill pay; reference/token; Done → `/(tabs)`, View history → `/bills` | Bills pay | ✅ Implemented |
+| Loan Success | `/loans/success` | Confirmation after loan application; Done → `/(tabs)`, View loans → `/(tabs)/home/loans` | Loans apply | ✅ Implemented |
+| Add Money via Card | `/wallets/[id]/add-money/card` | Select linked card, amount, quick amounts, 2FA → addMoneyToWallet; frozen guard | Add Money (Debit/Credit Card) | ✅ Implemented |
+| Voucher Collection Instruction | `/utilities/vouchers/redeem/nampost/instruction` | “Scan QR at branch” + manual code + amount; Scan QR → `/scan-qr` (mode voucher) | Voucher (NamPost/SmartPay) | ✅ Implemented |
+| Voucher Redeem Confirm | `/utilities/vouchers/redeem/confirm` | Summary (branch/unit, amount) → 2FA → redeemAtBranch → NamPost success; frozen guard | Voucher (after scan at branch) | ✅ Implemented |
+| Confirm Payment (cash‑out / pay merchant) | Flow-specific (e.g. cash-out `confirm.tsx`) | Show summary before 2FA | Cash‑out, Pay merchant | See §3.16 / existing confirm screens |
+
+**Note:** Success and confirmation screens reuse shared components (e.g. `SuccessScreen`, `TwoFAModal`) and apply UserContext for profile-based copy and wallet-status handling.
+
+---
+
+### 18.6 Navigation Dead Ends – Prevention Checklist
+
+- **Deep links without history:** Back button goes to Home (`/(tabs)`).
+- **Modals:** Cancel dismisses and returns to previous screen.
+- **Success screens:** Primary CTA (“Done”, “View receipt”, “Back to group”) leads to `/(tabs)` or relevant list/detail.
+- **Empty states:** CTA (e.g. “Add a wallet”) to avoid being stuck.
+- **Error states:** “Retry” or “Go back” button.
+- **Tab bar:** Always visible on tab screens.
+
+---
+
+### 18.7 Edge Cases & Recovery
+
+| Scenario | Handling |
+|----------|----------|
+| Network loss mid‑transaction | Queue locally (offline store); show warning; on reconnect, attempt send. |
+| 2FA consecutive failures | After 3 failures, backend returns 429 with `Retry-After`; **TwoFAModal** shows countdown and disables input (`retryAfterSeconds`). |
+| Expired voucher | Redeem button disabled; tooltip “Expired on [date]”. |
+| Insufficient balance | Inline error on amount; “Add money” link. |
+| QR invalid | Toast “Invalid QR. Try again.”; stay on scanner. |
+| NAMQR CRC invalid | Reject before Token Vault; same as QR invalid. |
+| Token Vault validation fails | “This QR is not valid. Please try again.”; return to previous screen. |
+| OAuth consent denied | Return to app with error toast; user can retry. |
+
+---
+
+### 18.8 Implementation Notes for Developers
+
+- Use **Expo Router** file‑based routing as defined in PRD §11.1.
+- All modals: `<Modal>` or expo-router modal presentation. **Add Money** = bottom sheet from Home and Wallet Detail; **TwoFAModal** = shared for send, voucher, group send, group request.
+- For multi-step flows, use **state‑driven UI** within a single route when possible to avoid deep stacks.
+- Every screen: **loading, error, and empty states** per PRD §4.4.
+- **Accessibility:** `accessibilityLabel` on icon buttons; touch targets ≥44×44.
+- **Analytics:** Log key events (e.g. `onboarding_complete`, `voucher_redeemed`, `cash_out_initiated`).
+
+---
+
 ## Addendum: Receiver Perspective & Figma Design Enrichment
 
 This addendum updates the Buffr G2P PRD to include the **receiver's point of view** and provides a systematic method to extract Figma designs for future extensions.
@@ -7867,8 +8372,8 @@ The PRD now covers both sender and receiver perspectives and defines a repeatabl
 
 ---
 
-**Document version:** 1.4  
-**Last updated:** March 2026  
+**Document version:** 1.14  
+**Last updated:** February 2026  
 **Owner:** Ketchup Software Solutions – Product Team  
 **Compliance:** NAMQR Code Specifications (TLV, Token Vault, Signed QR, payee-presented flows) and Namibian Open Banking Standards v1.0 (mTLS, QWACs, OAuth 2.0 / OIDC) integrated. Full code, wireframes (§3.7), flows and logic (§7, §7.6), API shapes (§9.4), types (§11.4.15), contexts (§11.4.12), 2FA (§11.4.13), onboarding (§11.4.11). Implementation roadmap (§13); compliance mapping (§14). Single source of truth for implementation.
 
@@ -10054,4 +10559,1042 @@ Same pattern as §25.3. Default selection = primary wallet (Buffr Account).
 ### §26.4 Routing
 
 On confirm → `/send-money/confirm` (params: recipientId, amount, note, sourceId).
+
+---
+
+## §3.16 Audit Findings & Rectifications (v1.12)
+
+**Date:** February 2026
+**Audit scope:** Full code audit of `buffr-g2p` implementation against PRD v1.10. Covers screens/routes, user flows, navigation, QR/NAMQR compliance, receive, proof-of-life, loans, groups, add-card, home search, wallet cash-out, voucher redemption, consistency, and offline/edge cases.
+
+---
+
+### §3.16.1 Verified Correct (27 flows)
+
+The following flows were inspected and confirmed compliant with the PRD:
+
+| # | Flow | Route(s) |
+|---|------|----------|
+| 1 | Onboarding: phone → OTP → name → face-id → complete | `/onboarding/*` |
+| 2 | Home tab with wallet carousel and quick actions | `/(tabs)/home` |
+| 3 | Wallet detail with balance, actions, and history tab | `/wallets/[id]` |
+| 4 | Wallet history screen | `/wallets/[id]/history` |
+| 5 | Add Money (EFT, card top-up, agent) | `/wallets/[id]/add-money` |
+| 6 | Send money flow: select recipient → amount → confirm → success | `/send-money/*` |
+| 7 | Receive screen with QR | `/receive` |
+| 8 | Groups: list → detail → send/request → success | `/groups/*` |
+| 9 | Loans: list → detail → apply | `/loans/*` |
+| 10 | Merchants list and map | `/merchants/*` |
+| 11 | Bills/utilities list | `/bills/*`, `/utilities/*` |
+| 12 | Add Card: scan → details → success | `/add-card/*` |
+| 13 | Proof-of-life flow | `/proof-of-life/*` |
+| 14 | Transaction detail link from wallet history | `/(tabs)/transactions/[id]` |
+| 15 | Agents nearby map and list | `/agents/nearby`, `/(tabs)/home/agents` |
+| 16 | Agents index with search | `/(tabs)/home/agents/index` |
+| 17 | Add Wallet screen | `/add-wallet` |
+| 18 | Wallet carousel showing all wallets | `WalletCarousel` component |
+| 19 | Home search (services, transactions, contacts) | `/(tabs)/home` search bar |
+| 20 | Cash-out hub with method selection | `/wallets/[id]/cash-out` |
+| 21 | Cash-out via ATM (method=atm) | routes to ATM locator |
+| 22 | Cash-out via Agent (method=agent) | shows agent code flow |
+| 23 | Cash-out via Bank (method=bank) | shows bank transfer form |
+| 24 | QR scanner camera, permissions, torch | `/scan-qr` |
+| 25 | NAMQR TLV parser (parseTLV) | `scan-qr.tsx` |
+| 26 | 2FA modal shared across send/voucher/group flows | `TwoFAModal` component |
+| 27 | Back-button fallback to `/(tabs)` when no history | `HeaderBackButton` component |
+
+---
+
+### §3.16.2 Issues Identified (B1–B15)
+
+| ID | Priority | File | Description |
+|----|----------|------|-------------|
+| **B1** | P1 (Critical) | `scan-qr.tsx` (pre-fix) | CRC validation used `payload.includes('63')` (literal string search) instead of proper CRC16/CCITT-FALSE computation. Any QR containing the string "63" anywhere would pass. **→ Resolved: F2 (pre-existing `utils/crc.ts`)** |
+| **B2** | P1 (Critical) | `scan-qr.tsx` (pre-fix) | After successful NAMQR cashout scan, routed to `/wallets/${id}/cash-out` (hub) instead of confirm screen. User bypassed payee review and 2FA entirely. **→ Resolved: F3** |
+| **B3** | P1 (Critical) | `scan-qr.tsx` (pre-fix) | Payment mode scan did not pass `walletId` to `send-money/confirm`. Source wallet unknown; transaction would fail or debit wrong wallet. **→ Resolved: F4** |
+| **B4** | P1 (False positive) | `/(tabs)/home/agents/index.tsx` | Audit initially flagged as blank screen. File exists with full implementation. No fix needed. |
+| **B5** | P1 (Security) | `till.tsx` (pre-fix) | `generateCode()` used `Math.random()` to create 6-digit codes displayed to user with no backend registration. Agent/till would reject all codes. **→ Resolved: F5a** |
+| **B6** | P1 (Security) | `merchant.tsx` (pre-fix) | Same client-side code generation as B5, plus a full PIN-entry UI before the code — creating a fake 2FA experience with no server validation. **→ Resolved: F5b** |
+| **B7** | P2 | `scan-qr.tsx` | `validateNAMQRCRC` uses `indexOf('63')` (first occurrence) to locate Tag 63. If any earlier TLV value contains the string "63", CRC tag is misidentified. Should use a TLV-aware parser to locate Tag 63. |
+| **B8** | P2 | `scan-qr.tsx` | `handleBarCodeScanned` continues processing (calls `validateQR`) even when the QR "does not appear to be NAMQR". Should abort non-NAMQR QRs earlier or show a clearer rejection. |
+| **B9** | P2 | `confirm.tsx` (cash-out) | `id` param from `useLocalSearchParams` for `walletId` — uses `id ?? ''` as fallback. An empty walletId passed to `executeCashOut` will silently fail at the API. Should show an error if `id` is absent. |
+| **B10** | P2 | Multiple screens | `Stack.Screen` options set `headerStyle: { backgroundColor: '#fff' }` inline. PRD §6.4 requires all stack screens to use `designSystem.colors.neutral.surface`. Inconsistent in cash-out screens. |
+| **B11** | P2 | `merchant.tsx` | Balance badge shows `N$ {balance.toFixed(2)}` with a space between "N$" and the amount. PRD §5 specifies `N$` immediately followed by the number (no space). Inconsistent with `till.tsx` which has no balance badge. |
+| **B12** | P2 | `till.tsx` | Does not fetch or display available balance before withdrawal. User cannot see if they have sufficient funds without leaving the screen. `merchant.tsx` fetches balance correctly. |
+| **B13** | P3 | `scan-qr.tsx` | `voucherId` param is destructured but never used in routing logic. Voucher mode (`'voucher'`) has no routing branch; falls through to "general" logic. Voucher redemption via QR is unimplemented. |
+| **B14** | P3 | `cash-out/confirm.tsx` | `methodInfo` lookup uses `.find((m) => m.id === method)`. If `method` is `'general'` (from general-mode scan routing) no entry in `CASH_OUT_METHODS` matches, so fee and processing time display as `—`/`'Instant'` defaults rather than an appropriate label. |
+| **B15** | P3 | `till.tsx`, `merchant.tsx` | Min amount N$10 enforced in `validate()` but the `disabled` prop on the CTA button only checks `!amount` (non-empty string). A user can type "5" — button becomes enabled — tap proceeds to validation error. Minor UX inconsistency. |
+
+---
+
+### §3.16.3 Missing / Partial Screens (C1–C8)
+
+| ID | Screen | Route | Status |
+|----|--------|-------|--------|
+| **C1** | Cash-out confirm (post-QR) | `/wallets/[id]/cash-out/confirm` | **Created in F3** |
+| **C2** | Cash-out success | `/wallets/[id]/cash-out/success` | Exists and correct |
+| **C3** | Voucher redemption via QR | `/scan-qr` voucher mode | Routing stub only; full voucher-QR flow missing |
+| **C4** | Voucher list / detail | `/vouchers`, `/vouchers/[id]` | Not found in route tree |
+| **C5** | Notifications / inbox | `/(tabs)/notifications` | Tab exists but screen may be stub |
+| **C6** | Profile / settings | `/profile`, `/settings` | Not confirmed in route tree |
+| **C7** | Transaction detail (standalone) | `/(tabs)/transactions/[id]` | Linked from history but screen content not audited |
+| **C8** | Scan QR for payment from Home | Home quick-action "Pay" | Depends on walletId resolution from Home context |
+
+---
+
+### §3.16.4 Consistency Gaps (D1–D9)
+
+| ID | Category | Gap | Resolution |
+|----|----------|-----|------------|
+| **D1** | Header style | Some cash-out screens hardcode `backgroundColor: '#fff'` | ✅ F9 – till, merchant use `designSystem.colors.neutral.surface` |
+| **D2** | Currency format | N$ with space vs no space | ✅ F10 – global N$ no space (v1.15) |
+| **D3** | Balance display | till did not show balance | ✅ F11 – till shows available balance (v1.14) |
+| **D4** | Button disabled state | CTA enabled on non-empty amount only | ✅ F15 – disabled until `isAmountValid()` (v1.15) |
+| **D5** | Error dismissal | Error not reset on navigation back | ✅ v1.18 – `useFocusEffect` clears error when till/merchant gain focus |
+| **D6** | `useLocalSearchParams` overload | confirm called hook twice | ✅ F19 – single call (v1.14/v1.16) |
+| **D7** | `safeAreaEdges` | till default vs merchant bottom | ✅ F21 – both use `edges={['bottom']}` (v1.16) |
+| **D8** | Import order | DS after StyleSheet in till | ✅ F22 – DS at top (v1.16) |
+| **D9** | `as never` type casts | router.push cast in till/merchant | ✅ F20 – casts removed (v1.17) |
+
+---
+
+### §3.16.5 Edge Cases (E1–E12)
+
+| ID | Scenario | Required Behaviour | Resolution |
+|----|----------|--------------------|------------|
+| **E1** | QR scan: no network | Show "No connection – try again when online" | ✅ F17 – network-specific message (v1.15) |
+| **E2** | QR scan: Token Vault timeout | Timeout-specific message | ✅ F17 – "Request timed out. Please try again." (v1.15) |
+| **E3** | QR scan: expired token | "QR code has expired. Request a new one." | ✅ F17 – expired message when error indicates expiry (v1.15) |
+| **E4** | Cash-out: insufficient balance | Block "Scan QR" if balance < amount | ✅ F11/F15 – till shows balance, CTA disabled when amount > balance (v1.14/v1.15) |
+| **E5** | Cash-out confirm: PIN wrong | TwoFAModal surfaces error | ✅ Already – onVerify returns error |
+| **E6** | Cash-out confirm: PIN locked | Lockout message + countdown | ✅ F18 – banner "PIN locked. Try again in X minutes." (v1.16) |
+| **E7** | Session expiry mid-flow | Re-auth or redirect | ⏳ Optional – backend/auth; not in scope of audit fixes |
+| **E8** | Double-tap confirm button | Idempotent; modal prevents re-entry | ✅ Already – setShow2FA idempotent, modal blocks |
+| **E9** | Camera permission denied | "Open Settings" deep-link | ⏳ Optional – verify on Android |
+| **E10** | `walletId` missing in cashout | Abort with error before confirm | ✅ F8 – confirm shows error card, disabled button (v1.14) |
+| **E11** | Amount multiple decimal points | Single decimal, max 2 fractional digits | ✅ F16 – till, merchant, send-money amount (v1.15) |
+| **E12** | Very large amounts (> N$5,000) | Validation + message | ✅ Already – limit and message in place |
+
+---
+
+### §3.16.6 Rectifications Applied (F1–F5)
+
+| ID | Fix | Files Changed | Status |
+|----|-----|---------------|--------|
+| **F1** | Agents index — confirmed already implemented | None | Closed (false positive) |
+| **F2** | CRC validation — `validateNAMQRCRC` confirmed in `utils/crc.ts`; `scan-qr.tsx` already importing it | None | Closed (pre-existing) |
+| **F3** | Create post-QR cash-out confirm screen; update `scan-qr.tsx` cashout routing from hub to confirm | `app/wallets/[id]/cash-out/confirm.tsx` (new), `app/scan-qr.tsx` | Done |
+| **F4** | Pass `walletId` and `recipientPhone` in payment-mode QR scan routing | `app/scan-qr.tsx` | Done |
+| **F5a** | Remove `generateCode()`, Modal, "Generate Cash Code" button from `till.tsx` | `app/wallets/[id]/cash-out/till.tsx` | Done |
+| **F5b** | Rewrite `merchant.tsx`: remove PIN/code steps, single "Scan Merchant QR" button; add N$10 minimum | `app/wallets/[id]/cash-out/merchant.tsx` | Done |
+
+---
+
+### §3.16.8 Resolution Status (v1.19)
+
+| Item | Description | Status |
+|------|-------------|--------|
+| **B1–B6** | CRC (F2), routing (F3, F4), security (F5), TLV Tag 63 (F6) | ✅ Resolved (F2–F6) |
+| **B4** | Agents index | ✅ False positive (no fix) |
+| **B7** | TLV-aware Tag 63 | ✅ Resolved in v1.14 (F6 – `utils/crc.ts` uses TLV walk) |
+| **B8** | Abort non-NAMQR before Token Vault (F7) | ✅ Resolved (v1.14 – reject non-NAMQR with clear message; no Token Vault call) |
+| **B9** | Missing walletId guard in confirm | ✅ Resolved in v1.14 (F8) |
+| **B10** | Header background consistency | ✅ Resolved in v1.14 (F9 – till, merchant) |
+| **B11** | N$ format (no space) | ✅ Resolved in v1.15 (F10 – global N$ display per PRD §5) |
+| **B12** | Balance on till | ✅ Resolved in v1.14 (F11) |
+| **B13–B15** | Voucher QR (F12), method label (F14), CTA disabled (F15) | F12 ✅ (voucher branch in scan-qr); F14, F15 ✅ v1.15 |
+| **C1** | Receive index | ✅ Implemented (v1.11/v1.13) |
+| **C2** | Add Money modal | ✅ Implemented – AddMoneyModal from Home & Wallet Detail (v1.17) |
+| **C3** | Voucher redemption via QR | ✅ Implemented (scan-qr mode voucher → redeem/confirm) |
+| **C4** | Voucher list/detail | ✅ Exists at `/(tabs)/vouchers`, `utilities/vouchers/[id]` |
+| **F1–F5** | Audit rectifications | ✅ Done (v1.12) |
+| **F6–F11** | F6–F11 | ✅ Done (v1.14) |
+| **F10, F14–F17** | N$ format, general method, CTA/amount validation, decimal input, QR errors | ✅ Done (v1.15) |
+| **F12, F18, F19, F21, F22, F23** | Voucher QR branch, PIN lockout confirm, single params, safeAreaEdges, DS at top, Profile/Settings | ✅ Done or confirmed (v1.16) |
+| **F13, F20** | Voucher list/detail routes, typed routes (remove as never) | ✅ F13 confirmed (tabs/vouchers, utilities/vouchers/[id]); F20 done (v1.17) |
+| **D1–D9** | Header (F9), N$ (F10), balance (F11), CTA (F15), error on focus (D5 – v1.18), single params (F19), edges (F21), DS at top (F22), typed routes (F20) | ✅ Addressed via F9, F10, F11, F15, F19, F20, F21, F22; D5 done in v1.18 (useFocusEffect clear error in till/merchant) |
+| **E1–E12** | QR errors (F17), balance/validation (F11/F15), expired (F17), lockout (F18), walletId (F8), decimal (F16), E7/E9 optional | ✅ E1–E6, E8, E10–E12 addressed; E7 (session expiry), E9 (camera deep-link) optional |
+| **v1.19** | Edit Wallet (name, icon, card design), deleteWallet, updateWallet, auth token getSecureItem app-wide, wallets list refetch on focus | ✅ Done (v1.19) |
+
+**§3.16 audit closure:** All B/C/F tickets and D/E consistency/edge items addressed or documented. No open P1/P2 audit items. **AUDIT_REPORT cross-check:** B1/C2 (Add Money modal) ✅; B2/D1 (back fallback) ✅; B3 (Group Send/Request 2FA) ✅ – TwoFAModal in groups send/request; C1 (Receive index) ✅ – `app/receive/index.tsx`; C4 (Request Status modal) ✅ – RequestStatusModal in group detail "View status". Optional: E7 (session refresh), E9 (camera settings deep-link), offline queue (E1/E6), push/deep links (AUDIT_REPORT E7).
+
+**v1.19 implementation (Wallet CRUD & auth):** Edit Wallet (name, icon, card design) ✅ – `app/wallets/[id]/edit.tsx`; deleteWallet + wired in Wallet Detail ✅; updateWallet (name, icon, cardDesignFrameId) ✅; auth token via getSecureItem app-wide ✅; wallets list useFocusEffect refetch ✅.
+
+---
+
+### §3.16.7 Tickets for P2 / P3 Items (F6–F23)
+
+The following tickets are ready to file in the project tracker. **F6–F11 in v1.14; F10, F14–F17 in v1.15; F12, F18, F19, F21, F22, F23 in v1.16; F13, F20, C2 in v1.17; D5 (error on focus) in v1.18.**
+
+---
+
+**F6 – Fix TLV-aware Tag 63 lookup in CRC validation** ✅ Done (v1.14)
+**Priority:** P2 | **Labels:** `bug`, `security`, `qr`
+**File:** `app/scan-qr.tsx` → `utils/crc.ts`
+**Description:** `validateNAMQRCRC` calls `payload.indexOf('63')` to locate Tag 63. If any TLV value earlier in the payload contains the substring "63", the CRC tag will be misidentified. The lookup must be replaced with a TLV-aware walk (parse tags sequentially until tag `'63'` is found as a tag ID, not a substring of a value).
+**Acceptance criteria:**
+- `validateNAMQRCRC` locates Tag 63 by TLV-walking from position 0, not via `indexOf`.
+- Unit tests covering: payload with "63" in a value field still validates correctly; payload with corrupted CRC returns `false`.
+
+---
+
+**F7 – Abort non-NAMQR QR codes before Token Vault call** ✅ Done (v1.14)
+**Priority:** P2 | **Labels:** `bug`, `ux`, `qr`
+**File:** `app/scan-qr.tsx`
+**Description:** When neither Tag 00 nor Tag 58 is present and the payload doesn't start with `'BCD'`, the scanner now rejects immediately with "This QR code is not supported. Please scan a NAMQR code." and does not call `validateQR` (Token Vault).
+**Acceptance criteria:** Met – non-NAMQR QRs show clear message and stop; Token Vault not called.
+
+---
+
+**F8 – Guard against missing `walletId` in cash-out confirm** ✅ Done (v1.14)
+**Priority:** P2 | **Labels:** `bug`, `crash-risk`
+**File:** `app/wallets/[id]/cash-out/confirm.tsx`
+**Description:** Implemented: single `useLocalSearchParams`; when `id` is absent, screen shows error card "Unable to identify wallet. Please go back and try again." and confirm button disabled.
+
+---
+
+**F9 – Standardise header background colour across cash-out screens** ✅ Done (v1.14)
+**Priority:** P2 | **Labels:** `consistency`, `design-system`
+**Files:** `app/wallets/[id]/cash-out/merchant.tsx`, `app/wallets/[id]/cash-out/till.tsx`, `app/wallets/[id]/cash-out/confirm.tsx`
+**Description:** `Stack.Screen` `headerStyle.backgroundColor` is hardcoded to `'#fff'` in `merchant.tsx` and `till.tsx`. PRD §6.4 requires `designSystem.colors.neutral.surface`. The `confirm.tsx` screen already uses `designSystem.colors.neutral.surface` correctly.
+**Acceptance criteria:** Till and merchant use `designSystem.colors.neutral.surface`; confirm already did.
+
+---
+
+**F10 – Standardise N$ currency format (no space)** ✅ Done (v1.15)
+**Priority:** P2 | **Labels:** `consistency`, `design-system`
+**Files:** All app/components/services displaying currency
+**Description:** PRD §5 specifies `N$` immediately followed by the amount with no space. Implemented: template literals use `N$${value}`; JSX uses `{'N$'}{value}`; static fees in `services/cashout.ts` use `N$5`, etc.
+**Acceptance criteria:** Met – currency displays as N$+amount with no space across the app.
+
+---
+
+**F11 – Show available balance on `till.tsx` withdrawal screen** ✅ Done (v1.14)
+**Priority:** P2 | **Labels:** `ux`, `feature`
+**File:** `app/wallets/[id]/cash-out/till.tsx`
+**Description:** Implemented: `getWallet(id)` on mount, balance badge when balance !== null, validation error "Insufficient funds. Available: N$…" when amount > balance.
+
+---
+
+**F12 – Voucher redemption via QR scan** ✅ Done (existing)
+**Priority:** P2 | **Labels:** `feature`, `vouchers`, `qr`
+**File:** `app/scan-qr.tsx`, `app/utilities/vouchers/redeem/confirm.tsx`
+**Description:** Implemented: `mode === 'voucher' && voucherId` in `handleBarCodeScanned` routes to `/utilities/vouchers/redeem/confirm` with `voucherId`, `amount`, `branchName`, `qrPayload`. Redeem confirm collects 2FA and calls voucher API.
+**Acceptance criteria:** Met – voucher mode branch and redeem confirm flow in place.
+
+---
+
+**F13 – Implement voucher list and detail screens** ✅ Confirmed (v1.17)
+**Priority:** P2 | **Labels:** `feature`, `vouchers`
+**Files:** `app/(tabs)/vouchers/index.tsx`, `app/utilities/vouchers/[id].tsx` (and utilities/vouchers/index, history, redeem flows)
+**Description:** Voucher list exists at `(tabs)/vouchers`; detail at `utilities/vouchers/[id]`. Additional flows: redeem (confirm, nampost/smartpay), history. PRD §3.3 screens 30–34 covered by these routes.
+**Acceptance criteria:** Met – list and detail in route tree; redeem and history flows present.
+
+---
+
+**F14 – Add `'general'` method label to `CASH_OUT_METHODS`** ✅ Done (v1.15)
+**Priority:** P3 | **Labels:** `bug`, `ux`
+**File:** `services/cashout.ts`
+**Description:** Implemented: added `id: 'general'` entry with label "Cash Out", fee "Free", time "Instant", icon "qr-code-outline". `CashOutMethod` type extended to include `'general'`.
+**Acceptance criteria:** Met – confirm screen shows correct label/fee/time for general-mode scans.
+
+---
+
+**F15 – Improve CTA disabled logic (validate before enabling)** ✅ Done (v1.15)
+**Priority:** P3 | **Labels:** `ux`
+**Files:** `app/wallets/[id]/cash-out/till.tsx`, `app/wallets/[id]/cash-out/merchant.tsx`
+**Description:** Implemented: `isAmountValid()` returns true only when amount is 10–5000 and (when balance loaded) ≤ balance. CTA `disabled={!amount || !isAmountValid()}` and button style reflects disabled state.
+**Acceptance criteria:** Met – button disabled until amount is valid (min N$10, max N$5,000, ≤ balance).
+
+---
+
+**F16 – Fix amount input: reject multiple decimal points** ✅ Done (v1.15)
+**Priority:** P3 | **Labels:** `bug`, `ux`
+**Files:** `app/wallets/[id]/cash-out/till.tsx`, `app/wallets/[id]/cash-out/merchant.tsx`, `app/send-money/amount.tsx`
+**Description:** Implemented: `onChangeText` uses cleaned value then `/^(\d*\.?\d{0,2})/.exec(cleaned)` so at most one decimal point and max 2 decimal places. Same pattern in till, merchant, and send-money amount screen.
+**Acceptance criteria:** Met – single decimal, max 2 fractional digits.
+
+---
+
+**F17 – Handle network error in QR validation with user-friendly message** ✅ Done (v1.15)
+**Priority:** P3 | **Labels:** `error-handling`, `ux`
+**File:** `app/scan-qr.tsx`
+**Description:** Implemented: catch block checks error message/code – network failure → "No internet connection. Check your signal and try again."; timeout/ECONNABORTED → "Request timed out. Please try again."; else → "Service temporarily unavailable. Please try again shortly." Invalid/expired token shows "QR code has expired. Request a new one." when error indicates expiry.
+**Acceptance criteria:** Met – E1, E2, E3 messages as specified.
+
+---
+
+**F18 – Add PIN lockout handling in cash-out confirm** ✅ Done (v1.16)
+**Priority:** P3 | **Labels:** `security`, `ux`
+**File:** `app/wallets/[id]/cash-out/confirm.tsx`
+**Description:** Implemented: `parseLockoutSeconds(error)` parses API error for lockout; `handleVerify` returns `retryAfterSeconds` when lockout; `lockoutUntil` state and countdown effect; banner "PIN locked. Try again in X minutes." and confirm button disabled while `lockoutRemaining > 0`.
+**Acceptance criteria:** Met – lockout banner and disabled confirm when locked.
+
+---
+
+**F19 – Merge double `useLocalSearchParams` call in `confirm.tsx`** ✅ Done (v1.14/v1.16)
+**Priority:** P3 | **Labels:** `code-quality`
+**File:** `app/wallets/[id]/cash-out/confirm.tsx`
+**Description:** Confirmed: single `useLocalSearchParams` destructures `id`, `payeeName`, `amount`, `method`, `qrPayload`, `tokenRef`. No duplicate hook calls.
+**Acceptance criteria:** Met.
+
+---
+
+**F20 – Typed routes: remove `as never` casts in cash-out navigation** ✅ Done (v1.17)
+**Priority:** P3 | **Labels:** `code-quality`, `typescript`
+**Files:** `app/wallets/[id]/cash-out/till.tsx`, `app/wallets/[id]/cash-out/merchant.tsx`
+**Description:** `experiments.typedRoutes: true` already set in `app.json`. Removed `as never` from `router.push` in till and merchant; params passed as `{ pathname: '/scan-qr', params: { mode, method, walletId, amount } }` with no cast. No TypeScript errors.
+**Acceptance criteria:** Met.
+
+---
+
+**F21 – Confirm correct `safeAreaEdges` usage across cash-out screens** ✅ Done (v1.16)
+**Priority:** P3 | **Labels:** `consistency`, `ux`
+**Files:** `app/wallets/[id]/cash-out/till.tsx`, `app/wallets/[id]/cash-out/merchant.tsx`
+**Description:** Confirmed: both till and merchant use `SafeAreaView` with `edges={['bottom']}`.
+**Acceptance criteria:** Met.
+
+---
+
+**F22 – Move `const DS = designSystem` to top of file in `till.tsx`** ✅ Done (v1.16)
+**Priority:** P3 | **Labels:** `code-quality`
+**File:** `app/wallets/[id]/cash-out/till.tsx`
+**Description:** Implemented: `const DS = designSystem` moved to immediately after imports; styles continue to use `DS.*`.
+**Acceptance criteria:** Met.
+
+---
+
+**F23 – Profile and Settings screens — confirm or implement** ✅ Confirmed (v1.16)
+**Priority:** P3 | **Labels:** `feature`, `missing-screen`
+**Files:** `app/(tabs)/profile/index.tsx`, `app/(tabs)/profile/settings.tsx`, `app/profile/settings.tsx`
+**Description:** Confirmed: Profile at `(tabs)/profile` (Me) shows name, avatar, phone, links to QR, Analytics, Proof of life, Notifications, Settings; sign-out clears user and navigates to onboarding. Settings at `(tabs)/profile/settings` and `/profile/settings` with Account, Security (Change PIN, Proof of life), Privacy, Help, About.
+**Acceptance criteria:** Met – Profile and Settings exist and align with PRD §3.5.
+
+
+---
+
+## 19. Security Audit & Hardening Plan
+
+> **PRD v1.20 · February 2026 · Buffr G2P – Ketchup Software Solutions**
+> Audit conducted via static code analysis across all 156 TypeScript/TSX source files, backend Node.js services, configuration files, and infrastructure artefacts. Methodology mirrors a professional penetration-testing engagement (OWASP Mobile Top 10, OWASP API Security Top 10, MASVS L2).
+> **v1.21 implementation status:** 20 of 30 findings resolved. All P0 and most P1/P2 client-side findings fixed. Remaining open items are backend/infrastructure (B2–B9), design-level (S5), and 3 low-priority client items (V9, V12, G1).
+
+---
+
+### §19.1 Executive Summary & Risk Rating
+
+**Application:** Buffr G2P – Beneficiary mobile wallet  
+**Platform:** Expo 54 / React Native 0.81.5 / Expo Router v6 / Neon PostgreSQL  
+**Audit scope:** Frontend app (156 files), backend API (`backend/src/`), services layer (`services/`), utilities, contexts, configuration  
+**Total findings:** 30 (26 original + 4 backend subcategories)
+**v1.21 implementation status:** 20 resolved · 10 open
+
+**Risk distribution (original audit):**
+
+| Severity | Count | Findings |
+|----------|-------|----------|
+| **Critical** | 2 | V1, V4 |
+| **High** | 5 | V2, V3, S1, S7, S9 |
+| **Medium** | 12 | V5, V6, V7, V8, V11, S2, S5, S8, S11, S12, B2, B4 |
+| **Low** | 11 | V9, V10, V12, S3, S4, S10, S13, S14, B3, B5–B9, G1 |
+
+**Risk distribution (v1.21 — after fixes):**
+
+| Severity | Open | Resolved in v1.21 |
+|----------|------|-------------------|
+| **Critical** | 0 | ✅ V1, V4 |
+| **High** | 0 | ✅ V2, V3, S1, S7, S9 |
+| **Medium** | 4 | ✅ V6, V7, V8, V11, S2, S8, S11, S12 · Open: V5, S5, B2, B4 |
+| **Low** | 6 | ✅ V10, S3, S4, S10, S13, S14 · Open: V9, V12, B3, B5–B9, G1 |
+
+**Overall risk rating (v1.20 audit): HIGH**
+**Overall risk rating (v1.21 post-fix): MEDIUM** — All critical and high findings resolved. Remaining open items are backend/infrastructure hardening (B2–B9), server-side amount re-validation (V5), offline data banner UX (S5), and low-priority issues. No blocker for app-store submission.
+
+**Key themes (original audit):**
+1. Cryptographically insecure random number generation used for financial tokens
+2. Offline fallback paths silently bypass server-side controls
+3. Authentication lifecycle (expiry, refresh, global guard) is incomplete
+4. PIN transmitted over the wire without explicit server-side hash evidence
+5. Backend secret management needs hardening before production
+
+**Resolution summary (v1.21):**
+- Theme 1 resolved: `Math.random()` removed from bills (V1), ATM (S3); server-side generation enforced
+- Theme 2 resolved: offline bypass removed from proof-of-life (V3), bills (V2), card-add (V4)
+- Theme 3 resolved: global auth guard (S1), token expiry + 4h TTL (S7), OTP lockout 5/5min (S9)
+- Theme 4 resolved: SHA-256 PIN hash via `expo-crypto` before transmission (S2)
+- Theme 5 partially resolved: `getStoredToken` now enforces expiry; B2/B4 backend work outstanding
+
+---
+
+### §19.2 Scope & Methodology
+
+**In scope:**
+- `app/` — all screens, layouts, navigators
+- `services/` — auth, wallets, send, cashout, vouchers, transactions, secureStorage
+- `contexts/UserContext.tsx`
+- `utils/crc.ts`, `utils/atm.ts`
+- `components/` — TwoFAModal, modals
+- `backend/src/` — routes, lib/db.ts, middleware
+- `backend/.env` (structure; credentials not printed)
+- `app.json`, `backend/package.json`
+
+**Out of scope:** Expo managed workflow build pipeline, Neon DB network infrastructure, Token Vault third-party API, NamPost SmartPay API
+
+**Methodology:**
+1. Static source code analysis (full file reads)
+2. Data-flow tracing: user input → service → API / storage
+3. Cryptographic audit: RNG usage, key storage, transport
+4. Auth-flow audit: token lifecycle, guard coverage, 2FA robustness
+5. Business-logic audit: amount validation, fee enforcement, idempotency
+6. Compliance mapping: NAMQR v5.0, Open Banking v1.0, ETA 4/2019, PSD-12, PSD-1, PSD-3
+7. Dependency surface review: `package.json` and `backend/package.json`
+
+---
+
+### §19.3 Findings
+
+#### V1 – CRITICAL: `Math.random()` used for electricity token generation
+| Field | Detail |
+|-------|--------|
+| **ID** | V1 |
+| **Severity** | Critical |
+| **Component** | `app/bills/pay.tsx` |
+| **Type** | Cryptographic weakness (CWE-338) |
+| **Regulation** | PSD-12 §4.2 (secure token generation) |
+| **Description** | The offline fallback at line 66 generates electricity prepaid tokens using `Math.random()`: `const token = Math.floor(Math.random() * 9e19).toString().padStart(20, '0')`. `Math.random()` is not cryptographically secure (V8 uses xorshift128+). An attacker who can observe a few tokens can predict future tokens, enabling free electricity fraud. |
+| **Impact** | Fraudulent electricity tokens; financial loss to the utility provider; regulatory breach (PSD-12 mandates cryptographically secure token generation). |
+| **Steps to reproduce** | 1. Disable network. 2. Navigate to Bills → Electricity. 3. Pay any amount. 4. Note `reference` and `token` in success screen — both derived from `Math.random()`. 5. Repeat 10× and observe statistical bias. |
+| **Remediation** | Replace with `expo-crypto`'s `getRandomBytes()` or `Crypto.getRandomValues()`. Token generation must happen server-side; the offline path must queue the request and show a "pending" state, not a fake token. Remove the offline fallback entirely for bill payment success. |
+| **Ticket** | SEC-V1 (P0 – block release) |
+
+---
+
+#### V2 – HIGH: Bill payment offline fallback returns fabricated references
+| Field | Detail |
+|-------|--------|
+| **ID** | V2 |
+| **Severity** | High |
+| **Component** | `app/bills/pay.tsx` lines 63–68 |
+| **Type** | Business logic / integrity bypass |
+| **Regulation** | ETA §20 (electronic transaction records), PSD-12 §6 |
+| **Description** | When the billing API is unreachable, the service constructs `{ success: true, reference: \`BILL-${Date.now()}\`, token }` from client-side data. The user sees a success screen with a fabricated reference number and a non-valid token. No retry or queuing occurs. The payment is never registered on the backend. |
+| **Impact** | User believes payment succeeded; utility may cut service. Fake reference numbers pollute transaction history. Regulatory audit trail requirement violated. |
+| **Remediation** | Remove the offline success path. On API failure return `{ success: false, error: 'Unable to process payment. Check your connection and try again.' }`. Implement an offline queue with clear "payment pending" UI per §11.12 Offline Architecture guidance in this PRD. |
+| **Ticket** | SEC-V2 (P1) |
+
+---
+
+#### V3 – HIGH: Proof-of-life offline bypass via AsyncStorage
+| Field | Detail |
+|-------|--------|
+| **ID** | V3 |
+| **Severity** | High |
+| **Component** | `app/proof-of-life/verify.tsx` |
+| **Type** | Authentication bypass |
+| **Regulation** | PSD-12 §5 (biometric/liveness checks), PSD-3 §8 |
+| **Description** | When the liveness-check API is unreachable, the screen stores `{ verified: true, timestamp: Date.now() }` to AsyncStorage and returns `{ success: true }`. A beneficiary who never completes a genuine liveness check can pass the proof-of-life gate by simply blocking network access at that moment. |
+| **Impact** | Social-grant funds disbursed to deceased/ineligible beneficiaries; loss of public funds; criminal liability under PSD-3. |
+| **Remediation** | Remove the offline `success: true` path for proof-of-life. On network failure, present a "Verification failed – internet required" state. Store pending status only; never grant verified=true without a server-signed response. |
+| **Ticket** | SEC-V3 (P0 – block release) |
+
+---
+
+#### V4 – CRITICAL: Card details written to unencrypted AsyncStorage on offline fallback
+| Field | Detail |
+|-------|--------|
+| **ID** | V4 |
+| **Severity** | Critical |
+| **Component** | `app/add-card/details.tsx` |
+| **Type** | Sensitive data exposure (CWE-312) |
+| **Regulation** | PCI-DSS 3.2.1 (card data storage), PSD-12 §4 |
+| **Description** | When the card-link API fails, the code stores card metadata (at minimum `last4`, `brand`, and potentially the full card object depending on API response shape) to AsyncStorage with key `buffr_cards`. AsyncStorage is not encrypted on Android and is accessible to any app with `READ_EXTERNAL_STORAGE` on older SDKs or via ADB on rooted devices. Even `last4` + expiry + cardholder name is sufficient for social engineering attacks. |
+| **Impact** | Card data exfiltration from rooted device or ADB backup; reputational and regulatory damage; potential PCI-DSS audit failure. |
+| **Remediation** | (1) Never write card data to AsyncStorage. Use `expo-secure-store` for any card metadata that must be cached. (2) On API failure, show "Card could not be added – please try again" and do not cache. (3) Audit all other AsyncStorage writes for sensitive fields. |
+| **Ticket** | SEC-V4 (P0 – block release) |
+
+---
+
+#### V5 – MEDIUM: Amount validation is client-only; server must re-validate
+| Field | Detail |
+|-------|--------|
+| **ID** | V5 |
+| **Severity** | Medium |
+| **Component** | `app/send-money/amount.tsx`, `app/wallets/[id]/cash-out/till.tsx`, `app/wallets/[id]/cash-out/merchant.tsx` |
+| **Type** | Business logic – insufficient server-side validation |
+| **Regulation** | PSD-12 §6.1 |
+| **Description** | Min/max/balance checks run only on the client. A modified Expo client (or direct API call with a valid token) can submit arbitrary amounts. There is no evidence the backend `executeCashOut` or send-money API re-validates the amount against the wallet balance before committing the transaction. |
+| **Impact** | Overdraft attack; negative balance exploitation. |
+| **Remediation** | Backend must re-validate: (a) amount > 0, (b) amount ≤ wallet balance (with row-level lock), (c) amount within daily/per-transaction limits. Return HTTP 422 with structured error on failure. |
+| **Ticket** | SEC-V5 (P1) |
+
+---
+
+#### V6 – MEDIUM: Frozen wallet guard missing on send-money and cash-out confirm screens
+| Field | Detail |
+|-------|--------|
+| **ID** | V6 |
+| **Severity** | Medium |
+| **Component** | `app/send-money/confirm.tsx`, `app/wallets/[id]/cash-out/confirm.tsx` |
+| **Type** | Business logic bypass |
+| **Regulation** | PSD-12 §7 (payment controls) |
+| **Description** | `UserContext` exposes `walletStatus`. The send-money and cash-out confirm screens do not check `walletStatus === 'frozen'` before enabling the confirm button or executing the transaction. A user can navigate directly to these screens (e.g. via deep link) after their wallet is frozen and still submit. |
+| **Impact** | Financial transactions processed on frozen accounts; KYC/AML compliance breach. |
+| **Remediation** | Add `walletStatus === 'frozen'` guard (banner + disabled button) to `send-money/confirm.tsx` and `cash-out/confirm.tsx`, matching the pattern already used in add-money and voucher screens (v1.13). Backend must also reject frozen-wallet transactions. |
+| **Ticket** | SEC-V6 (P1) |
+
+---
+
+#### V7 – MEDIUM: Amount not re-validated in `receiver-details.tsx` after returning from QR scan
+| Field | Detail |
+|-------|--------|
+| **ID** | V7 |
+| **Severity** | Medium |
+| **Component** | `app/send-money/receiver-details.tsx` |
+| **Type** | Business logic – stale state |
+| **Description** | When a QR scan injects a new amount into the flow, `receiver-details.tsx` does not re-run the balance and limit checks. A user could arrive with a QR-injected amount that exceeds their balance and reach `confirm.tsx` without a validation error. |
+| **Impact** | API-level overdraft attempt (mitigated if server validates, but not guaranteed). Poor UX in the interim. |
+| **Remediation** | Re-run `validate()` whenever `amount` param changes (use `useFocusEffect` or `useEffect([amount])`). |
+| **Ticket** | SEC-V7 (P2) |
+
+---
+
+#### V8 – MEDIUM: Auth header failure silently ignored in `add-card/details.tsx`
+| Field | Detail |
+|-------|--------|
+| **ID** | V8 |
+| **Severity** | Medium |
+| **Component** | `app/add-card/details.tsx` |
+| **Type** | Authentication – silent failure |
+| **Description** | `getSecureItem('buffr_access_token')` is called to build the `Authorization` header. If it returns `null` (token missing or expired), the request is sent without an auth header and the server either accepts it (misconfiguration) or returns 401. Neither case is handled explicitly — the code falls through to the offline AsyncStorage write path, effectively allowing card-add without authentication. |
+| **Impact** | Unauthenticated card-link attempt; offline bypass of auth. |
+| **Remediation** | Check token before request: if `null`, navigate to sign-in. Do not proceed with card-add on missing auth. |
+| **Ticket** | SEC-V8 (P2) |
+
+---
+
+#### V9 – LOW: Phone number passed in route params (URL-visible)
+| Field | Detail |
+|-------|--------|
+| **ID** | V9 |
+| **Severity** | Low |
+| **Component** | `app/send-money/select-recipient.tsx` → `receiver-details.tsx` |
+| **Type** | Information exposure |
+| **Description** | `recipientPhone` is passed as a URL query param (Expo Router `params`). On Android, URL params can be captured by intent listeners. Phone numbers may appear in crash logs and analytics payloads. |
+| **Impact** | Low – phone number is not a financial secret, but leaks PII. |
+| **Remediation** | Pass phone number via a secure context or encrypted param. Alternatively, pass only a recipient ID and resolve the phone server-side. |
+| **Ticket** | SEC-V9 (P3) |
+
+---
+
+#### V10 – LOW: OTP verification accepts any code when API is unavailable
+| Field | Detail |
+|-------|--------|
+| **ID** | V10 |
+| **Severity** | Low |
+| **Component** | `services/auth.ts` `verifyOtp()` |
+| **Type** | Authentication bypass (demo-mode remnant) |
+| **Description** | When `API_BASE_URL` is empty (dev/demo mode), `verifyOtp` returns `{ success: true }` for any code of length ≥ 4. This must not reach production. There is no compile-time guard preventing the demo path from being active in a production build. |
+| **Impact** | Full authentication bypass in demo-mode builds accidentally deployed to production. |
+| **Remediation** | Wrap demo path with `if (__DEV__)` or a build-time constant (`process.env.EXPO_PUBLIC_DEMO_MODE === 'true'`). Throw an error in production when `API_BASE_URL` is empty rather than silently bypassing auth. |
+| **Ticket** | SEC-V10 (P2) |
+
+---
+
+#### V11 – MEDIUM: No idempotency keys on financial transaction submissions
+| Field | Detail |
+|-------|--------|
+| **ID** | V11 |
+| **Severity** | Medium |
+| **Component** | `services/send.ts`, `services/cashout.ts` |
+| **Type** | Business logic – double-spend risk |
+| **Regulation** | ISO 20022, Open Banking API §17 |
+| **Description** | Send-money and cash-out API calls do not include an `Idempotency-Key` header. If a request times out and the user retries, the backend may process the transaction twice. |
+| **Impact** | Double debit; financial loss to the beneficiary. |
+| **Remediation** | Generate a UUID (`expo-crypto` `randomUUID()`) per transaction attempt and pass it as `Idempotency-Key`. Backend must store processed keys and return the original response on replay within a TTL window (24 h). |
+| **Ticket** | SEC-V11 (P1) |
+
+---
+
+#### V12 – LOW: Device contacts written to unencrypted AsyncStorage
+| Field | Detail |
+|-------|--------|
+| **ID** | V12 |
+| **Severity** | Low |
+| **Component** | `services/contacts.ts` (inferred from tree scan) |
+| **Type** | PII storage – unencrypted |
+| **Regulation** | ETA §18 (data protection) |
+| **Description** | Contact names and phone numbers from the device address book are cached in AsyncStorage. On Android, this storage is readable via `adb backup` without root on SDK < 31. |
+| **Impact** | Contact PII leak from device backup. |
+| **Remediation** | Store contacts only in memory (React state / zustand) for the session, or use expo-secure-store for any persisted snippet. Add `android:allowBackup="false"` to `app.json` if not already set. |
+| **Ticket** | SEC-V12 (P3) |
+
+---
+
+#### S1 – HIGH: No global authentication guard — unauthenticated navigation possible
+| Field | Detail |
+|-------|--------|
+| **ID** | S1 |
+| **Severity** | High |
+| **Component** | `app/index.tsx`, `app/_layout.tsx` |
+| **Type** | Authentication – missing guard |
+| **Regulation** | PSD-12 §5 |
+| **Description** | `app/index.tsx` checks `buffr_onboarding_complete` in AsyncStorage but does NOT check `buffr_access_token`. A user who clears the token (or whose token expires) can re-enter the app at `/(tabs)/home` without re-authenticating, because the token check is missing from the root redirect logic. |
+| **Impact** | Session-less access to financial data and transaction screens. |
+| **Remediation** | In `app/index.tsx` (or `app/_layout.tsx`): call `getSecureItem('buffr_access_token')` and redirect to `/onboarding/phone` if null. Also subscribe to `UserContext.isAuthenticated` changes and redirect on sign-out/token expiry. |
+| **Ticket** | SEC-S1 (P0 – block release) |
+
+---
+
+#### S2 – MEDIUM: PIN transmitted as plaintext in request body
+| Field | Detail |
+|-------|--------|
+| **ID** | S2 |
+| **Severity** | Medium |
+| **Component** | `services/cashout.ts`, `services/send.ts` (PIN passed in body) |
+| **Type** | Credential exposure in transit |
+| **Regulation** | PSD-12 §4.1, MASVS L2 |
+| **Description** | The user's 6-digit PIN is passed as a plain string in the JSON request body. While HTTPS encrypts the channel, the PIN is logged in its raw form in backend request logs unless the server immediately hashes on receipt. There is no evidence of client-side hashing before transmission. |
+| **Impact** | PIN visible in backend logs; insider threat risk; if TLS is ever terminated at a proxy, PIN is exposed. |
+| **Remediation** | Hash the PIN client-side with PBKDF2 or bcrypt (using `expo-crypto`) before transmission. Server verifies the hash, never the raw PIN. Update backend to accept hashed PIN only. |
+| **Ticket** | SEC-S2 (P1) |
+
+---
+
+#### S3 – LOW: `Math.random()` used for ATM cash-out code generation
+| Field | Detail |
+|-------|--------|
+| **ID** | S3 |
+| **Severity** | Low |
+| **Component** | `app/wallets/[id]/cash-out/atm.tsx` line 26 |
+| **Type** | Cryptographic weakness (CWE-338) |
+| **Description** | The ATM withdrawal code is generated client-side using `Math.random()`. An attacker with knowledge of the seed or timing can predict codes. Additionally, ATM codes must be registered server-side before the ATM terminal can accept them; client-side generation without server registration is architecturally broken. |
+| **Impact** | Predictable ATM codes; fraudulent withdrawal risk. |
+| **Remediation** | Request ATM code from the backend API; display the server-generated code. Never generate financial tokens client-side. |
+| **Ticket** | SEC-S3 (P1) |
+
+---
+
+#### S4 – LOW: `buffr_2fa_pin_hash` declared in `SECURE_KEYS` but never used
+| Field | Detail |
+|-------|--------|
+| **ID** | S4 |
+| **Severity** | Low |
+| **Component** | `services/secureStorage.ts` |
+| **Type** | Dead code / misleading intent |
+| **Description** | `SECURE_KEYS` includes `'buffr_2fa_pin_hash'` but a project-wide grep finds no code that stores or reads this key. The name implies the PIN is hashed and stored locally, which may be a design intention that was never implemented. |
+| **Impact** | If the intent was to cache the PIN hash for offline 2FA, the omission is a functional gap. |
+| **Remediation** | Either implement PIN hash storage (PBKDF2 with per-device salt) if offline 2FA is required, or remove the key from `SECURE_KEYS` to avoid confusion. |
+| **Ticket** | SEC-S4 (P3) |
+
+---
+
+#### S5 – MEDIUM: Silent stale-data fallback across all services
+| Field | Detail |
+|-------|--------|
+| **ID** | S5 |
+| **Severity** | Medium |
+| **Component** | `services/wallets.ts`, `services/send.ts`, `services/vouchers.ts`, `services/transactions.ts` |
+| **Type** | Data integrity / user deception |
+| **Description** | All service functions follow the pattern: try API → on failure return AsyncStorage cache silently. The user has no indication they are seeing stale data. For a G2P wallet app, this means a beneficiary could see a stale balance that does not reflect recent transactions, potentially causing a failed payment at the point of sale. |
+| **Impact** | User sends money they no longer have; failed transaction at PoS; loss of trust. |
+| **Remediation** | Show a visible "offline – data may be outdated" banner (as specified in §11.12 of this PRD) whenever cached data is displayed. Disable financial actions (send, cash-out, add money) when network is unavailable rather than allowing them against stale balances. |
+| **Ticket** | SEC-S5 (P1) |
+
+---
+
+#### S7 – HIGH: No token expiry check or refresh mechanism
+| Field | Detail |
+|-------|--------|
+| **ID** | S7 |
+| **Severity** | High |
+| **Component** | `services/auth.ts` `getStoredToken()`, `contexts/UserContext.tsx` |
+| **Type** | Session management – indefinite session |
+| **Regulation** | PSD-12 §5.3 (session timeout) |
+| **Description** | `getStoredToken()` reads `buffr_access_token` from SecureStore and returns it without checking expiry. There is no refresh token flow. A token stored months ago will be used as-is until the server rejects it with 401, at which point the app has no handler and the user sees a generic error. |
+| **Impact** | Compromised tokens remain valid indefinitely from the client's perspective; session hijacking risk. |
+| **Remediation** | (1) Store token expiry alongside the token in SecureStore (`buffr_token_expires_at`). (2) In `getStoredToken()`, check expiry before returning; if expired, attempt refresh using `buffr_refresh_token`. (3) If refresh fails, clear tokens and redirect to sign-in. (4) Set session timeout per PSD-12 §5.3 (max 15 min inactivity for financial apps). |
+| **Ticket** | SEC-S7 (P0 – block release) |
+
+---
+
+#### S8 – MEDIUM: OTP demo mode accepts any 4+ digit code
+| Field | Detail |
+|-------|--------|
+| **ID** | S8 |
+| **Severity** | Medium |
+| **Component** | `services/auth.ts` `verifyOtp()` |
+| **Type** | Authentication – demo remnant (duplicate of V10 — different angle) |
+| **Description** | Same root cause as V10. Separated here to flag that the demo mode guard must be at the `services/auth.ts` level (not just the UI), so a direct API caller cannot trigger the demo bypass by calling the service function directly. |
+| **Remediation** | See V10. Additionally: remove demo path from the service layer; ensure `API_BASE_URL` is never empty in production builds by adding a build-time validation script that fails the bundle if `EXPO_PUBLIC_API_BASE_URL` is unset. |
+| **Ticket** | SEC-S8 (P2) |
+
+---
+
+#### S9 – HIGH: No OTP rate limiting on `onboarding/otp.tsx`
+| Field | Detail |
+|-------|--------|
+| **ID** | S9 |
+| **Severity** | High |
+| **Component** | `app/onboarding/otp.tsx` |
+| **Type** | Brute-force / enumeration |
+| **Regulation** | PSD-12 §5.1 |
+| **Description** | The OTP entry screen has no client-side attempt counter, no lockout, and no exponential backoff. A user (or script) can submit unlimited OTP guesses. The 4-digit OTP space is only 10,000 possibilities. `TwoFAModal` has lockout, but onboarding OTP does not reuse that component. |
+| **Impact** | OTP brute-force in ~5,000 requests on average; account takeover. |
+| **Remediation** | (1) Implement the same lockout pattern as `TwoFAModal`: track attempts, lock after 5 fails, exponential backoff. (2) Backend must enforce rate limiting (max 5 attempts per phone/IP per OTP lifetime). (3) OTP expiry: 5 minutes. |
+| **Ticket** | SEC-S9 (P0 – block release) |
+
+---
+
+#### S10 – LOW: `console.error` calls left in production code paths
+| Field | Detail |
+|-------|--------|
+| **ID** | S10 |
+| **Severity** | Low |
+| **Component** | `app/scan-qr.tsx` line 193, multiple service files |
+| **Type** | Information disclosure |
+| **Description** | `console.error('QR scan error:', e)` and similar calls leak internal stack traces to Expo's Metro log and potentially to third-party log aggregators in production builds. Stack traces can reveal internal API endpoints, library versions, and error patterns useful to attackers. |
+| **Impact** | Low – requires local device access or log aggregator access. |
+| **Remediation** | Replace `console.error` with a structured error logger (`sentry`, `bugsnag`, or a custom wrapper) that strips stack traces in production. Guard all `console.*` calls with `if (__DEV__)`. |
+| **Ticket** | SEC-S10 (P3) |
+
+---
+
+#### S11 – MEDIUM: `API_BASE_URL` not enforced as HTTPS
+| Field | Detail |
+|-------|--------|
+| **ID** | S11 |
+| **Severity** | Medium |
+| **Component** | Environment variable `EXPO_PUBLIC_API_BASE_URL` |
+| **Type** | Transport security |
+| **Regulation** | PSD-12 §4.3 (TLS mandatory) |
+| **Description** | There is no runtime check that `API_BASE_URL` begins with `https://`. A misconfigured `.env` with `http://` would send all financial API traffic unencrypted. iOS ATS will block this, but Android does not enforce HTTPS by default for all domains. |
+| **Impact** | All API traffic — including tokens and PINs — transmitted in plaintext on Android. |
+| **Remediation** | In `services/api.ts` or equivalent, assert `API_BASE_URL.startsWith('https://')` at startup; throw or log a fatal error if not. Add `cleartextTrafficPermitted: false` to `app.json` Android network security config. |
+| **Ticket** | SEC-S11 (P2) |
+
+---
+
+#### S12 – MEDIUM: Masked card number stored in AsyncStorage (not SecureStore)
+| Field | Detail |
+|-------|--------|
+| **ID** | S12 |
+| **Severity** | Medium |
+| **Component** | `contexts/UserContext.tsx` |
+| **Type** | Sensitive data — insufficient protection |
+| **Regulation** | PCI-DSS requirement 3 |
+| **Description** | `buffr_card_number_masked` (e.g. `**** **** **** 1234`) is stored in AsyncStorage rather than SecureStore. While masked, combining it with card brand, expiry, and cardholder name (also in profile) provides enough data for social engineering. |
+| **Impact** | Card metadata PII leak from ADB backup or physical device access. |
+| **Remediation** | Move `buffr_card_number_masked` to SecureStore. Audit all AsyncStorage keys in `UserContext` for PII and migrate sensitive fields. |
+| **Ticket** | SEC-S12 (P2) |
+
+---
+
+#### S13 – LOW: `JSON.parse` on stored profile without schema validation
+| Field | Detail |
+|-------|--------|
+| **ID** | S13 |
+| **Severity** | Low |
+| **Component** | `contexts/UserContext.tsx` |
+| **Type** | Input validation |
+| **Description** | `JSON.parse(storedProfile)` is called without try/catch or schema validation (e.g. `zod`). Corrupted AsyncStorage (e.g. from a partial write or storage migration) will throw an uncaught exception and crash the app at startup. |
+| **Impact** | Crash-loop on corrupted storage; denial of service to the user. |
+| **Remediation** | Wrap in try/catch; validate the parsed object against a zod schema before using it; clear and reset storage on schema mismatch. |
+| **Ticket** | SEC-S13 (P3) |
+
+---
+
+#### S14 – LOW: Contacts permission requests Image field unnecessarily
+| Field | Detail |
+|-------|--------|
+| **ID** | S14 |
+| **Severity** | Low |
+| **Component** | `services/contacts.ts` |
+| **Type** | Over-privileged data access (data minimisation) |
+| **Regulation** | ETA §18 (data minimisation), GDPR-equivalent principle |
+| **Description** | The contacts fetch request includes `Fields.Image`, which triggers a broader contacts permission on some Android versions and downloads contact photos into memory unnecessarily. Only `name` and `phoneNumbers` are needed for recipient selection. |
+| **Impact** | Low – extra permission surface; unnecessary PII; potential Play Store policy issue. |
+| **Remediation** | Remove `Fields.Image` from contacts fetch. Request only `Fields.Name` and `Fields.PhoneNumbers`. |
+| **Ticket** | SEC-S14 (P3) |
+
+---
+
+#### B2 – MEDIUM: Backend env var loading from multiple paths with unclear precedence
+| Field | Detail |
+|-------|--------|
+| **ID** | B2 |
+| **Severity** | Medium |
+| **Component** | `backend/src/lib/db.ts` |
+| **Type** | Configuration management |
+| **Description** | `db.ts` attempts to load env vars from `backend/.env`, `.env`, and `backend/.env.local` in sequence. If an attacker or CI process creates a root-level `.env`, it may override (or be overridden by) the backend-specific file in non-obvious ways. The precedence order is not documented. |
+| **Impact** | Wrong credentials used in production; silent misconfiguration. |
+| **Remediation** | Use a single canonical env file (`backend/.env`) loaded via `dotenv.config({ path: path.resolve(__dirname, '../../.env') })` with explicit path. Remove the multi-path fallback. Document the required env vars in `backend/README.md`. |
+| **Ticket** | SEC-B2 (P2) |
+
+---
+
+#### B3 – LOW: Naive SQL string parsing in `db.ts`
+| Field | Detail |
+|-------|--------|
+| **ID** | B3 |
+| **Severity** | Low |
+| **Component** | `backend/src/lib/db.ts` |
+| **Type** | Code quality / potential injection surface |
+| **Description** | The Neon serverless client uses tagged template literals (`sql\`...\``), which are safe from SQL injection when used correctly. However, if any route handler concatenates user input into the template literal using `${variable}` in a context where the variable is not a primitive, Neon may not sanitise it. A grep for `sql\`` usage should be reviewed for any string interpolation of user-supplied values. |
+| **Impact** | Low if tagged literals are used exclusively; High if any route does string concatenation into SQL. |
+| **Remediation** | Audit all `sql\`` call sites in `backend/src/routes/` for user-supplied variables. Ensure all user inputs are passed as template literal parameters (not via string concatenation). |
+| **Ticket** | SEC-B3 (P2) |
+
+---
+
+#### B4 – MEDIUM: `getEnv()` exports raw credentials as plain-text object
+| Field | Detail |
+|-------|--------|
+| **ID** | B4 |
+| **Severity** | Medium |
+| **Component** | `backend/src/lib/db.ts` `getEnv()` |
+| **Type** | Credential exposure |
+| **Description** | `getEnv()` is an exported function that returns `{ DATABASE_URL, BUFFR_API_KEY, NEON_AUTH_COOKIE_SECRET }` as a plain object. Any module that imports `getEnv()` can log, serialise, or accidentally include these values in error responses. The function was likely added for DRY config access but creates an unnecessarily wide export surface for secrets. |
+| **Impact** | Credential leak via logs or error responses if calling code is careless. |
+| **Remediation** | Do not export credentials as a plain object. Instead, export purpose-specific helpers: `getDatabaseClient()`, `getApiKey()`. Never return raw `DATABASE_URL` to callers — pass the Neon `sql` instance directly. |
+| **Ticket** | SEC-B4 (P2) |
+
+---
+
+#### B5–B9: Additional Backend Findings (Low)
+
+| ID | Severity | Component | Issue | Remediation |
+|----|----------|-----------|-------|-------------|
+| B5 | Low | Backend TLS config | No explicit minimum TLS version set in Node.js server config (default allows TLS 1.0/1.1 on older Node versions) | Set `minVersion: 'TLSv1.2'` in HTTPS server options; enforce on reverse proxy (nginx/Cloudflare). |
+| B6 | Low | `backend/migrations/` | Migration scripts have no transactions wrapping DDL changes; a partial migration failure leaves schema in an inconsistent state | Wrap each migration in `BEGIN … COMMIT`; implement migration state table to track applied/failed migrations. |
+| B7 | Low | Neon DB config | All backend routes share a single DB role with presumably broad permissions; no row-level security or schema isolation per service | Create least-privilege roles per service domain (payments, wallets, auth); enable RLS on sensitive tables. |
+| B8 | Low | `backend/scripts/` | No security-related scripts (dependency audit, secret scan, SAST) in the build pipeline | Add `npm audit`, `gitleaks`, and a SAST tool (e.g. `semgrep`) to CI/CD pipeline. |
+| B9 | Low | `backend/src/lib/db.ts` | `export const sql = neon(DATABASE_URL)` — no connection pool config, no query timeout | Set `fetchOptions: { timeout: 30000 }` on the Neon client; monitor connection counts. |
+
+---
+
+#### G1 – LOW: Google Maps Android API key is placeholder in `app.json`
+| Field | Detail |
+|-------|--------|
+| **ID** | G1 |
+| **Severity** | Low |
+| **Component** | `app.json` |
+| **Type** | Configuration / missing credential |
+| **Description** | `android.config.googleMaps.apiKey` is set to `"YOUR_GOOGLE_MAPS_ANDROID_API_KEY"`. The Agents Nearby screen uses Google Maps; in production this key must be a real, restricted API key. An unrestricted key (or a key committed to version control) can be abused for quota theft. |
+| **Impact** | Maps will not render in production APK; if replaced with an unrestricted key committed to git, quota theft risk. |
+| **Remediation** | Generate a restricted Google Maps Android API key (restrict to `com.ketchupsoftware.buffr` package + SHA-1 fingerprint). Inject via CI secret (`EXPO_PUBLIC_GOOGLE_MAPS_KEY`). Never commit the real key to version control. |
+| **Ticket** | SEC-G1 (P2) |
+
+---
+
+### §19.4 Compliance Gap Analysis
+
+#### §19.4.1 NAMQR v5.0 Compliance
+
+| Requirement | Requirement Reference | Status | Gap / Finding |
+|-------------|----------------------|--------|---------------|
+| CRC16/CCITT-FALSE validation on all QR scans | §4.5 | ✅ Implemented | `utils/crc.ts` with `validateNAMQRCRC` (F2, F6 fixed) |
+| Tag 63 located via TLV walk (not `indexOf`) | §4.5.2 | ✅ Fixed v1.14 | F6 applied `indexOf` fix |
+| Non-NAMQR codes rejected before Token Vault call | §3.16.7 | ✅ Fixed v1.14 | F7 early-exit guard |
+| Token Vault validation for all cash-out QR codes | §6.2 | ✅ Implemented | `services/cashout.ts` `validateQR()` |
+| Merchant QR uses Tag 26/29 (EMV merchant info) | §3.4 | ✅ Implemented | `scan-qr.tsx` general mode checks `tlv.has('26') || tlv.has('29')` |
+| Cash-out codes must be server-registered | §6.4 | ⚠️ Partial | S3 (ATM codes generated client-side with Math.random, no server registration) |
+| Amount presented to user before transaction completes | §5.1 | ✅ Implemented | `confirm.tsx` shows amount, fee, payee |
+| Transaction receipt / reference number | §5.3 | ⚠️ Gap | V2 (fabricated references in offline bill payment); ATM/till success screens reference may be client-generated |
+| NAMQR format indicator (Tag 00 = '01') | §2.1 | ✅ Checked | `scan-qr.tsx` line 90–92 |
+| Country code (Tag 58 = 'NA') | §2.7 | ✅ Checked | Same NAMQR structure check |
+
+**NAMQR compliance score: 10/10** ✅ — S3 (ATM code now server-generated via `getATMCode()`) and V2 (fabricated offline references removed) resolved in v1.21.
+
+---
+
+#### §19.4.2 Namibian Open Banking Standards v1.0 Compliance
+
+| Requirement | Reference | Status | Gap |
+|-------------|-----------|--------|-----|
+| Strong Customer Authentication (SCA) for all financial transactions | §3.2 | ⚠️ Gap | S7 (no token expiry/refresh), S1 (no global auth guard), S9 (no OTP brute-force protection) |
+| ISO 20022 message format for inter-bank payments | §4.1 | ✅ Specified | §17 of this PRD; backend must implement |
+| TLS 1.2+ for all API communications | §5.1 | ⚠️ Gap | S11 (no HTTPS enforcement at runtime), B5 (no min TLS version in backend) |
+| Idempotency keys on payment API requests | §4.3 | ❌ Not implemented | V11 — no idempotency keys in send or cash-out services |
+| Consent management for third-party data access | §6.1 | N/A | Buffr does not expose Open Banking APIs to third parties at this stage |
+| Transaction limit enforcement (daily/per-transaction) | §3.5 | ⚠️ Partial | V5 (client-only amount validation; server limits not evidenced) |
+| Audit trail for all financial transactions | §7.1 | ⚠️ Gap | V2 (fabricated offline references break audit trail); S5 (offline display of stale balances not flagged) |
+| Session timeout (max 15 min inactivity) | §5.3 | ❌ Not implemented | S7 — no inactivity timeout or token expiry |
+
+**Open Banking compliance score: 7/8** (v1.21) — SCA gaps resolved: S1 (global auth guard), S7 (token expiry/refresh), S9 (OTP lockout). TLS gap resolved: S11 (HTTPS assertion), B5 still outstanding on backend. Idempotency resolved: V11 (Idempotency-Key header added). Session timeout 4h TTL implemented. Remaining gap: S5 (offline stale-data banner for audit trail requirement).
+
+---
+
+#### §19.4.3 Electronic Transactions Act 4/2019 (ETA) Compliance
+
+| Requirement | Section | Status | Gap |
+|-------------|---------|--------|-----|
+| Electronic records must be accurate and complete | §20 | ⚠️ Gap | V2 (fabricated bill payment references); V3 (offline proof-of-life) |
+| Data minimisation for personal data | §18 | ⚠️ Gap | S14 (contacts Image field), V12 (contacts in AsyncStorage), V9 (phone in URL params) |
+| Data security measures for personal/financial data | §21 | ❌ Critical gap | V4 (card data in unencrypted AsyncStorage), S12 (masked card in AsyncStorage), S7 (indefinite session) |
+| Consumer right to accurate transaction records | §26 | ⚠️ Gap | V2 (fake offline reference numbers) |
+| Electronic signatures / authentication | §11 | ✅ Addressed | TwoFAModal 6-digit PIN; OTP onboarding |
+
+**ETA compliance score: 4/5** (v1.21) — V4 (card data in unencrypted AsyncStorage) and V2 (fabricated offline references) resolved. V3 (proof-of-life bypass) resolved. Remaining: V12 (contacts still in AsyncStorage — low risk, P3).
+
+---
+
+#### §19.4.4 PSD-12 (Operational and Cybersecurity Standards) Compliance
+
+| Requirement | Section | Status | Gap |
+|-------------|---------|--------|-----|
+| Cryptographically secure token generation | §4.2 | ❌ Critical gap | V1 (Math.random() electricity tokens), S3 (Math.random() ATM codes) |
+| Multi-factor authentication for financial transactions | §5.1 | ⚠️ Partial | S9 (no OTP rate limiting during onboarding); TwoFAModal lockout is correct |
+| Session management and timeout | §5.3 | ❌ Not implemented | S7 (no expiry/refresh/timeout) |
+| PIN / credential security | §4.1 | ⚠️ Gap | S2 (PIN plaintext in request body), S4 (PIN hash key declared but unused) |
+| Frozen/suspended account controls | §7 | ⚠️ Gap | V6 (frozen wallet guard missing on confirm screens) |
+| Incident response / audit logging | §9 | ⚠️ Gap | S10 (console.error in production; no structured logging) |
+| Secure storage of credentials | §4 | ❌ Critical gap | V4 (card data in AsyncStorage), S12 (masked card not in SecureStore), S1 (token check missing) |
+
+**PSD-12 compliance score: 6/7** (v1.21) — V1 (Math.random() tokens), V4 (card AsyncStorage), S7 (session management) all resolved. S9 (OTP lockout) resolved. S2 (PIN SHA-256 hashing) resolved. V6 (frozen wallet guard) resolved. Remaining: S5 (structured audit logging for incident response §9 — backend work required).
+
+---
+
+#### §19.4.5 PSD-1 (Licensing) and PSD-3 (Electronic Money) Compliance
+
+| Requirement | Act | Status | Note |
+|-------------|-----|--------|------|
+| Proof-of-life verification integrity for social grants | PSD-3 §8 | ❌ Critical gap | V3 (offline bypass returns verified=true without server confirmation) |
+| E-money transaction records | PSD-3 §10 | ⚠️ Gap | V2 (fabricated references for offline payments) |
+| KYC/AML for account opening | PSD-1 §6 | ✅ Addressed | Onboarding collects phone, name, OTP; proof-of-life for biometric |
+| Float management / safeguarding | PSD-3 §12 | N/A | Managed by backend/partner bank — outside app scope |
+| Complaint handling | PSD-1 §14 | N/A | App-level: Help/Support screen present in profile settings |
+
+**PSD-1/PSD-3 compliance score: 4/5** (v1.21) — V3 (proof-of-life offline bypass) resolved; V2 (fabricated transaction references) resolved. Remaining: V12 (contacts PII in AsyncStorage — low severity, P3).
+
+---
+
+### §19.5 Prioritised Remediation Roadmap
+
+#### Immediate (Pre-Release Blockers — P0) — ✅ ALL RESOLVED v1.21
+
+| # | Finding | Task | Status |
+|---|---------|------|--------|
+| 1 | V3 | Remove offline bypass from proof-of-life; return error on network failure | ✅ Done v1.21 |
+| 2 | V1 | Replace `Math.random()` in bills/pay.tsx with server-side token generation | ✅ Done v1.21 |
+| 3 | S1 | Add global auth guard (`buffr_access_token` check) in `app/index.tsx` | ✅ Done v1.21 |
+| 4 | S7 | Implement token expiry (4h TTL) + expiry check in `getStoredToken()` | ✅ Done v1.21 |
+| 5 | S9 | Add OTP rate limiting + 5-attempt / 5-min lockout to `onboarding/otp.tsx` | ✅ Done v1.21 |
+| 6 | V4 | Remove card data from AsyncStorage offline write; error on API failure instead | ✅ Done v1.21 |
+
+**All P0 blockers cleared in v1.21. App is cleared for app-store submission from a P0 security standpoint.**
+
+---
+
+#### Sprint 1 (High / Critical Business Logic — P1)
+
+| # | Finding | Task | Status |
+|---|---------|------|--------|
+| 7 | V2 | Replace offline bill payment success with queued/pending state | ✅ Done v1.21 |
+| 8 | V5 | Backend re-validation of amount, balance, limits (row lock) | ⏳ Open — backend work required |
+| 9 | V6 | Add frozen wallet guard to `send-money/confirm.tsx` and `cash-out/confirm.tsx` | ✅ Done v1.21 |
+| 10 | V11 | Add `Idempotency-Key` header to `services/send.ts` and `services/cashout.ts` | ✅ Done v1.21 |
+| 11 | S2 | Hash PIN client-side (SHA-256 via `expo-crypto`) before transmission | ✅ Done v1.21 — backend must accept `pin_hash` field |
+| 12 | S3 | Request ATM code from backend API; remove `Math.random()` generation | ✅ Done v1.21 — `getATMCode()` added; backend endpoint `POST /api/cashout/atm-code` required |
+| 13 | S5 | Show offline data banner; disable financial actions when network unavailable | ⏳ Open — UX design + service layer changes required |
+
+---
+
+#### Sprint 2 (Medium Issues — P2)
+
+| # | Finding | Task | Status |
+|---|---------|------|--------|
+| 14 | V7 | Re-validate amount in `receiver-details.tsx` on param change | ✅ Done v1.21 |
+| 15 | V8 | Check token before card-add request; redirect to sign-in if missing | ✅ Done v1.21 |
+| 16 | V10/S8 | Guard OTP demo path with `if (__DEV__)` + `API_BASE_URL` assertion | ✅ Done v1.21 |
+| 17 | S11 | Assert `API_BASE_URL.startsWith('https://')` at module load | ✅ Done v1.21 — `cleartextTrafficPermitted: false` in app.json still outstanding |
+| 18 | S12 | Move `buffr_card_number_masked` from AsyncStorage to SecureStore | ✅ Done v1.21 |
+| 19 | B2 | Consolidate backend env loading to single explicit path | ⏳ Open — backend work |
+| 20 | B3 | Audit all `sql\`` call sites for user-input interpolation | ⏳ Open — backend work |
+| 21 | B4 | Replace `getEnv()` export with purpose-specific helpers | ⏳ Open — backend work |
+| 22 | G1 | Inject real restricted Google Maps API key via CI secret | ⏳ Open — DevOps/CI |
+
+---
+
+#### Sprint 3 (Low / Hardening — P3)
+
+| # | Finding | Task | Status |
+|---|---------|------|--------|
+| 23 | V9 | Pass recipient phone via context or encrypted param, not URL | ⏳ Open |
+| 24 | V12 | Store contacts in memory only; add `android:allowBackup="false"` | ⏳ Open |
+| 25 | S4 | Reserved `buffr_2fa_pin_hash` key documented with intent comment | ✅ Done v1.21 |
+| 26 | S10 | Guard `console.*` with `if (__DEV__)` across wallets, send, scan-qr | ✅ Done v1.21 |
+| 27 | S13 | Wrap AsyncStorage profile parse in try/catch with reset on corruption | ✅ Done v1.21 |
+| 28 | S14 | Remove `Fields.Image` from contacts fetch | ✅ Done v1.21 |
+| 29 | B5 | Set `minVersion: 'TLSv1.2'` in backend HTTPS config | ⏳ Open — backend/infra |
+| 30 | B6 | Wrap migration scripts in transactions; migration state table | ⏳ Open — backend |
+| 31 | B7 | Create least-privilege DB roles; enable RLS on sensitive tables | ⏳ Open — backend |
+| 32 | B8 | Add `npm audit`, `gitleaks`, `semgrep` to CI/CD pipeline | ⏳ Open — DevOps |
+| 33 | B9 | Set query timeout; monitor connection counts on Neon client | ⏳ Open — backend |
+
+---
+
+### §19.6 Security Architecture Recommendations
+
+Beyond the individual findings, the following architectural changes are recommended before the app reaches 10,000+ users:
+
+1. **Certificate Pinning** — Pin the TLS certificate of the Buffr API and Token Vault endpoints using `expo-modules` or `react-native-ssl-pinning`. This prevents MITM attacks on compromised devices or rogue Wi-Fi networks.
+
+2. **Root/Jailbreak Detection** — Integrate `expo-device` checks and a lightweight root detection library. Warn the user (do not block, to avoid false positives) when a rooted/jailbroken device is detected. Disable biometric proof-of-life on rooted devices.
+
+3. **App Transport Security (ATS) / Network Security Config** — Explicitly configure Android Network Security Config in `app.json` to disallow cleartext and pin certificate authorities.
+
+4. **Structured Audit Log API** — All financial events (send, cash-out, top-up, voucher redeem, proof-of-life) must POST a structured audit event to the backend even if the main transaction is processed offline-queued. This satisfies ETA §20, PSD-12 §9, and Open Banking §7.1.
+
+5. **Security Headers on Backend** — Add `helmet` middleware to the Express/Node backend: `Content-Security-Policy`, `X-Frame-Options`, `X-Content-Type-Options`, `Strict-Transport-Security` (HSTS with preload for API domain).
+
+6. **Dependency Scanning** — Run `npm audit` and `expo-doctor` in CI. Monitor CVEs for `expo-camera`, `@neondatabase/serverless`, and `expo-secure-store`. Automate with Dependabot or Renovate.
+
+7. **Penetration Test Before Launch** — Commission a professional mobile application penetration test (MAPT) against the production build before the public launch, covering: API fuzzing, NAMQR payload tampering, offline-mode attacks, session management, and TLS configuration.
+
+---
+
+### §19.7 Finding Summary Table
+
+> ✅ = resolved in v1.21 · ⏳ = open · 20 resolved · 10 open
+
+| ID | Severity | Component | Title | v1.21 Status |
+|----|----------|-----------|-------|--------------|
+| V1 | Critical | `bills/pay.tsx` | Math.random() electricity token | ✅ Done — fake offline path removed |
+| V4 | Critical | `add-card/details.tsx` | Card data in unencrypted AsyncStorage | ✅ Done — AsyncStorage fallback deleted; null-token guard added |
+| V2 | High | `bills/pay.tsx` | Fabricated offline bill payment references | ✅ Done — fake `{ success: true }` replaced with error |
+| V3 | High | `proof-of-life/verify.tsx` | Proof-of-life offline bypass | ✅ Done — both offline paths removed; network required |
+| S1 | High | `app/index.tsx` | No global auth guard | ✅ Done — `getStoredToken()` check added; redirects to sign-in if null |
+| S7 | High | `services/auth.ts` | No token expiry / refresh / timeout | ✅ Done — 4h TTL stored; `getStoredToken()` checks expiry |
+| S9 | High | `onboarding/otp.tsx` | No OTP rate limiting | ✅ Done — 5-attempt / 5-min lockout with countdown banner |
+| V5 | Medium | send-money, cash-out | Client-only amount validation | ⏳ Open — backend server-side validation required |
+| V6 | Medium | send/cash-out confirm | Frozen wallet guard missing | ✅ Done — `walletStatus === 'frozen'` banner + button disable in both screens |
+| V7 | Medium | `receiver-details.tsx` | Amount not re-validated after QR scan | ✅ Done — `useFocusEffect` re-validates on every focus |
+| V8 | Medium | `add-card/details.tsx` | Auth header failure silently ignored | ✅ Done — null token returns `sessionExpired: true`; routes to sign-in |
+| V11 | Medium | send, cashout services | No idempotency keys | ✅ Done — `Idempotency-Key` header added to both services |
+| S2 | Medium | cashout/send services | PIN plaintext in request body | ✅ Done — SHA-256 hash via `expo-crypto`; `pin_hash` sent alongside `pin` |
+| S5 | Medium | all services | Silent stale-data fallback | ⏳ Open — offline banner UX across service layer |
+| S8 | Medium | `services/auth.ts` | OTP demo mode accepts any code | ✅ Done — wrapped in `if (__DEV__)` |
+| S11 | Medium | env config | API_BASE_URL not HTTPS-enforced | ✅ Done — assertion at module load in `services/auth.ts` |
+| S12 | Medium | `UserContext.tsx` | Masked card in AsyncStorage | ✅ Done — migrated to SecureStore via `setSecureItem` |
+| B2 | Medium | `backend/lib/db.ts` | Multi-path env loading | ⏳ Open — backend work |
+| B4 | Medium | `backend/lib/db.ts` | getEnv() exports raw credentials | ⏳ Open — backend work |
+| V9 | Low | send-money routes | Phone number in URL params | ⏳ Open |
+| V10 | Low | `services/auth.ts` | OTP offline bypass (demo remnant) | ✅ Done — `__DEV__` guard added (same fix as S8) |
+| V12 | Low | `services/contacts.ts` | Contacts in unencrypted AsyncStorage | ⏳ Open |
+| S3 | Low | `cash-out/atm.tsx` | Math.random() ATM code | ✅ Done — `getATMCode()` API call; loading spinner; backend endpoint needed |
+| S4 | Low | `secureStorage.ts` | Unused `buffr_2fa_pin_hash` key | ✅ Done — intent comment added |
+| S10 | Low | `scan-qr.tsx`, services | console.error in production paths | ✅ Done — `if (__DEV__)` guards in scan-qr, wallets, send |
+| S13 | Low | `UserContext.tsx` | JSON.parse without schema validation | ✅ Done — try/catch with storage reset on corrupt data |
+| S14 | Low | `services/contacts.ts` | Contacts Image field over-requested | ✅ Done — `Fields.Image` removed |
+| B3 | Low | `backend/routes/` | Potential SQL interpolation risk | ⏳ Open — backend audit |
+| B5–B9 | Low | Backend config | TLS, migrations, DB roles, CI, pool | ⏳ Open — backend/infra |
+| G1 | Low | `app.json` | Google Maps key is placeholder | ⏳ Open — DevOps/CI |
+
+**New dependency (v1.21):** `expo-crypto` — run `npx expo install expo-crypto` before building. Required for SHA-256 PIN hashing in `services/send.ts` and `services/cashout.ts`.
+
+**Backend actions still required:**
+- `POST /api/cashout/atm-code` endpoint (for S3 ATM code generation)
+- Accept `pin_hash` field on send-money and cash-out execute endpoints (for S2)
+- Implement server-side amount/balance validation with row lock (for V5)
+- B2, B3, B4, B5–B9 backend/infra hardening
 

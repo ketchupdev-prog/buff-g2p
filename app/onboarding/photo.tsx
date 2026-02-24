@@ -1,11 +1,13 @@
+import React, { useState } from 'react';
 import { StyleSheet, Text, View, Image, TouchableOpacity } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useState } from 'react';
 import { designSystem } from '@/constants/designSystem';
+import { useUser } from '@/contexts/UserContext';
 
 export default function PhotoUploadScreen() {
-  const [image, setImage] = useState<string | null>(null);
+  const { profile, setProfile } = useUser();
+  const [image, setImage] = useState<string | null>(profile?.photoUri ?? null);
 
   const pickImage = async () => {
     alert('Choose from Gallery functionality not implemented yet.');
@@ -17,8 +19,8 @@ export default function PhotoUploadScreen() {
     setImage('https://via.placeholder.com/150/FF0000/FFFFFF?text=Camera'); // Placeholder image
   };
 
-  const handleContinue = () => {
-    console.log('Photo selected:', image);
+  const handleContinue = async () => {
+    if (image) await setProfile({ photoUri: image });
     router.push('/onboarding/face-id'); // Navigate to Face ID Setup
   };
 

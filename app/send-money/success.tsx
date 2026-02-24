@@ -2,6 +2,7 @@
  * Send Money – Success – Buffr G2P.
  * §3.4 screen 30 / Figma 87:410.
  * Animated success screen with Confetti + SuccessIcon + gamification event.
+ * Uses UserContext for profile (personalized message).
  */
 import React, { useEffect } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -15,11 +16,13 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { designSystem } from '@/constants/designSystem';
+import { useUser } from '@/contexts/UserContext';
 import { useGamification } from '@/contexts/GamificationContext';
 import { SuccessIcon } from '@/components/animations/SuccessIcon';
 import { Confetti } from '@/components/animations/Confetti';
 
 export default function SendSuccessScreen() {
+  const { profile } = useUser();
   const { recipientName, amount, transactionId } = useLocalSearchParams<{
     recipientName: string;
     amount: string;
@@ -65,10 +68,11 @@ export default function SendSuccessScreen() {
 
         {/* Card */}
         <Animated.View style={[styles.card, cardStyle]}>
-          <Text style={styles.title}>Transfer Successful!</Text>
+          <Text style={styles.title}>Payment Successful</Text>
+        <Text style={styles.receiptLabel}>Receipt</Text>
           <Text style={styles.subtitle}>
             You sent{' '}
-            <Text style={styles.highlight}>N$ {displayAmount}</Text>
+            <Text style={styles.highlight}>N${displayAmount}</Text>
             {'\n'}to{' '}
             <Text style={styles.highlight}>{recipientName || 'Recipient'}</Text>
           </Text>
@@ -128,6 +132,11 @@ const styles = StyleSheet.create({
     color: designSystem.colors.neutral.text,
     fontWeight: '700',
     textAlign: 'center',
+    marginBottom: 4,
+  },
+  receiptLabel: {
+    fontSize: 13,
+    color: designSystem.colors.neutral.textSecondary,
     marginBottom: 10,
   },
   subtitle: {

@@ -17,7 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getSecureItem } from '@/services/secureStorage';
 import { designSystem } from '@/constants/designSystem';
 import { Avatar } from '@/components/ui';
 import { getWallets, type Wallet } from '@/services/wallets';
@@ -27,7 +27,7 @@ const PIN_LENGTH = 6;
 
 async function getAuthHeader(): Promise<Record<string, string>> {
   try {
-    const token = await AsyncStorage.getItem('buffr_access_token');
+    const token = await getSecureItem('buffr_access_token');
     return token ? { Authorization: `Bearer ${token}` } : {};
   } catch { return {}; }
 }
@@ -194,7 +194,7 @@ export default function MoneyRequestScreen() {
             </Text>
             <Text style={styles.doneSub}>
               {done === 'paid'
-                ? `N$ ${request?.amount?.toLocaleString('en-NA', { minimumFractionDigits: 2 })} sent to ${request?.requesterName}.`
+                ? `N$${request?.amount?.toLocaleString('en-NA', { minimumFractionDigits: 2 })} sent to ${request?.requesterName}.`
                 : 'You have declined this payment request.'}
             </Text>
             <TouchableOpacity style={styles.homeBtn} onPress={() => router.replace('/(tabs)' as never)}>
@@ -216,7 +216,7 @@ export default function MoneyRequestScreen() {
             <View style={styles.requestAmount}>
               <Text style={styles.requestLabel}>Requesting</Text>
               <Text style={styles.requestValue}>
-                N$ {request?.amount?.toLocaleString('en-NA', { minimumFractionDigits: 2 })}
+                N${request?.amount?.toLocaleString('en-NA', { minimumFractionDigits: 2 })}
               </Text>
               {request?.note ? <Text style={styles.requestNote}>{request.note}</Text> : null}
             </View>
@@ -254,7 +254,7 @@ export default function MoneyRequestScreen() {
                   <View style={styles.walletInfo}>
                     <Text style={styles.walletName}>{w.name}</Text>
                     <Text style={[styles.walletBalance, w.balance < (request?.amount ?? 0) && { color: designSystem.colors.semantic.error }]}>
-                      N$ {w.balance.toLocaleString('en-NA', { minimumFractionDigits: 2 })}
+                      N${w.balance.toLocaleString('en-NA', { minimumFractionDigits: 2 })}
                     </Text>
                   </View>
                   {selectedWalletId === w.id && (
@@ -282,7 +282,7 @@ export default function MoneyRequestScreen() {
           >
             <Ionicons name="send-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
             <Text style={styles.payBtnText}>
-              Pay N$ {request?.amount?.toLocaleString('en-NA', { minimumFractionDigits: 2 })}
+              Pay N${request?.amount?.toLocaleString('en-NA', { minimumFractionDigits: 2 })}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.declineBtn} onPress={handleDecline} activeOpacity={0.8}>
@@ -298,7 +298,7 @@ export default function MoneyRequestScreen() {
             <View style={styles.handle} />
             <Text style={styles.pinTitle}>Confirm Payment</Text>
             <Text style={styles.pinSub}>
-              Enter your PIN to send N$ {request?.amount?.toLocaleString('en-NA', { minimumFractionDigits: 2 })}
+              Enter your PIN to send N${request?.amount?.toLocaleString('en-NA', { minimumFractionDigits: 2 })}
             </Text>
             <View style={styles.pinRow}>
               {pin.map((digit, i) => (

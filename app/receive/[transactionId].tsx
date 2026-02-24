@@ -30,7 +30,7 @@ export default function ReceiveTransactionScreen() {
   async function handleShare() {
     if (!tx) return;
     await Share.share({
-      message: `Buffr Payment Receipt\nFrom: ${tx.counterparty}\nAmount: N$ ${Math.abs(tx.amount).toFixed(2)}\nRef: ${tx.id}\nDate: ${formatDate(tx.date)}`,
+      message: `Buffr Payment Receipt\nFrom: ${tx.counterparty}\nAmount: N$${Math.abs(tx.amount).toFixed(2)}\nRef: ${tx.id}\nDate: ${formatDate(tx.date)}`,
     });
   }
 
@@ -58,7 +58,7 @@ export default function ReceiveTransactionScreen() {
               </View>
               <Text style={styles.txType}>{tx.amount > 0 ? 'Money Received' : 'Payment Sent'}</Text>
               <Text style={[styles.txAmount, { color: tx.amount > 0 ? '#22C55E' : designSystem.colors.neutral.text }]}>
-                {tx.amount > 0 ? '+' : ''}N$ {Math.abs(tx.amount).toLocaleString('en-NA', { minimumFractionDigits: 2 })}
+                {tx.amount > 0 ? '+' : ''}{'N$'}{Math.abs(tx.amount).toLocaleString('en-NA', { minimumFractionDigits: 2 })}
               </Text>
               <Text style={styles.txDate}>{formatDate(tx.date)}</Text>
             </View>

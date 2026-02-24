@@ -21,7 +21,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getSecureItem } from '@/services/secureStorage';
 import { designSystem } from '@/constants/designSystem';
 import { getWallets, type Wallet } from '@/services/wallets';
 import { useUser } from '@/contexts/UserContext';
@@ -32,7 +32,7 @@ const PIN_LENGTH = 6;
 
 async function getAuthHeader(): Promise<Record<string, string>> {
   try {
-    const token = await AsyncStorage.getItem('buffr_access_token');
+    const token = await getSecureItem('buffr_access_token');
     return token ? { Authorization: `Bearer ${token}` } : {};
   } catch { return {}; }
 }
@@ -60,12 +60,7 @@ async function submitBillPayment(params: {
       return { success: false, error: data.error };
     } catch { /* fall through */ }
   }
-  // Offline seed: generate reference and prepaid token for electricity
-  const ref = 'BFR-' + Date.now().toString().slice(-8).toUpperCase();
-  const token = params.category === 'electricity'
-    ? Array.from({ length: 20 }, () => Math.floor(Math.random() * 10)).join('').replace(/(.{4})/g, '$1 ').trim()
-    : undefined;
-  return { success: true, reference: ref, token };
+  return { success: false, error: 'Unable to process payment. Please check your connection and try again.' };
 }
 
 // ─── Category config ────────────────────────────────────────────────────────
@@ -227,7 +222,6 @@ export default function BillPayScreen() {
   const [submitting, setSubmitting] = useState(false);
 
   // Result
-  const [result, setResult] = useState<{ reference: string; token?: string; amount: number } | null>(null);
   const inputRefs = useRef<(TextInput | null)[]>([]);
 
   useEffect(() => {
@@ -287,63 +281,22 @@ export default function BillPayScreen() {
     if (res.success) {
       setShowPin(false);
       recordEvent('bill_paid');
-      setResult({ reference: res.reference ?? '', token: res.token, amount: parsedAmount });
+      router.replace({
+        pathname: '/bills/success' as never,
+        params: {
+          amount: parsedAmount.toString(),
+          reference: res.reference ?? '',
+          billerName: billerName ?? '',
+          accountRef: accountRef.trim(),
+          ...(res.token ? { token: res.token } : {}),
+        },
+      });
+      return;
     } else {
       setPinError(res.error ?? 'Payment failed. Please try again.');
       setPin(Array(PIN_LENGTH).fill(''));
       inputRefs.current[0]?.focus();
     }
-  }
-
-  // ── Success Screen ────────────────────────────────────────────────────────
-  if (result) {
-    return (
-      <View style={styles.screen}>
-        <Stack.Screen options={{ headerShown: false }} />
-        <SafeAreaView style={styles.flex} edges={['top', 'bottom']}>
-          <ScrollView contentContainerStyle={styles.successContent}>
-            <View style={[styles.successIcon, { backgroundColor: cfg.color + '20' }]}>
-              <Ionicons name={cfg.icon as never} size={40} color={cfg.color} />
-            </View>
-            <Text style={styles.successTitle}>Payment Successful!</Text>
-            <Text style={styles.successAmount}>N$ {result.amount.toLocaleString('en-NA', { minimumFractionDigits: 2 })}</Text>
-            <Text style={styles.successBiller}>{billerName}</Text>
-
-            <View style={styles.receiptCard}>
-              {[
-                { label: 'Biller', value: billerName ?? '' },
-                { label: cfg.acctLabel, value: accountRef },
-                { label: 'Amount', value: `N$ ${result.amount.toLocaleString('en-NA', { minimumFractionDigits: 2 })}` },
-                ...(selectedBundle ? [{ label: 'Package', value: selectedBundle.label }] : []),
-                { label: 'Reference', value: result.reference },
-                { label: 'Date', value: new Date().toLocaleString('en-NA', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) },
-              ].map((row, i, arr) => (
-                <View key={row.label} style={[styles.receiptRow, i === arr.length - 1 && { borderBottomWidth: 0 }]}>
-                  <Text style={styles.receiptLabel}>{row.label}</Text>
-                  <Text style={[styles.receiptValue, row.label === 'Reference' && { color: designSystem.colors.brand.primary, fontWeight: '700' }]}>{row.value}</Text>
-                </View>
-              ))}
-            </View>
-
-            {/* Electricity prepaid token */}
-            {result.token && (
-              <View style={styles.tokenCard}>
-                <Text style={styles.tokenLabel}>PREPAID ELECTRICITY TOKEN</Text>
-                <Text style={styles.tokenValue}>{result.token}</Text>
-                <Text style={styles.tokenHint}>Enter this code on your prepaid meter</Text>
-              </View>
-            )}
-
-            <TouchableOpacity style={styles.doneBtn} onPress={() => router.replace('/(tabs)' as never)}>
-              <Text style={styles.doneBtnText}>Back to Home</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.anotherBtn} onPress={() => router.back()}>
-              <Text style={styles.anotherBtnText}>Pay Another Bill</Text>
-            </TouchableOpacity>
-          </ScrollView>
-        </SafeAreaView>
-      </View>
-    );
   }
 
   // ── Payment Form ──────────────────────────────────────────────────────────
@@ -430,7 +383,7 @@ export default function BillPayScreen() {
                       </Text>
                       <Text style={styles.bundleDesc}>{bundle.desc}</Text>
                       <Text style={[styles.bundleAmount, selectedBundle?.id === bundle.id && { color: designSystem.colors.brand.primary }]}>
-                        N$ {bundle.amount}
+                        N${bundle.amount}
                       </Text>
                       {selectedBundle?.id === bundle.id && (
                         <View style={styles.bundleCheck}>
@@ -493,7 +446,7 @@ export default function BillPayScreen() {
                     <View style={styles.walletInfo}>
                       <Text style={styles.walletName}>{w.name}</Text>
                       <Text style={[styles.walletBalance, !hasFunds && selectedWalletId === w.id && { color: designSystem.colors.semantic.error }]}>
-                        N$ {w.balance.toLocaleString('en-NA', { minimumFractionDigits: 2 })}
+                        N${w.balance.toLocaleString('en-NA', { minimumFractionDigits: 2 })}
                       </Text>
                     </View>
                     {selectedWalletId === w.id && (
@@ -520,7 +473,7 @@ export default function BillPayScreen() {
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Total</Text>
               <Text style={styles.summaryValue}>
-                {parsedAmount > 0 ? `N$ ${parsedAmount.toLocaleString('en-NA', { minimumFractionDigits: 2 })}` : '—'}
+                {parsedAmount > 0 ? `N$${parsedAmount.toLocaleString('en-NA', { minimumFractionDigits: 2 })}` : '—'}
               </Text>
             </View>
             <TouchableOpacity
@@ -531,7 +484,7 @@ export default function BillPayScreen() {
             >
               <Ionicons name="card-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
               <Text style={styles.payBtnText}>
-                {parsedAmount > 0 ? `Pay N$ ${parsedAmount.toLocaleString('en-NA', { minimumFractionDigits: 2 })}` : 'Enter Amount'}
+                {parsedAmount > 0 ? `Pay N$${parsedAmount.toLocaleString('en-NA', { minimumFractionDigits: 2 })}` : 'Enter Amount'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -545,7 +498,7 @@ export default function BillPayScreen() {
             <View style={styles.handle} />
             <Text style={styles.pinTitle}>Confirm Payment</Text>
             <Text style={styles.pinSub}>
-              Enter your PIN to pay N$ {parsedAmount.toLocaleString('en-NA', { minimumFractionDigits: 2 })} to {billerName}
+              Enter your PIN to pay N${parsedAmount.toLocaleString('en-NA', { minimumFractionDigits: 2 })} to {billerName}
             </Text>
             <View style={styles.pinRow}>
               {pin.map((digit, i) => (

@@ -37,7 +37,7 @@ export function WalletCard({ wallet, index, onPress }: WalletCardComponentProps)
       style={styles.card}
       onPress={onPress}
       activeOpacity={0.8}
-      accessibilityLabel={`Wallet ${wallet.name}, balance N$ ${wallet.balance.toFixed(2)}${progress ? `, ${progress.percent}% of goal` : ''}`}
+      accessibilityLabel={`Wallet ${wallet.name}, balance N$${wallet.balance.toFixed(2)}${progress ? `, ${progress.percent}% of goal` : ''}`}
     >
       {/* Top accent bar */}
       <View style={[styles.accentBar, { backgroundColor: accentColor }]} />
@@ -60,7 +60,7 @@ export function WalletCard({ wallet, index, onPress }: WalletCardComponentProps)
 
         {/* Balance */}
         <Text style={styles.balance}>
-          N$ {wallet.balance.toLocaleString('en-NA', { minimumFractionDigits: 2 })}
+          {'N$'}{wallet.balance.toLocaleString('en-NA', { minimumFractionDigits: 2 })}
         </Text>
 
         {/* Progress bar */}

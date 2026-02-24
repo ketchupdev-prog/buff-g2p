@@ -3,14 +3,12 @@
  * Design: reference VoucherDetailScreen patterns (gradient card, grant info, method selection with check).
  * 2FA required before redemption. §3.2 screen 9 / Figma PRD §3.2.
  */
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Modal,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -19,8 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useUser } from '@/contexts/UserContext';
 import { getVoucher, redeemToWallet, type Voucher } from '@/services/vouchers';
-
-const PIN_LENGTH = 6;
+import { TwoFAModal } from '@/components/modals';
 
 const REDEMPTION_METHODS = [
   { id: 'wallet', name: 'Buffr Wallet', desc: 'Instant credit to your wallet', iconName: 'wallet-outline' as const, colors: ['#3B82F6', '#06B6D4'] as [string, string] },
@@ -40,12 +37,7 @@ export default function VoucherDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
 
-  // 2FA modal state
   const [showPin, setShowPin] = useState(false);
-  const [pin, setPin] = useState<string[]>(Array(PIN_LENGTH).fill(''));
-  const [pinError, setPinError] = useState<string | null>(null);
-  const [redeeming, setRedeeming] = useState(false);
-  const inputRefs = useRef<(TextInput | null)[]>([]);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -60,45 +52,33 @@ export default function VoucherDetailScreen() {
 
   function handleRedeemPress() {
     if (!selectedMethod) return;
-    setPin(Array(PIN_LENGTH).fill(''));
-    setPinError(null);
+    // PRD §18.5: NamPost → instruction (scan at branch) → confirm → 2FA
+    if (selectedMethod === 'nampost' && id) {
+      router.push({ pathname: '/utilities/vouchers/redeem/nampost/instruction' as never, params: { voucherId: id } });
+      return;
+    }
     setShowPin(true);
   }
 
-  function handlePinChange(text: string, index: number) {
-    const newPin = [...pin];
-    newPin[index] = text;
-    setPin(newPin);
-    if (text && index < PIN_LENGTH - 1) inputRefs.current[index + 1]?.focus();
+  async function handleVerify(pinValue: string) {
+    if (!selectedMethod || !id) return { success: false as const, error: 'Missing selection.' };
+    if (selectedMethod === 'wallet') {
+      const result = await redeemToWallet(id, pinValue);
+      if (result.success) {
+        setShowPin(false);
+        router.replace({ pathname: '/utilities/vouchers/redeem/wallet/success' as never, params: { amount: voucher?.amount?.toString() ?? '0' } });
+        return { success: true };
+      }
+      return { success: false, error: result.error };
+    }
+    return { success: true };
   }
 
-  async function handlePinConfirm() {
-    const fullPin = pin.join('');
-    if (fullPin.length < PIN_LENGTH) { setPinError('Please enter your full PIN.'); return; }
-    if (!selectedMethod || !id) return;
-
-    if (selectedMethod === 'wallet') {
-      setRedeeming(true);
-      setPinError(null);
-      try {
-        const result = await redeemToWallet(id, fullPin);
-        if (result.success) {
-          setShowPin(false);
-          router.replace({ pathname: '/utilities/vouchers/redeem/wallet/success' as never, params: { amount: voucher?.amount?.toString() ?? '0' } });
-        } else {
-          setPinError(result.error ?? 'Redemption failed. Please try again.');
-          setPin(Array(PIN_LENGTH).fill(''));
-          inputRefs.current[0]?.focus();
-        }
-      } catch {
-        setPinError('Something went wrong. Please try again.');
-      } finally { setRedeeming(false); }
-    } else if (selectedMethod === 'nampost') {
-      setShowPin(false);
-      router.push({ pathname: '/utilities/vouchers/redeem/nampost' as never, params: { voucherId: id } });
+  function handle2FASuccess() {
+    if (selectedMethod === 'nampost') {
+      router.push({ pathname: '/utilities/vouchers/redeem/nampost' as never, params: { voucherId: id! } });
     } else if (selectedMethod === 'smartpay') {
-      setShowPin(false);
-      router.push({ pathname: '/utilities/vouchers/redeem/smartpay' as never, params: { voucherId: id } });
+      router.push({ pathname: '/utilities/vouchers/redeem/smartpay' as never, params: { voucherId: id! } });
     }
   }
 
@@ -143,7 +123,7 @@ export default function VoucherDetailScreen() {
                   <Text style={styles.voucherBadgeText}>{voucher.status.charAt(0).toUpperCase() + voucher.status.slice(1)}</Text>
                 </View>
               </View>
-              <Text style={styles.voucherAmount}>N$ {voucher.amount.toLocaleString()}</Text>
+              <Text style={styles.voucherAmount}>N${voucher.amount.toLocaleString()}</Text>
               <View style={styles.voucherDates}>
                 <View>
                   <Text style={styles.voucherDateLabel}>Issued</Text>
@@ -231,47 +211,14 @@ export default function VoucherDetailScreen() {
         )}
       </SafeAreaView>
 
-      {/* 2FA PIN Modal */}
-      <Modal visible={showPin} transparent animationType="slide" onRequestClose={() => { setShowPin(false); setRedeeming(false); }}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Verify Identity</Text>
-            <Text style={styles.modalSubtitle}>Enter your 6-digit PIN to confirm</Text>
-            <View style={styles.pinRow}>
-              {pin.map((digit, i) => (
-                <TextInput
-                  key={i}
-                  ref={(r) => (inputRefs.current[i] = r as TextInput)}
-                  style={[styles.pinBox, digit ? styles.pinBoxFilled : null, pinError ? styles.pinBoxError : null]}
-                  value={digit}
-                  onChangeText={(t) => handlePinChange(t, i)}
-                  onKeyPress={(e) => {
-                    if (e.nativeEvent.key === 'Backspace' && !pin[i] && i > 0) inputRefs.current[i - 1]?.focus();
-                  }}
-                  keyboardType="number-pad"
-                  maxLength={1}
-                  secureTextEntry
-                  caretHidden
-                />
-              ))}
-            </View>
-            {pinError ? <Text style={styles.pinError}>{pinError}</Text> : null}
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowPin(false); setRedeeming(false); }}>
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.verifyBtn, redeeming && styles.verifyBtnDisabled]}
-                onPress={handlePinConfirm}
-                disabled={redeeming}
-              >
-                {redeeming ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.verifyBtnText}>Verify</Text>}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <TwoFAModal
+        visible={showPin}
+        onClose={() => setShowPin(false)}
+        onVerify={handleVerify}
+        onSuccess={selectedMethod === 'wallet' ? undefined : handle2FASuccess}
+        title="Verify Identity"
+        subtitle="Enter your 6-digit PIN to confirm"
+      />
     </View>
   );
 }
@@ -319,21 +266,4 @@ const styles = StyleSheet.create({
   redeemedState: { alignItems: 'center', paddingVertical: 40 },
   redeemedTitle: { fontSize: 18, fontWeight: '600', color: '#111827', marginTop: 12 },
   redeemedDate: { fontSize: 14, color: '#6B7280', marginTop: 4 },
-  // PIN modal
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalCard: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
-  modalHandle: { width: 36, height: 5, backgroundColor: 'rgba(0,0,0,0.15)', borderRadius: 3, alignSelf: 'center', marginBottom: 16 },
-  modalTitle: { fontSize: 18, fontWeight: '700', color: '#020617', textAlign: 'center', marginBottom: 4 },
-  modalSubtitle: { fontSize: 14, color: '#64748B', textAlign: 'center', marginBottom: 28 },
-  pinRow: { flexDirection: 'row', justifyContent: 'center', gap: 10, marginBottom: 8 },
-  pinBox: { width: 48, height: 56, borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 16, textAlign: 'center', fontSize: 18, fontWeight: '700', color: '#020617', backgroundColor: '#F8FAFC' },
-  pinBoxFilled: { borderColor: '#0029D6', backgroundColor: '#fff' },
-  pinBoxError: { borderColor: '#E11D48' },
-  pinError: { fontSize: 13, color: '#E11D48', textAlign: 'center', marginBottom: 12 },
-  modalActions: { flexDirection: 'row', gap: 12, marginTop: 20 },
-  cancelBtn: { flex: 1, height: 52, borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 9999, justifyContent: 'center', alignItems: 'center' },
-  cancelBtnText: { fontSize: 15, color: '#374151', fontWeight: '600' },
-  verifyBtn: { flex: 1, height: 52, backgroundColor: '#0029D6', borderRadius: 9999, justifyContent: 'center', alignItems: 'center' },
-  verifyBtnDisabled: { opacity: 0.6 },
-  verifyBtnText: { fontSize: 15, color: '#fff', fontWeight: '700' },
 });

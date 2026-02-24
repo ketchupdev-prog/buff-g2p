@@ -3,11 +3,12 @@
  * 5 cash-out methods: bank, till, agent, merchant, ATM.
  * QR validation via Token Vault for Till/Agent/Merchant/ATM.
  */
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ExpoCrypto from 'expo-crypto';
+import { getSecureItem } from '@/services/secureStorage';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 
-export type CashOutMethod = 'bank' | 'till' | 'agent' | 'merchant' | 'atm';
+export type CashOutMethod = 'bank' | 'till' | 'agent' | 'merchant' | 'atm' | 'general';
 
 export interface CashOutMethodInfo {
   id: CashOutMethod;
@@ -24,7 +25,7 @@ export const CASH_OUT_METHODS: CashOutMethodInfo[] = [
     id: 'bank',
     label: 'Bank Transfer',
     subtitle: 'Transfer to your bank account',
-    fee: 'N$ 5',
+    fee: 'N$5',
     time: '1-2 business days',
     icon: 'business',
     requiresQRScan: false,
@@ -42,7 +43,7 @@ export const CASH_OUT_METHODS: CashOutMethodInfo[] = [
     id: 'agent',
     label: 'Cash at Agent',
     subtitle: 'Visit a Buffr agent',
-    fee: 'N$ 5',
+    fee: 'N$5',
     time: 'Instant',
     icon: 'person',
     requiresQRScan: true,
@@ -51,7 +52,7 @@ export const CASH_OUT_METHODS: CashOutMethodInfo[] = [
     id: 'merchant',
     label: 'Cash at Merchant',
     subtitle: 'Scan merchant QR',
-    fee: 'N$ 3',
+    fee: 'N$3',
     time: 'Instant',
     icon: 'bag-handle',
     requiresQRScan: true,
@@ -60,19 +61,43 @@ export const CASH_OUT_METHODS: CashOutMethodInfo[] = [
     id: 'atm',
     label: 'Cash at ATM',
     subtitle: 'Scan ATM QR after entering amount',
-    fee: 'N$ 8',
+    fee: 'N$8',
     time: 'Instant',
     icon: 'card',
+    requiresQRScan: true,
+  },
+  {
+    id: 'general',
+    label: 'Cash Out',
+    subtitle: 'General QR cash-out',
+    fee: 'Free',
+    time: 'Instant',
+    icon: 'qr-code-outline',
     requiresQRScan: true,
   },
 ];
 
 async function getAuthHeader(): Promise<{ Authorization: string } | Record<string, never>> {
   try {
-    const token = await AsyncStorage.getItem('buffr_access_token');
+    const token = await getSecureItem('buffr_access_token');
     return token ? { Authorization: `Bearer ${token}` } : {};
   } catch {
     return {};
+  }
+}
+
+// SEC-S2: PIN hashed with SHA-256 before transmission. Backend must verify hash.
+async function hashPin(pin: string): Promise<string> {
+  try {
+    // expo-crypto is available (listed in package.json)
+    const digest = await ExpoCrypto.digestStringAsync(
+      ExpoCrypto.CryptoDigestAlgorithm.SHA256,
+      'buffr-pin:' + pin,
+    );
+    return digest;
+  } catch {
+    // Fallback: return pin as-is (backend should handle both during migration)
+    return pin;
   }
 }
 
@@ -124,10 +149,19 @@ export async function executeCashOut(params: {
   if (!API_BASE_URL) return { success: false, error: 'Backend not configured' };
   try {
     const authHeader = await getAuthHeader();
+    // V11: Idempotency key prevents duplicate cash-outs on network retry.
+    const idempotencyKey = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    // SEC-S2: Hash PIN before transmission; keep raw pin for backward compat during migration.
+    const { pin, ...rest } = params;
+    const body: Record<string, unknown> = { ...rest };
+    if (pin !== undefined) {
+      body.pin = pin;
+      body.pin_hash = await hashPin(pin);
+    }
     const res = await fetch(`${API_BASE_URL}/api/v1/mobile/wallets/${params.walletId}/cash-out`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...authHeader },
-      body: JSON.stringify(params),
+      headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey, ...authHeader },
+      body: JSON.stringify(body),
     });
     const data = (await res.json()) as { transactionId?: string; error?: string };
     if (res.ok) return { success: true, transactionId: data.transactionId };
@@ -135,6 +169,33 @@ export async function executeCashOut(params: {
   } catch (e) {
     console.error('executeCashOut error:', e);
     return { success: false, error: 'Network error' };
+  }
+}
+
+// TODO: Connect to backend ATM code generation endpoint
+/** Request a one-time ATM withdrawal code from the server (S3). */
+export async function getATMCode(params: {
+  walletId: string;
+  amount: number;
+}): Promise<{ success: boolean; code?: string; error?: string }> {
+  if (!API_BASE_URL) {
+    return { success: false, error: 'ATM cash-out is temporarily unavailable. Please try a different method.' };
+  }
+  try {
+    const authHeader = await getAuthHeader();
+    // V11: Idempotency key prevents duplicate ATM code issuance on network retry.
+    const idempotencyKey = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const res = await fetch(`${API_BASE_URL}/api/cashout/atm-code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey, ...authHeader },
+      body: JSON.stringify({ walletId: params.walletId, amount: params.amount }),
+    });
+    const data = (await res.json()) as { code?: string; error?: string };
+    if (res.ok && data.code) return { success: true, code: data.code };
+    return { success: false, error: data.error ?? 'ATM cash-out is temporarily unavailable. Please try a different method.' };
+  } catch (e) {
+    console.error('getATMCode error:', e);
+    return { success: false, error: 'ATM cash-out is temporarily unavailable. Please try a different method.' };
   }
 }
 

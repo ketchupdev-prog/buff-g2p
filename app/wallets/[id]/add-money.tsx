@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { router, Stack } from 'expo-router';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { designSystem } from '@/constants/designSystem';
 import { useUser } from '@/contexts/UserContext';
 
@@ -23,12 +23,13 @@ type Method = 'bank' | 'agent' | 'card';
 const METHODS: Array<{ id: Method; label: string; subtitle: string; icon: string; badge?: string }> = [
   { id: 'bank', label: 'Bank Transfer (EFT)', subtitle: 'Transfer from your bank account', icon: 'business-outline' },
   { id: 'agent', label: 'Agent Deposit', subtitle: 'Give cash to a Buffr agent', icon: 'person-outline' },
-  { id: 'card', label: 'Debit / Credit Card', subtitle: 'Coming soon', icon: 'card-outline', badge: 'Soon' },
+  { id: 'card', label: 'Debit / Credit Card', subtitle: 'Link a card to instantly top up', icon: 'card-outline' },
 ];
 
 interface BankDetail { label: string; value: string; copyable?: boolean }
 
 export default function AddMoneyScreen() {
+  const { id: walletId } = useLocalSearchParams<{ id: string }>();
   const { buffrId, profile } = useUser();
   const [method, setMethod] = useState<Method>('bank');
   const [copied, setCopied] = useState<string | null>(null);
@@ -37,7 +38,7 @@ export default function AddMoneyScreen() {
 
   const bankDetails: BankDetail[] = [
     { label: 'Bank', value: 'Bank Windhoek' },
-    { label: 'Account Name', value: 'Buffr Namibia (Pty) Ltd' },
+    { label: 'Account Name', value: 'Buffr Financial Services' },
     { label: 'Account Number', value: '80 123 456 789', copyable: true },
     { label: 'Branch Code', value: '481 872', copyable: true },
     { label: 'Account Type', value: 'Cheque / Current' },
@@ -60,9 +61,9 @@ export default function AddMoneyScreen() {
             {METHODS.map(m => (
               <TouchableOpacity
                 key={m.id}
-                style={[styles.methodCard, method === m.id && styles.methodCardActive, m.id === 'card' && styles.methodCardDisabled]}
-                onPress={() => m.id !== 'card' && setMethod(m.id)}
-                activeOpacity={m.id === 'card' ? 1 : 0.8}
+                style={[styles.methodCard, method === m.id && styles.methodCardActive]}
+                onPress={() => m.id === 'card' && walletId ? router.push({ pathname: '/wallets/[id]/add-money/card' as never, params: { id: walletId } }) : setMethod(m.id)}
+                activeOpacity={0.8}
               >
                 <View style={[styles.methodIcon, method === m.id && styles.methodIconActive]}>
                   <Ionicons name={m.icon as never} size={20} color={method === m.id ? '#fff' : designSystem.colors.brand.primary} />
@@ -71,9 +72,7 @@ export default function AddMoneyScreen() {
                   <Text style={[styles.methodLabel, method === m.id && { color: designSystem.colors.brand.primary }]}>{m.label}</Text>
                   <Text style={styles.methodSub}>{m.subtitle}</Text>
                 </View>
-                {m.badge ? (
-                  <View style={styles.badge}><Text style={styles.badgeText}>{m.badge}</Text></View>
-                ) : method === m.id ? (
+                {method === m.id ? (
                   <Ionicons name="checkmark-circle" size={20} color={designSystem.colors.brand.primary} />
                 ) : (
                   <Ionicons name="chevron-forward" size={16} color={designSystem.colors.neutral.textTertiary} />
@@ -104,6 +103,23 @@ export default function AddMoneyScreen() {
               <View style={styles.warnBanner}>
                 <Ionicons name="alert-circle-outline" size={16} color="#D97706" />
                 <Text style={styles.warnText}>Always use your Reference number so we can match your payment. Transfers typically arrive within 1–2 business days.</Text>
+              </View>
+            </View>
+          )}
+
+          {/* Debit / Credit Card – link card to top up */}
+          {method === 'card' && (
+            <View style={styles.detailSection}>
+              <Text style={styles.detailTitle}>Add money with a card</Text>
+              <View style={styles.detailCard}>
+                <View style={styles.cardMethodContent}>
+                  <Text style={styles.methodSub}>Link your debit or credit card to add money to this wallet. You can use the card to top up anytime.</Text>
+                  <TouchableOpacity style={styles.findAgentBtn} onPress={() => router.push('/add-card' as never)} activeOpacity={0.8}>
+                    <Ionicons name="card-outline" size={16} color={designSystem.colors.brand.primary} />
+                    <Text style={styles.findAgentText}>Link a card</Text>
+                    <Ionicons name="chevron-forward" size={14} color={designSystem.colors.brand.primary} />
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
           )}
@@ -157,17 +173,15 @@ const styles = StyleSheet.create({
   methodList: { gap: 10, marginBottom: 24 },
   methodCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 16, padding: 16, gap: 12, borderWidth: 1.5, borderColor: DS.colors.neutral.border },
   methodCardActive: { borderColor: DS.colors.brand.primary, backgroundColor: '#EFF6FF' },
-  methodCardDisabled: { opacity: 0.5 },
   methodIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: DS.colors.brand.primaryMuted, justifyContent: 'center', alignItems: 'center' },
   methodIconActive: { backgroundColor: DS.colors.brand.primary },
   methodInfo: { flex: 1 },
   methodLabel: { fontSize: 15, fontWeight: '600', color: DS.colors.neutral.text },
   methodSub: { fontSize: 12, color: DS.colors.neutral.textSecondary, marginTop: 2 },
-  badge: { backgroundColor: '#FEF3C7', borderRadius: 9999, paddingHorizontal: 10, paddingVertical: 3 },
-  badgeText: { fontSize: 11, fontWeight: '600', color: '#D97706' },
   detailSection: { gap: 12 },
   detailTitle: { fontSize: 15, fontWeight: '700', color: DS.colors.neutral.text },
   detailCard: { backgroundColor: '#fff', borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: DS.colors.neutral.border },
+  cardMethodContent: { padding: 16, gap: 12 },
   detailRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: DS.colors.neutral.border },
   detailLabel: { fontSize: 13, color: DS.colors.neutral.textSecondary },
   detailValueRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },

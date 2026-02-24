@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "db:check": "node scripts/check-db.mjs",
+    "migrate": "node scripts/run-migrations.mjs",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
@@ -13,6 +14,7 @@
   },
   "devDependencies": {
     "@types/node": "^20",
+    "pg": "^8.13.0",
     "typescript": "^5"
   }
 }

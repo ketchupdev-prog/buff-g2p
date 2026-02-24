@@ -5,6 +5,7 @@
  */
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getSecureItem, setSecureItem, removeSecureItem } from '@/services/secureStorage';
 
 const STORAGE_KEY_PROFILE = 'buffr_user_profile';
 const STORAGE_KEY_BUFFR_ID = 'buffr_card_id';
@@ -63,14 +64,20 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       const [storedProfile, storedBuffrId, storedMasked, storedExpiry, storedPofDue, storedWalletStatus] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEY_PROFILE),
         AsyncStorage.getItem(STORAGE_KEY_BUFFR_ID),
-        AsyncStorage.getItem('buffr_card_number_masked'),
+        getSecureItem('buffr_card_number_masked'), // SEC-S12: read masked card from SecureStore
         AsyncStorage.getItem('buffr_card_expiry'),
         AsyncStorage.getItem(STORAGE_KEY_POF_DUE),
         AsyncStorage.getItem(STORAGE_KEY_WALLET_STATUS),
       ]);
       if (storedProfile) {
-        const p = JSON.parse(storedProfile) as UserProfile;
-        setProfileState({ ...defaultProfile, ...p });
+        // SEC-S13: guard against corrupted profile JSON causing a crash loop
+        try {
+          const p = JSON.parse(storedProfile) as UserProfile;
+          setProfileState({ ...defaultProfile, ...p });
+        } catch (parseErr) {
+          console.warn('SEC-S13: Corrupted profile in storage, resetting.', parseErr);
+          await AsyncStorage.removeItem(STORAGE_KEY_PROFILE);
+        }
       }
       if (storedBuffrId) setBuffrIdState(storedBuffrId);
       if (storedMasked) setCardNumberMaskedState(storedMasked);
@@ -104,7 +111,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       setCardNumberMaskedState(masked);
       setExpiryDateState(expiry ?? null);
       await AsyncStorage.setItem(STORAGE_KEY_BUFFR_ID, id);
-      await AsyncStorage.setItem('buffr_card_number_masked', masked);
+      await setSecureItem('buffr_card_number_masked', masked); // SEC-S12: store masked card in SecureStore
       if (expiry != null) await AsyncStorage.setItem('buffr_card_expiry', expiry);
     },
     []
@@ -133,7 +140,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     await Promise.all([
       AsyncStorage.removeItem(STORAGE_KEY_PROFILE),
       AsyncStorage.removeItem(STORAGE_KEY_BUFFR_ID),
-      AsyncStorage.removeItem('buffr_card_number_masked'),
+      removeSecureItem('buffr_card_number_masked'), // SEC-S12: delete masked card from SecureStore
       AsyncStorage.removeItem('buffr_card_expiry'),
       AsyncStorage.removeItem(STORAGE_KEY_POF_DUE),
       AsyncStorage.removeItem(STORAGE_KEY_WALLET_STATUS),

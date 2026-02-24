@@ -71,7 +71,7 @@ export default function CashOutSuccessScreen() {
         <Animated.View style={[styles.card, cardStyle]}>
           <Text style={styles.title}>Cash-Out Initiated</Text>
           <Text style={styles.subtitle}>
-            <Text style={styles.highlight}>N$ {displayAmount}</Text>
+            <Text style={styles.highlight}>{'N$'}{displayAmount}</Text>
             {'\n'}via{' '}
             <Text style={styles.highlight}>{methodLabel}</Text>
           </Text>

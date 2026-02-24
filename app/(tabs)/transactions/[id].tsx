@@ -121,7 +121,7 @@ export default function TransactionDetailScreen() {
             <DetailRow label="Date" value={formatDateTime(tx.createdAt)} />
             {tx.counterparty ? <DetailRow label="Counterparty" value={tx.counterparty} /> : null}
             {tx.description ? <DetailRow label="Description" value={tx.description} /> : null}
-            {tx.fee ? <DetailRow label="Fee" value={`N$ ${tx.fee.toFixed(2)}`} /> : null}
+            {tx.fee ? <DetailRow label="Fee" value={`N$${tx.fee.toFixed(2)}`} /> : null}
             {tx.reference ? <DetailRow label="Reference" value={tx.reference} /> : null}
             <DetailRow label="ID" value={tx.id} mono />
           </View>

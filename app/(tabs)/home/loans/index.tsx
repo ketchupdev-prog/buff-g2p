@@ -17,7 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getSecureItem } from '@/services/secureStorage';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 
@@ -41,7 +41,7 @@ export interface ActiveLoan {
 
 async function getAuthHeader() {
   try {
-    const token = await AsyncStorage.getItem('buffr_access_token');
+    const token = await getSecureItem('buffr_access_token');
     return token ? { Authorization: `Bearer ${token}` } : {};
   } catch { return {}; }
 }
@@ -155,13 +155,13 @@ export default function LoansScreen() {
                   <View>
                     <Text style={styles.summaryLabel}>Total Grant Value</Text>
                     <Text style={styles.summaryValue}>
-                      {totalVoucherValue > 0 ? `N$ ${totalVoucherValue.toLocaleString()}` : 'N/A'}
+                      {totalVoucherValue > 0 ? `N$${totalVoucherValue.toLocaleString()}` : 'N/A'}
                     </Text>
                   </View>
                   <View>
                     <Text style={styles.summaryLabel}>Max Loan (1/3)</Text>
                     <Text style={styles.summaryValue}>
-                      {maxLoan > 0 ? `N$ ${maxLoan.toLocaleString()}` : 'N/A'}
+                      {maxLoan > 0 ? `N$${maxLoan.toLocaleString()}` : 'N/A'}
                     </Text>
                   </View>
                 </View>
@@ -207,7 +207,7 @@ export default function LoansScreen() {
                     </View>
                     <View style={styles.tierBody}>
                       <Text style={styles.tierLabel}>{tier.label}</Text>
-                      <Text style={styles.tierAmount}>N$ {tier.amount.toLocaleString()}</Text>
+                      <Text style={styles.tierAmount}>{'N$'}{tier.amount.toLocaleString()}</Text>
                       <Text style={styles.tierTerm}>{tier.term} • {tier.pct}% of max</Text>
                     </View>
                     <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
@@ -241,8 +241,8 @@ export default function LoansScreen() {
                   >
                     <View style={styles.loanRow}>
                       <View>
-                        <Text style={styles.loanAmount}>N$ {loan.amount.toLocaleString()}</Text>
-                        <Text style={styles.loanSub}>+ N$ {loan.interestAmount.toFixed(2)} interest</Text>
+                        <Text style={styles.loanAmount}>{'N$'}{loan.amount.toLocaleString()}</Text>
+                        <Text style={styles.loanSub}>+ {'N$'}{loan.interestAmount.toFixed(2)} interest</Text>
                       </View>
                       <View style={[styles.loanStatus, { backgroundColor: statusColor(loan.status) + '20' }]}>
                         <Text style={[styles.loanStatusText, { color: statusColor(loan.status) }]}>
@@ -251,7 +251,7 @@ export default function LoansScreen() {
                       </View>
                     </View>
                     <Text style={styles.loanRepayDate}>
-                      Total repayable: N$ {loan.totalRepayable.toFixed(2)} · Due {formatDate(loan.repaymentDue)}
+                      Total repayable: {'N$'}{loan.totalRepayable.toFixed(2)} · Due {formatDate(loan.repaymentDue)}
                     </Text>
                   </TouchableOpacity>
                 ))

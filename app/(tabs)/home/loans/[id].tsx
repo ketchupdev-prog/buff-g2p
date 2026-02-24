@@ -1,6 +1,7 @@
 /**
  * Loan Detail – Buffr G2P.
  * §23 / Figma 111:487.
+ * Uses UserContext for profile and walletStatus.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -15,8 +16,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
+import { getSecureItem } from '@/services/secureStorage';
+import { useUser } from '@/contexts/UserContext';
 import { InfoBanner, StatusBadge, statusToVariant, Timeline, Toggle, type TimelineEvent } from '@/components/ui';
 import type { ActiveLoan } from './index';
 
@@ -26,7 +27,7 @@ interface LoanMeta { name: string; icon: string; }
 
 async function getAuthHeader(): Promise<Record<string, string>> {
   try {
-    const token = await AsyncStorage.getItem('buffr_access_token');
+    const token = await getSecureItem('buffr_access_token');
     return token ? { Authorization: `Bearer ${token}` } : {};
   } catch { return {}; }
 }
@@ -63,20 +64,21 @@ function formatDate(iso: string): string {
 
 function buildTimeline(loan: ActiveLoan): TimelineEvent[] {
   const events: TimelineEvent[] = [
-    { id: 'credited', title: 'Loan Credited', subtitle: `N$ ${loan.amount.toLocaleString()} disbursed to your wallet`, date: formatDate(loan.disbursedAt), color: '#22C55E' },
+    { id: 'credited', title: 'Loan Credited', subtitle: `N$${loan.amount.toLocaleString()} disbursed to your wallet`, date: formatDate(loan.disbursedAt), color: '#22C55E' },
   ];
   if (loan.status === 'repaid') {
-    events.push({ id: 'repaid', title: 'Loan Repaid', subtitle: `N$ ${loan.totalRepayable.toFixed(2)} deducted from grant`, date: formatDate(loan.repaymentDue), color: '#2563EB' });
+    events.push({ id: 'repaid', title: 'Loan Repaid', subtitle: `N$${loan.totalRepayable.toFixed(2)} deducted from grant`, date: formatDate(loan.repaymentDue), color: '#2563EB' });
   } else if (loan.status === 'overdue') {
-    events.push({ id: 'overdue', title: 'Payment Overdue', subtitle: `N$ ${loan.totalRepayable.toFixed(2)} outstanding`, date: formatDate(loan.repaymentDue), color: '#E11D48' });
+    events.push({ id: 'overdue', title: 'Payment Overdue', subtitle: `N$${loan.totalRepayable.toFixed(2)} outstanding`, date: formatDate(loan.repaymentDue), color: '#E11D48' });
   } else {
-    events.push({ id: 'due', title: 'Upcoming Repayment', subtitle: `N$ ${loan.totalRepayable.toFixed(2)} from next grant`, date: formatDate(loan.repaymentDue), color: '#D1D5DB', hollow: true });
+    events.push({ id: 'due', title: 'Upcoming Repayment', subtitle: `N$${loan.totalRepayable.toFixed(2)} from next grant`, date: formatDate(loan.repaymentDue), color: '#D1D5DB', hollow: true });
   }
   return events;
 }
 
 export default function LoanDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  useUser();
   const [loan, setLoan] = useState<ActiveLoan | null>(null);
   const [meta, setMeta] = useState<LoanMeta>({ name: 'My Loan', icon: '💰' });
   const [loading, setLoading] = useState(true);
@@ -147,16 +149,16 @@ export default function LoanDetailScreen() {
           {/* Amount card */}
           <View style={styles.amountCard}>
             <Text style={styles.amountLabel}>Loan Amount</Text>
-            <Text style={styles.amountValue}>N$ {loan.amount.toLocaleString()}</Text>
+            <Text style={styles.amountValue}>N${loan.amount.toLocaleString()}</Text>
             <View style={styles.amountMeta}>
               <View>
                 <Text style={styles.metaLabel}>+ Interest (15%)</Text>
-                <Text style={styles.metaValue}>N$ {loan.interestAmount.toFixed(2)}</Text>
+                <Text style={styles.metaValue}>N${loan.interestAmount.toFixed(2)}</Text>
               </View>
               <View>
                 <Text style={styles.metaLabel}>Total Repayable</Text>
                 <Text style={[styles.metaValue, { color: '#93C5FD', fontWeight: '700' }]}>
-                  N$ {loan.totalRepayable.toFixed(2)}
+                  N${loan.totalRepayable.toFixed(2)}
                 </Text>
               </View>
             </View>

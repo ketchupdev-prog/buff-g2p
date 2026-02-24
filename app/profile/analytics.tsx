@@ -35,7 +35,7 @@ export default function ProfileAnalyticsScreen() {
               <Ionicons name="wallet-outline" size={24} color={designSystem.colors.brand.primary} />
               <Text style={styles.cardLabel}>Total received (this month)</Text>
             </View>
-            <Text style={styles.cardValue}>N$ 0.00</Text>
+            <Text style={styles.cardValue}>N$0.00</Text>
             <Text style={styles.cardHint}>Vouchers + P2P + other</Text>
           </View>
           <View style={styles.card}>
@@ -50,7 +50,7 @@ export default function ProfileAnalyticsScreen() {
               <Ionicons name="arrow-up-outline" size={24} color={designSystem.colors.semantic.error} />
               <Text style={styles.cardLabel}>Sent (this month)</Text>
             </View>
-            <Text style={styles.cardValue}>N$ 0.00</Text>
+            <Text style={styles.cardValue}>N$0.00</Text>
           </View>
           <Text style={styles.footnote}>Detailed charts and history coming soon.</Text>
           <View style={{ height: 32 }} />

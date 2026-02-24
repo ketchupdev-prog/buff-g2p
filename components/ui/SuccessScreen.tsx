@@ -23,7 +23,7 @@ interface Action {
 interface SuccessScreenProps {
   title: string;
   subtitle?: string;
-  /** Large highlighted value (e.g. "N$ 500") shown between title and subtitle */
+  /** Large highlighted value (e.g. "N$500") shown between title and subtitle */
   value?: string;
   checkColor?: string;
   actions?: Action[];

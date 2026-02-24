@@ -21,6 +21,7 @@ import { designSystem } from '@/constants/designSystem';
 import { getSecureItem } from '@/services/secureStorage';
 import { Avatar } from '@/components/ui';
 import { getWallets } from '@/services/wallets';
+import { TwoFAModal } from '@/components/modals';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 const DS = designSystem;
@@ -58,14 +59,14 @@ async function getAuthHeader(): Promise<Record<string, string>> {
   } catch { return {}; }
 }
 
-async function postGroupSend(groupId: string, amount: number, note: string, walletId: string): Promise<{ success: boolean; error?: string }> {
+async function postGroupSend(groupId: string, amount: number, note: string, walletId: string, pin?: string): Promise<{ success: boolean; error?: string }> {
   if (API_BASE_URL) {
     try {
       const h = await getAuthHeader();
       const res = await fetch(`${API_BASE_URL}/api/v1/mobile/groups/${groupId}/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...h },
-        body: JSON.stringify({ amount, note, walletId }),
+        body: JSON.stringify({ amount, note, walletId, ...(pin != null && { pin }) }),
       });
       const data = (await res.json()) as { error?: string };
       if (res.ok) return { success: true };
@@ -105,6 +106,7 @@ export default function GroupSendScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isFav, setIsFav] = useState(false);
+  const [show2FA, setShow2FA] = useState(false);
 
   useEffect(() => {
     fetchGroupInfo(id ?? '').then(setGroup).catch(() => {});
@@ -113,20 +115,20 @@ export default function GroupSendScreen() {
   const amountNum = parseFloat(amount.replace(/[^0-9.]/g, '')) || 0;
   const isValid = amountNum > 0;
 
-  async function handleSubmit() {
-    if (!isValid || loading) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await postGroupSend(id ?? '', amountNum, note, walletId);
-      if (result.success) {
-        router.replace({ pathname: '/groups/[id]/send/success', params: { id: id ?? '', amount: amountNum.toFixed(2) } } as never);
-      } else {
-        setError(result.error ?? 'Failed to send. Please try again.');
-      }
-    } finally {
-      setLoading(false);
+  async function handleSubmitWithPin(pin: string) {
+    const result = await postGroupSend(id ?? '', amountNum, note, walletId, pin);
+    if (result.success) {
+      setShow2FA(false);
+      router.replace({ pathname: '/groups/[id]/send/success', params: { id: id ?? '', amount: amountNum.toFixed(2) } } as never);
+      return { success: true };
     }
+    return { success: false, error: result.error };
+  }
+
+  function handlePayPress() {
+    if (!isValid || loading) return;
+    setError(null);
+    setShow2FA(true);
   }
 
   const visibleMembers = (group?.members ?? []).slice(0, 3);
@@ -217,13 +219,21 @@ export default function GroupSendScreen() {
 
           <TouchableOpacity
             style={[styles.payBtn, (!isValid || loading) && styles.payBtnDisabled]}
-            onPress={handleSubmit}
+            onPress={handlePayPress}
             disabled={!isValid || loading}
           >
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.payBtnText}>Pay</Text>}
+            <Text style={styles.payBtnText}>Pay</Text>
           </TouchableOpacity>
         </SafeAreaView>
       </KeyboardAvoidingView>
+
+      <TwoFAModal
+        visible={show2FA}
+        onClose={() => setShow2FA(false)}
+        onVerify={handleSubmitWithPin}
+        title="Verify group payment"
+        subtitle="Enter your 6-digit PIN to confirm"
+      />
     </View>
   );
 }

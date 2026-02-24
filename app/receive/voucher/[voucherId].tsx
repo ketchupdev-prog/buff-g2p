@@ -8,7 +8,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getSecureItem } from '@/services/secureStorage';
 import { designSystem } from '@/constants/designSystem';
 import { Avatar } from '@/components/ui';
 
@@ -16,7 +16,7 @@ const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 
 async function getAuthHeader(): Promise<Record<string, string>> {
   try {
-    const token = await AsyncStorage.getItem('buffr_access_token');
+    const token = await getSecureItem('buffr_access_token');
     return token ? { Authorization: `Bearer ${token}` } : {};
   } catch { return {}; }
 }
@@ -135,7 +135,7 @@ export default function ReceiveVoucherScreen() {
             </Text>
             <Text style={styles.doneSub}>
               {done === 'accepted'
-                ? `N$ ${gift?.amount?.toLocaleString()} ${gift?.programme} voucher added to your account.`
+                ? `N$${gift?.amount?.toLocaleString()} ${gift?.programme} voucher added to your account.`
                 : 'The voucher has been returned to the sender.'}
             </Text>
             {done === 'accepted' && (
@@ -167,7 +167,7 @@ export default function ReceiveVoucherScreen() {
             </View>
             <Text style={styles.voucherCardLabel}>Voucher Gift</Text>
             <Text style={styles.voucherAmount}>
-              N$ {gift?.amount?.toLocaleString('en-NA', { minimumFractionDigits: 2 })}
+              N${gift?.amount?.toLocaleString('en-NA', { minimumFractionDigits: 2 })}
             </Text>
             <Text style={styles.voucherProgramme}>{gift?.programme}</Text>
             <View style={styles.expireBadge}>

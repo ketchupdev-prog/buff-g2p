@@ -22,7 +22,7 @@ export function buildPaySources(wallets: Wallet[]): PaySource[] {
   const sources: PaySource[] = wallets.map(w => ({
     id: w.id,
     label: w.name,
-    sub: `N$ ${w.balance.toLocaleString('en-NA', { minimumFractionDigits: 2 })}`,
+    sub: `N$${w.balance.toLocaleString('en-NA', { minimumFractionDigits: 2 })}`,
     balance: w.balance,
     sourceType: 'wallet',
     icon: w.type === 'grant'

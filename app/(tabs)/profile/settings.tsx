@@ -1,6 +1,7 @@
 /**
  * Profile Settings – Buffr G2P.
  * §3.5 screen 36. Sections: Account, Security, Notifications, Privacy, Help, About.
+ * Uses UserContext for profile and state consistency.
  */
 import React from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -8,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
 import { designSystem } from '@/constants/designSystem';
+import { useUser } from '@/contexts/UserContext';
 
 type SettingItem = { id: string; label: string; icon: string; route?: string; onPress?: () => void };
 
@@ -51,6 +53,7 @@ const SECTIONS: Array<{ title: string; items: SettingItem[] }> = [
 ];
 
 export default function ProfileSettingsScreen() {
+  useUser();
   const handlePress = (item: SettingItem) => {
     if (item.route) router.push(item.route as never);
     else if (item.onPress) item.onPress();

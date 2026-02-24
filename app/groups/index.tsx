@@ -118,7 +118,7 @@ export default function GroupsListScreen() {
               <View style={styles.groupInfo}>
                 <Text style={styles.groupName}>{g.name}</Text>
                 <Text style={styles.groupMeta}>
-                  {g.memberCount} members · N$ {g.balance.toLocaleString('en-NA', { minimumFractionDigits: 2 })}
+                  {g.memberCount} members · N${g.balance.toLocaleString('en-NA', { minimumFractionDigits: 2 })}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color="#94A3B8" />

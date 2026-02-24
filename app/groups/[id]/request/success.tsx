@@ -20,7 +20,7 @@ export default function GroupRequestSuccessScreen() {
         </View>
         <Text style={styles.title}>Request sent</Text>
         <Text style={styles.subtitle}>Group members have been notified.</Text>
-        {amount ? <Text style={styles.amount}>N$ {amount}</Text> : null}
+        {amount ? <Text style={styles.amount}>N${amount}</Text> : null}
         <TouchableOpacity style={styles.btn} onPress={() => router.replace({ pathname: '/groups/[id]', params: { id: id ?? '' } } as never)}>
           <Text style={styles.btnText}>Back to group</Text>
         </TouchableOpacity>

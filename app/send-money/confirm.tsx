@@ -1,27 +1,21 @@
 /**
  * Send Money – Confirm – Buffr G2P.
- * 2FA (PIN) before sending. §3.4 screen 29.
+ * 2FA (PIN) via shared TwoFAModal before sending. §3.4 screen 29.
+ * Uses UserContext for profile and walletStatus (frozen guard).
  */
-import React, { useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import React, { useState } from 'react';
+import { KeyboardAvoidingView, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { designSystem } from '@/constants/designSystem';
+import { useUser } from '@/contexts/UserContext';
 import { sendMoney } from '@/services/send';
-
-const PIN_LENGTH = 6;
+import { TwoFAModal } from '@/components/modals';
 
 export default function ConfirmSendScreen() {
+  const { walletStatus } = useUser();
+  const isFrozen = walletStatus === 'frozen';
   const { recipientPhone, recipientName, amount, note, walletId } = useLocalSearchParams<{
     recipientPhone: string;
     recipientName: string;
@@ -30,61 +24,28 @@ export default function ConfirmSendScreen() {
     walletId?: string;
   }>();
 
-  const [pin, setPin] = useState<string[]>(Array(PIN_LENGTH).fill(''));
-  const [sending, setSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const inputRefs = useRef<(TextInput | null)[]>([]);
+  const [show2FA, setShow2FA] = useState(false);
 
-  function handlePinChange(text: string, index: number) {
-    const newPin = [...pin];
-    newPin[index] = text;
-    setPin(newPin);
-    if (text && index < PIN_LENGTH - 1) {
-      inputRefs.current[index + 1]?.focus();
+  async function handleVerify(pin: string) {
+    const result = await sendMoney({
+      recipientPhone: recipientPhone ?? '',
+      amount: parseFloat(amount ?? '0'),
+      note: note ?? undefined,
+      walletId: walletId ?? undefined,
+      pin,
+    });
+    if (result.success) {
+      router.replace({
+        pathname: '/send-money/success',
+        params: {
+          recipientName,
+          amount,
+          transactionId: result.transactionId ?? '',
+        },
+      } as never);
+      return { success: true };
     }
-  }
-
-  function handleKeyPress(e: { nativeEvent: { key: string } }, index: number) {
-    if (e.nativeEvent.key === 'Backspace' && !pin[index] && index > 0) {
-      inputRefs.current[index - 1]?.focus();
-    }
-  }
-
-  async function handleConfirm() {
-    const fullPin = pin.join('');
-    if (fullPin.length < PIN_LENGTH) {
-      setError('Please enter your full PIN.');
-      return;
-    }
-    setError(null);
-    setSending(true);
-    try {
-      const result = await sendMoney({
-        recipientPhone: recipientPhone ?? '',
-        amount: parseFloat(amount ?? '0'),
-        note: note ?? undefined,
-        walletId: walletId ?? undefined,
-        pin: fullPin,
-      });
-      if (result.success) {
-        router.replace({
-          pathname: '/send-money/success',
-          params: {
-            recipientName,
-            amount,
-            transactionId: result.transactionId ?? '',
-          },
-        } as never);
-      } else {
-        setError(result.error ?? 'Transfer failed. Please try again.');
-        setPin(Array(PIN_LENGTH).fill(''));
-        inputRefs.current[0]?.focus();
-      }
-    } catch {
-      setError('Something went wrong. Please try again.');
-    } finally {
-      setSending(false);
-    }
+    return { success: false, error: result.error };
   }
 
   return (
@@ -92,7 +53,7 @@ export default function ConfirmSendScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
-          headerTitle: 'Confirm Send',
+          headerTitle: 'Transfer',
           headerTitleStyle: { ...designSystem.typography.textStyles.title, color: designSystem.colors.neutral.text },
           headerBackTitleVisible: false,
           headerTintColor: designSystem.colors.neutral.text,
@@ -100,7 +61,6 @@ export default function ConfirmSendScreen() {
       />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.container}>
-          {/* Summary */}
           <View style={styles.summaryCard}>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>To</Text>
@@ -108,7 +68,7 @@ export default function ConfirmSendScreen() {
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Amount</Text>
-              <Text style={[styles.summaryValue, styles.amount]}>N$ {parseFloat(amount ?? '0').toFixed(2)}</Text>
+              <Text style={[styles.summaryValue, styles.amount]}>N${parseFloat(amount ?? '0').toFixed(2)}</Text>
             </View>
             {note ? (
               <View style={styles.summaryRow}>
@@ -118,46 +78,37 @@ export default function ConfirmSendScreen() {
             ) : null}
           </View>
 
-          {/* PIN */}
-          <Text style={styles.pinLabel}>Enter your PIN to confirm</Text>
-          <View style={styles.pinRow}>
-            {pin.map((digit, i) => (
-              <TextInput
-                key={i}
-                ref={(r) => (inputRefs.current[i] = r as TextInput)}
-                style={[styles.pinBox, digit ? styles.pinBoxFilled : null, error ? styles.pinBoxError : null]}
-                value={digit}
-                onChangeText={(t) => handlePinChange(t, i)}
-                onKeyPress={(e) => handleKeyPress(e, i)}
-                keyboardType="number-pad"
-                maxLength={1}
-                secureTextEntry
-                caretHidden
-                accessibilityLabel={`PIN digit ${i + 1}`}
-              />
-            ))}
-          </View>
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          <Text style={styles.pinLabel}>Confirm the transfer with your PIN</Text>
         </View>
 
         <View style={styles.footer}>
+          {isFrozen && (
+            <View style={styles.frozenBanner}>
+              <Ionicons name="lock-closed" size={18} color={designSystem.colors.semantic.error} />
+              <Text style={styles.frozenBannerText}>
+                Your wallet is frozen. Transactions are disabled.
+              </Text>
+            </View>
+          )}
           <TouchableOpacity
-            style={[styles.sendButton, sending && styles.sendButtonDisabled]}
-            onPress={handleConfirm}
-            disabled={sending}
-            accessibilityLabel="Send money"
+            style={[styles.sendButton, isFrozen && styles.sendButtonDisabled]}
+            onPress={() => !isFrozen && setShow2FA(true)}
+            disabled={isFrozen}
+            accessibilityLabel="Confirm with PIN"
           >
-            {sending ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <Ionicons name="send" size={18} color="#fff" style={{ marginRight: 8 }} />
-                <Text style={styles.sendButtonText}>Send N$ {parseFloat(amount ?? '0').toFixed(2)}</Text>
-              </>
-            )}
+            <Ionicons name="send" size={18} color="#fff" style={{ marginRight: 8 }} />
+            <Text style={styles.sendButtonText}>Send N${parseFloat(amount ?? '0').toFixed(2)}</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      <TwoFAModal
+        visible={show2FA}
+        onClose={() => setShow2FA(false)}
+        onVerify={handleVerify}
+        title="Verify transfer"
+        subtitle="Enter your 6-digit PIN to confirm"
+      />
     </SafeAreaView>
   );
 }
@@ -191,31 +142,7 @@ const styles = StyleSheet.create({
     ...designSystem.typography.textStyles.body,
     color: designSystem.colors.neutral.text,
     textAlign: 'center',
-    marginBottom: 20,
-  },
-  pinRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: designSystem.spacing.scale.md,
-  },
-  pinBox: {
-    width: 48,
-    height: 56,
-    borderWidth: 1.5,
-    borderColor: designSystem.colors.neutral.border,
-    borderRadius: designSystem.components.otpInput.borderRadius,
-    textAlign: 'center',
-    ...designSystem.typography.textStyles.titleSm,
-    color: designSystem.colors.neutral.text,
-    backgroundColor: designSystem.colors.neutral.surface,
-  },
-  pinBoxFilled: { borderColor: designSystem.colors.brand.primary },
-  pinBoxError: { borderColor: designSystem.colors.semantic.error },
-  errorText: {
-    ...designSystem.typography.textStyles.bodySm,
-    color: designSystem.colors.semantic.error,
-    textAlign: 'center',
-    marginTop: 12,
+    marginTop: 8,
   },
   footer: { padding: designSystem.spacing.g2p.horizontalPadding, paddingBottom: designSystem.spacing.g2p.sectionSpacing },
   sendButton: {
@@ -226,6 +153,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  sendButtonDisabled: { opacity: 0.6 },
+  sendButtonDisabled: { opacity: 0.5 },
   sendButtonText: { ...designSystem.typography.textStyles.body, color: '#fff', fontWeight: '700' },
+  frozenBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: designSystem.colors.semantic.error + '15',
+    borderRadius: designSystem.radius.sm,
+    padding: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: designSystem.colors.semantic.error + '40',
+  },
+  frozenBannerText: {
+    ...designSystem.typography.textStyles.body,
+    color: designSystem.colors.semantic.error,
+    fontWeight: '600',
+    flex: 1,
+  },
 });

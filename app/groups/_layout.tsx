@@ -10,6 +10,7 @@ export default function GroupsLayout() {
     <Stack
       screenOptions={{
         headerShown: true,
+        headerBackVisible: true,
         headerBackTitle: 'Back',
         headerTintColor: '#111827',
         headerStyle: { backgroundColor: '#FFFFFF' },

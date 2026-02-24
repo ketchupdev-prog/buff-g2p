@@ -59,7 +59,7 @@ export function RequestStatusModal({ visible, onClose, request }: RequestStatusM
           <View style={styles.amountRow}>
             <Ionicons name="people" size={18} color={DS.colors.brand.primary} />
             <Text style={styles.perMember}>
-              N$ {request.perMemberAmount.toLocaleString('en-NA', { minimumFractionDigits: 0 })} / member
+              N${request.perMemberAmount.toLocaleString('en-NA', { minimumFractionDigits: 0 })} / member
             </Text>
           </View>
 

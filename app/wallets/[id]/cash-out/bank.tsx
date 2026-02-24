@@ -59,7 +59,7 @@ export default function CashOutBankScreen() {
   function handleNext() {
     const num = parseFloat(amount);
     if (isNaN(num) || num <= 0) { setError('Enter a valid amount.'); return; }
-    if (balance !== null && num > balance) { setError(`Insufficient balance. Available: N$ ${balance.toFixed(2)}`); return; }
+    if (balance !== null && num > balance) { setError(`Insufficient balance. Available: N$${balance.toFixed(2)}`); return; }
     if (!selectedAccount) { setError('Select a bank account.'); return; }
     setError(null);
     setStep('pin');
@@ -115,7 +115,7 @@ export default function CashOutBankScreen() {
               {/* Balance */}
               <View style={styles.balanceBadge}>
                 <Text style={styles.balanceLabel}>Available Balance</Text>
-                <Text style={styles.balanceValue}>N$ {balance?.toFixed(2) ?? '–'}</Text>
+                <Text style={styles.balanceValue}>{'N$'}{balance?.toFixed(2) ?? '–'}</Text>
               </View>
 
               {/* Fee info */}
@@ -171,15 +171,15 @@ export default function CashOutBankScreen() {
                 </View>
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Amount</Text>
-                  <Text style={[styles.summaryValue, { color: designSystem.colors.brand.primary, fontWeight: '700' }]}>N$ {parseFloat(amount).toFixed(2)}</Text>
+                  <Text style={[styles.summaryValue, { color: designSystem.colors.brand.primary, fontWeight: '700' }]}>{'N$'}{parseFloat(amount).toFixed(2)}</Text>
                 </View>
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Fee</Text>
-                  <Text style={styles.summaryValue}>N$ 5.00</Text>
+                  <Text style={styles.summaryValue}>N$5.00</Text>
                 </View>
                 <View style={[styles.summaryRow, { borderBottomWidth: 0 }]}>
                   <Text style={styles.summaryLabel}>Total deducted</Text>
-                  <Text style={[styles.summaryValue, { fontWeight: '700' }]}>N$ {(parseFloat(amount) + 5).toFixed(2)}</Text>
+                  <Text style={[styles.summaryValue, { fontWeight: '700' }]}>{'N$'}{(parseFloat(amount) + 5).toFixed(2)}</Text>
                 </View>
               </View>
 

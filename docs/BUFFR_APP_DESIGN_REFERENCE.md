@@ -186,5 +186,6 @@ Home → **Groups** (list) → **Create Group** or tap group → **Group detail*
 
 ## 5. Cross-reference
 
-- **PRD:** `docs/PRD.md` §3 (Screen Inventory), §3.12 (UX Master Checklist), §7 (User Flows).
+- **PRD:** `docs/PRD.md` §3 (Screen Inventory), §3.12 (UX Master Checklist), §3.14 (Flow-to-Design Alignment), §7 (User Flows).
+- **Flow alignment status:** PRD §3.14 lists which flows are aligned with Buffr App Design and which still need step/copy updates (Send money, Add Wallet, Groups, Loans, Onboarding, Vouchers, Cash-out, etc.).
 - **App routes:** `app/` directory; groups under `app/groups/`, receive under `app/receive/`.

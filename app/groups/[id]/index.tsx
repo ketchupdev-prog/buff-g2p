@@ -331,7 +331,7 @@ export default function GroupDetailScreen() {
                   </View>
                   <View style={styles.activityInfo}>
                     <Text style={styles.activityTitle}>
-                      {item.memberName} {item.type === 'contribution' ? 'contributed' : 'requested'} N$ {item.amount.toLocaleString()}
+                      {item.memberName} {item.type === 'contribution' ? 'contributed' : 'requested'} N${item.amount.toLocaleString()}
                     </Text>
                     {item.note ? <Text style={styles.activityNote}>{item.note}</Text> : null}
                     <Text style={styles.activityTime}>{formatTimeAgo(item.createdAt)}</Text>

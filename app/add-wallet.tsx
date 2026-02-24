@@ -1,6 +1,7 @@
 /**
  * Add Wallet – Buffr G2P.
  * §25 / Figma 151:391.
+ * Uses UserContext for profile and walletStatus (frozen guard).
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -19,6 +20,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
+import { useUser } from '@/contexts/UserContext';
 import { createWallet } from '@/services/wallets';
 import {
   BottomSheet,
@@ -35,6 +37,7 @@ const REPAYMENT_OPTIONS = ['3', '6', '9', '12', '24'];
 const DAYS = Array.from({ length: 28 }, (_, i) => String(i + 1));
 
 export default function AddWalletScreen() {
+  const { profile, walletStatus } = useUser();
   const [walletName,    setWalletName]    = useState('');
   const [selectedIcon,  setSelectedIcon]  = useState('💳');
   const [nameFocused,   setNameFocused]   = useState(false);
@@ -96,14 +99,14 @@ export default function AddWalletScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <Stack.Screen options={{ headerShown: true, headerTitle: 'Add Wallet', headerTitleStyle: { fontSize: 18, fontWeight: '600', color: '#020617' }, headerTintColor: '#1E293B', headerStyle: { backgroundColor: '#fff' } }} />
+      <Stack.Screen options={{ headerShown: true, headerTitle: 'Adding A Wallet', headerTitleStyle: { fontSize: 18, fontWeight: '600', color: '#020617' }, headerTintColor: '#1E293B', headerStyle: { backgroundColor: '#fff' } }} />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
 
           {/* Icon – per Buffr design: Set icon + emoji picker */}
           <View style={styles.iconField}>
             <EmojiIcon value={selectedIcon} onPress={() => setShowEmojiPicker(true)} size={80} />
-            <Text style={styles.setIconLabel}>Set icon</Text>
+            <Text style={styles.setIconLabel}>Setting up Icon</Text>
           </View>
 
           {/* Name – user-defined, e.g. Aquarium */}
@@ -152,14 +155,14 @@ export default function AddWalletScreen() {
                 style={{ marginBottom: 4 }}
               />
 
-              <Text style={styles.configLabel}>Deduct On</Text>
+              <Text style={styles.configLabel}>Set Date</Text>
               <TouchableOpacity style={styles.configRow} onPress={() => setShowDayPicker(true)} activeOpacity={0.8}>
                 <Ionicons name="calendar-outline" size={16} color="#6B7280" />
                 <Text style={styles.configRowText}>Day {deductDay} of cycle</Text>
                 <Ionicons name="chevron-forward" size={14} color="#D1D5DB" />
               </TouchableOpacity>
 
-              <Text style={styles.configLabel}>Time</Text>
+              <Text style={styles.configLabel}>Set Time</Text>
               <View style={styles.configRow}>
                 <Ionicons name="time-outline" size={16} color="#6B7280" />
                 <TextInput
@@ -188,7 +191,7 @@ export default function AddWalletScreen() {
                 />
               </View>
 
-              <Text style={styles.configLabel}>Number of Repayments</Text>
+              <Text style={styles.configLabel}>Number Of Payments</Text>
               <TouchableOpacity style={styles.configRow} onPress={() => setShowRepayPicker(true)} activeOpacity={0.8}>
                 <Ionicons name="repeat-outline" size={16} color="#6B7280" />
                 <Text style={styles.configRowText}>{numRepayments} repayments</Text>

@@ -23,6 +23,7 @@ export interface WalletCarouselProps {
   loading: boolean;
   onWalletPress: (wallet: Wallet) => void;
   onAddWalletPress: () => void;
+  onAddFundsPress?: () => void;
 }
 
 export function WalletCarousel({
@@ -30,6 +31,7 @@ export function WalletCarousel({
   loading,
   onWalletPress,
   onAddWalletPress,
+  onAddFundsPress,
 }: WalletCarouselProps) {
   if (loading) {
     return (
@@ -61,12 +63,12 @@ export function WalletCarousel({
       ))}
       <TouchableOpacity
         style={styles.addCard}
-        onPress={onAddWalletPress}
+        onPress={onAddFundsPress ?? onAddWalletPress}
         activeOpacity={0.8}
-        accessibilityLabel="Add a new wallet"
+        accessibilityLabel="Add funds to wallet"
       >
         <Ionicons name="add" size={28} color="#2563EB" />
-        <Text style={styles.addCardText}>Add Wallet</Text>
+        <Text style={styles.addCardText}>Add Funds</Text>
       </TouchableOpacity>
     </ScrollView>
   );

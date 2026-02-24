@@ -62,7 +62,7 @@ export default function OnboardingCompleteScreen() {
           style={styles.icon}
           resizeMode="contain"
         />
-        <Text style={styles.heading}>You're all set!</Text>
+        <Text style={styles.heading}>Registration Completed</Text>
         <Text style={styles.instructionText}>
           Welcome to Buffr. Your account has been successfully created.
         </Text>

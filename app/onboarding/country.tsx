@@ -1,6 +1,7 @@
 /**
  * Country selection (optional) – Buffr G2P.
  * §3.1 screen 1b. Shown when product enables country step in onboarding.
+ * Uses UserContext so onboarding state is consistent.
  */
 import React, { useState } from 'react';
 import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -8,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
 import { designSystem } from '@/constants/designSystem';
+import { useUser } from '@/contexts/UserContext';
 
 const COUNTRIES = [
   { code: 'NA', name: 'Namibia', flag: '🇳🇦' },
@@ -17,6 +19,7 @@ const COUNTRIES = [
 ];
 
 export default function CountryScreen() {
+  useUser(); // Ensure UserContext is applied in onboarding flow
   const [selected, setSelected] = useState<string>('NA');
 
   return (

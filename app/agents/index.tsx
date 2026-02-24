@@ -37,7 +37,7 @@ export default function AgentsIndexScreen() {
           onSearchChange={setSearch}
           showSearch
           showBackButton
-          onBackPress={() => router.back()}
+          onBackPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)' as never))}
           onNotificationPress={() => router.push('/(tabs)/profile/notifications' as never)}
           onAvatarPress={() => router.push('/(tabs)/profile' as never)}
           avatarUri={profile?.photoUri ?? null}

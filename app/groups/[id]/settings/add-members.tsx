@@ -18,6 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getSecureItem } from '@/services/secureStorage';
 import { designSystem } from '@/constants/designSystem';
 import { Avatar } from '@/components/ui';
 
@@ -50,7 +51,7 @@ export default function AddMembersScreen() {
     setLoading(true);
     try {
       if (API_BASE_URL) {
-        const token = await AsyncStorage.getItem('buffr_access_token');
+        const token = await getSecureItem('buffr_access_token');
         const h: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
         const res = await fetch(`${API_BASE_URL}/api/v1/mobile/groups/${id}/members`, {
           method: 'POST',

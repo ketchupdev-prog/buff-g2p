@@ -1,6 +1,7 @@
 /**
  * Wallet History – Buffr G2P.
  * Tabs: Earnings (received) and Added (add_money). Per Buffr design (Wallet History Earnings/Added).
+ * Uses UserContext for state consistency.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -15,6 +16,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
+import { designSystem } from '@/constants/designSystem';
+import { useUser } from '@/contexts/UserContext';
 import { getWallet, type Wallet } from '@/services/wallets';
 import {
   getTransactions,
@@ -24,7 +27,6 @@ import {
   type Transaction,
   type TransactionType,
 } from '@/services/transactions';
-import { designSystem } from '@/constants/designSystem';
 
 type Tab = 'earnings' | 'added';
 
@@ -41,6 +43,7 @@ function formatDate(iso: string): string {
 
 export default function WalletHistoryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  useUser();
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -133,7 +136,7 @@ export default function WalletHistoryScreen() {
                 <TouchableOpacity
                   key={tx.id}
                   style={styles.row}
-                  onPress={() => router.push(`/transactions/${tx.id}` as never)}
+                  onPress={() => router.push(`/(tabs)/transactions/${tx.id}` as never)}
                   activeOpacity={0.8}
                 >
                   <View style={[styles.avatarWrap, isCredit ? styles.avatarCredit : styles.avatarDebit]}>

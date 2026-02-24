@@ -179,8 +179,8 @@ function buildBuckets(
 }
 
 function formatAmount(n: number): string {
-  if (n >= 1000) return `N$ ${(n / 1000).toFixed(1)}k`;
-  return `N$ ${n.toFixed(0)}`;
+  if (n >= 1000) return `N$${(n / 1000).toFixed(1)}k`;
+  return `N$${n.toFixed(0)}`;
 }
 
 function formatDate(iso: string): string {
@@ -385,7 +385,7 @@ export default function TransactionsScreen() {
                       {tab === 'balance' ? 'Net Balance' : tab === 'earnings' ? 'Total Earned' : 'Total Spent'}
                     </Text>
                     <Text style={[styles.totalAmount, { color: tab === 'spendings' ? '#E11D48' : '#111827' }]}>
-                      N$ {Math.abs(tabTotal).toLocaleString('en-NA', { minimumFractionDigits: 2 })}
+                      {'N$'}{Math.abs(tabTotal).toLocaleString('en-NA', { minimumFractionDigits: 2 })}
                     </Text>
                   </View>
                   {tab === 'balance' && (
@@ -396,20 +396,20 @@ export default function TransactionsScreen() {
                         color={netBalance >= 0 ? '#16A34A' : '#DC2626'}
                       />
                       <Text style={[styles.changeText, { color: netBalance >= 0 ? '#16A34A' : '#DC2626' }]}>
-                        {netBalance >= 0 ? '+' : '-'}N$ {Math.abs(netBalance).toFixed(0)}
+                        {netBalance >= 0 ? '+' : '-'}{'N$'}{Math.abs(netBalance).toFixed(0)}
                       </Text>
                     </View>
                   )}
                   {tab === 'earnings' && totalSpendings > 0 && (
                     <View style={styles.subStat}>
                       <Text style={styles.subStatLabel}>Spent</Text>
-                      <Text style={styles.subStatValue}>N$ {totalSpendings.toFixed(0)}</Text>
+                      <Text style={styles.subStatValue}>{'N$'}{totalSpendings.toFixed(0)}</Text>
                     </View>
                   )}
                   {tab === 'spendings' && totalEarnings > 0 && (
                     <View style={styles.subStat}>
                       <Text style={styles.subStatLabel}>Earned</Text>
-                      <Text style={[styles.subStatValue, { color: '#22C55E' }]}>N$ {totalEarnings.toFixed(0)}</Text>
+                      <Text style={[styles.subStatValue, { color: '#22C55E' }]}>{'N$'}{totalEarnings.toFixed(0)}</Text>
                     </View>
                   )}
                 </View>
@@ -455,7 +455,7 @@ export default function TransactionsScreen() {
                       <View style={styles.catBody}>
                         <View style={styles.catTopRow}>
                           <Text style={styles.catLabel}>{cat.label}</Text>
-                          <Text style={styles.catAmount}>N$ {cat.amount.toLocaleString('en-NA', { minimumFractionDigits: 2 })}</Text>
+                          <Text style={styles.catAmount}>{'N$'}{cat.amount.toLocaleString('en-NA', { minimumFractionDigits: 2 })}</Text>
                         </View>
                         <View style={styles.catBarTrack}>
                           <View style={[styles.catBarFill, { width: `${Math.round(cat.pct * 100)}%`, backgroundColor: cat.color }]} />
@@ -510,7 +510,7 @@ export default function TransactionsScreen() {
 
                             <View style={styles.txRight}>
                               <Text style={[styles.txAmount, pos ? styles.txAmountPos : styles.txAmountNeg]}>
-                                {pos ? '+' : '-'}N$ {tx.amount.toLocaleString('en-NA', { minimumFractionDigits: 2 })}
+                                {pos ? '+' : '-'}{'N$'}{tx.amount.toLocaleString('en-NA', { minimumFractionDigits: 2 })}
                               </Text>
                               {tx.status !== 'success' && (
                                 <StatusBadge

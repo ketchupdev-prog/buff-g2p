@@ -1,5 +1,7 @@
 /**
- * Card added – Buffr G2P. §3.4 screen 34e.
+ * Card added – Buffr G2P. §3.4 screen 34e. Buffr App Design: Success state + Primary CTA.
+ * Step 3 of card flow: Details Added.
+ * Uses UserContext for profile (personalized message).
  */
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -7,8 +9,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
 import { designSystem } from '@/constants/designSystem';
+import { useUser } from '@/contexts/UserContext';
 
 export default function AddCardSuccessScreen() {
+  const { profile } = useUser();
   return (
     <View style={styles.screen}>
       <Stack.Screen options={{ title: 'Card added', headerBackVisible: false }} />
@@ -17,7 +21,9 @@ export default function AddCardSuccessScreen() {
           <Ionicons name="checkmark-circle" size={64} color={designSystem.colors.semantic.success} />
         </View>
         <Text style={styles.title}>Card added</Text>
-        <Text style={styles.subtitle}>You can use this card to add money or pay.</Text>
+        <Text style={styles.subtitle}>
+          {profile?.firstName ? `${profile.firstName}, you can use this card to add money or pay.` : 'You can use this card to add money or pay.'}
+        </Text>
         <TouchableOpacity style={styles.btn} onPress={() => router.replace('/cards')}>
           <Text style={styles.btnText}>View cards</Text>
         </TouchableOpacity>

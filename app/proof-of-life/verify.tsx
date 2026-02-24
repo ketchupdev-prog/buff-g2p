@@ -15,36 +15,41 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
 import * as LocalAuthentication from 'expo-local-authentication';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getSecureItem } from '@/services/secureStorage';
 import { designSystem } from '@/constants/designSystem';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 
 async function submitProofOfLife(): Promise<{ success: boolean; error?: string }> {
-  const timestamp = new Date().toISOString();
-  if (API_BASE_URL) {
-    try {
-      const token = await AsyncStorage.getItem('buffr_access_token');
-      const res = await fetch(`${API_BASE_URL}/api/v1/mobile/user/proof-of-life`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ method: 'in_app_biometric', timestamp }),
-      });
-      const data = (await res.json()) as { error?: string };
-      if (res.ok) {
-        await AsyncStorage.setItem('buffr_proof_of_life', timestamp);
-        return { success: true };
-      }
-      return { success: false, error: data.error ?? 'Verification failed' };
-    } catch {
-      // Fall through to local fallback
-    }
+  if (!API_BASE_URL) {
+    return {
+      success: false,
+      error: 'Verification failed. An internet connection is required for proof-of-life verification.',
+    };
   }
-  // Offline fallback: store verification locally with timestamp
-  await AsyncStorage.setItem('buffr_proof_of_life', timestamp);
-  return { success: true };
+  const timestamp = new Date().toISOString();
+  try {
+    const token = await getSecureItem('buffr_access_token');
+    const res = await fetch(`${API_BASE_URL}/api/v1/mobile/user/proof-of-life`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ method: 'in_app_biometric', timestamp }),
+    });
+    const data = (await res.json()) as { error?: string };
+    if (res.ok) {
+      await AsyncStorage.setItem('buffr_proof_of_life', timestamp);
+      return { success: true };
+    }
+    return { success: false, error: data.error ?? 'Verification failed' };
+  } catch {
+    return {
+      success: false,
+      error: 'Verification failed. An internet connection is required for proof-of-life verification.',
+    };
+  }
 }
 
 export default function ProofOfLifeVerifyScreen() {

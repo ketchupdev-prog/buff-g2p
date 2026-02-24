@@ -5,6 +5,7 @@
  */
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -18,13 +19,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { designSystem } from '@/constants/designSystem';
+import { getATMCode } from '@/services/cashout';
 import { getWallet } from '@/services/wallets';
 
 const EXPIRE_SECS = 10 * 60; // 10 minutes
 
-function generateATMCode(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-}
+// S3: ATM codes are fetched from the server via getATMCode(). No local generation.
 
 function formatCountdown(secs: number): string {
   const m = Math.floor(secs / 60), s = secs % 60;
@@ -46,6 +46,7 @@ export default function CashOutAtmScreen() {
   const [expiryTime, setExpiryTime] = useState('');
   const [countdown, setCountdown] = useState(EXPIRE_SECS);
   const [showCode, setShowCode] = useState(false);
+  const [loadingCode, setLoadingCode] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => { getWallet(id ?? '').then(w => setBalance(w?.balance ?? null)).catch(() => {}); }, [id]);
@@ -61,15 +62,23 @@ export default function CashOutAtmScreen() {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [showCode]);
 
-  function handleGetCode() {
+  async function handleGetCode() {
     const num = parseFloat(amount);
     if (isNaN(num) || num <= 0) { setError('Enter a valid amount.'); return; }
     if (num < 50) { setError('Minimum ATM withdrawal is N$50.'); return; }
     if (num > 3000) { setError('Maximum ATM withdrawal is N$3,000.'); return; }
     if (num % 10 !== 0) { setError('Amount must be a multiple of N$10 (e.g. N$100, N$200).'); return; }
-    if (balance !== null && (num + 8) > balance) { setError(`Insufficient balance. You need N$ ${(num + 8).toFixed(2)} (including N$8 fee).`); return; }
+    if (balance !== null && (num + 8) > balance) { setError(`Insufficient balance. You need N$${(num + 8).toFixed(2)} (including N$8 fee).`); return; }
     setError(null);
-    setAtmCode(generateATMCode());
+    // S3: Fetch one-time ATM code from the server — never generate client-side.
+    setLoadingCode(true);
+    const result = await getATMCode({ walletId: id ?? '', amount: num });
+    setLoadingCode(false);
+    if (!result.success || !result.code) {
+      setError(result.error ?? 'ATM cash-out is temporarily unavailable. Please try a different method.');
+      return;
+    }
+    setAtmCode(result.code);
     setShowCode(true);
   }
 
@@ -96,7 +105,7 @@ export default function CashOutAtmScreen() {
                 {balance !== null && (
                   <View style={styles.balanceBadge}>
                     <Text style={styles.balanceLabel}>Available Balance</Text>
-                    <Text style={styles.balanceValue}>N$ {balance.toFixed(2)}</Text>
+                    <Text style={styles.balanceValue}>{'N$'}{balance.toFixed(2)}</Text>
                   </View>
                 )}
 
@@ -149,9 +158,11 @@ export default function CashOutAtmScreen() {
               </ScrollView>
 
               <View style={styles.footer}>
-                <TouchableOpacity style={[styles.btn, !amount && styles.btnDisabled]} onPress={handleGetCode} disabled={!amount}>
-                  <Ionicons name="card-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
-                  <Text style={styles.btnText}>Get ATM Code</Text>
+                <TouchableOpacity style={[styles.btn, (!amount || loadingCode) && styles.btnDisabled]} onPress={handleGetCode} disabled={!amount || loadingCode}>
+                  {loadingCode
+                    ? <ActivityIndicator color="#fff" style={{ marginRight: 8 }} />
+                    : <Ionicons name="card-outline" size={18} color="#fff" style={{ marginRight: 8 }} />}
+                  <Text style={styles.btnText}>{loadingCode ? 'Requesting Code…' : 'Get ATM Code'}</Text>
                 </TouchableOpacity>
               </View>
             </>
@@ -161,7 +172,7 @@ export default function CashOutAtmScreen() {
               <View style={styles.codeCard}>
                 <Text style={styles.codeCardLabel}>Your ATM Code</Text>
                 <Text style={styles.codeCardValue}>{atmCode}</Text>
-                <Text style={styles.codeCardAmount}>N$ {parseFloat(amount).toFixed(2)}</Text>
+                <Text style={styles.codeCardAmount}>{'N$'}{parseFloat(amount).toFixed(2)}</Text>
                 <View style={styles.timerRow}>
                   <Ionicons name="time-outline" size={14} color="rgba(255,255,255,0.7)" />
                   <Text style={styles.timerText}>
@@ -186,7 +197,7 @@ export default function CashOutAtmScreen() {
                     'Go to any Buffr-enabled ATM near you',
                     'Select "Cardless Withdrawal" or "QR Withdrawal"',
                     `Enter code: ${atmCode}`,
-                    'Collect your N$ ' + parseFloat(amount).toFixed(2) + ' cash',
+                    'Collect your N$' + parseFloat(amount).toFixed(2) + ' cash',
                   ].map((s, i) => (
                     <View key={i} style={styles.instructRow}>
                       <View style={styles.instructNum}><Text style={styles.instructNumText}>{i + 1}</Text></View>
