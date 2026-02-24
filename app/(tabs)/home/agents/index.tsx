@@ -11,10 +11,10 @@ import { useUser } from '@/contexts/UserContext';
 import { designSystem } from '@/constants/designSystem';
 import { AppHeader } from '@/components/layout';
 
-const PLACEHOLDER_AGENTS = [
-  { id: '1', name: 'Windhoek Agent 1', address: 'Independence Ave', open: true },
-  { id: '2', name: 'Katutura Pay Point', address: 'Hosea Kutako Dr', open: true },
-  { id: '3', name: 'Okuryangava Agent', address: 'Okuryangava', open: false },
+const BUFFR_AGENTS = [
+  { id: '1', name: 'Buffr Agent – Independence Ave', address: 'Independence Ave, Windhoek', distKm: 1.1, open: true, services: ['Cash Out', 'Top Up', 'Bill Pay'] },
+  { id: '2', name: 'Buffr Agent – Katutura Market', address: 'Hosea Kutako Dr, Katutura', distKm: 3.2, open: true, services: ['Cash Out', 'Airtime'] },
+  { id: '3', name: 'Buffr Agent – Okuryangava', address: 'Okuryangava, Windhoek North', distKm: 5.7, open: false, services: ['Cash Out'] },
 ];
 
 export default function AgentsIndexScreen() {
@@ -48,20 +48,20 @@ export default function AgentsIndexScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={designSystem.colors.brand.primary} />}
         >
           <View style={styles.sectionRow}>
-            <Text style={styles.sectionTitle}>Nearby agents</Text>
+            <Text style={styles.sectionTitle}>Buffr Agents nearby</Text>
             <TouchableOpacity onPress={() => router.push('/(tabs)/home/agents/nearby' as never)} accessibilityLabel="View map">
-              <Text style={styles.mapLink}>Map</Text>
+              <Text style={styles.mapLink}>View Map</Text>
             </TouchableOpacity>
           </View>
-          <Text style={styles.hint}>Visit an agent to cash out. Show your app and scan their QR to pay.</Text>
-          {PLACEHOLDER_AGENTS.map((agent) => (
+          <Text style={styles.hint}>Visit a Buffr Agent to cash out, top up, or pay bills. Show your QR code to the agent.</Text>
+          {BUFFR_AGENTS.map((agent) => (
             <TouchableOpacity key={agent.id} style={styles.card} activeOpacity={0.8}>
               <View style={styles.iconWrap}>
                 <Ionicons name="storefront-outline" size={24} color={designSystem.colors.brand.primary} />
               </View>
               <View style={styles.cardBody}>
                 <Text style={styles.cardName}>{agent.name}</Text>
-                <Text style={styles.cardAddress}>{agent.address}</Text>
+                <Text style={styles.cardAddress}>{agent.address} · {agent.distKm.toFixed(1)} km</Text>
                 <View style={styles.badgeWrap}>
                   <View style={[styles.badge, agent.open ? styles.badgeOpen : styles.badgeClosed]} />
                   <Text style={styles.badgeText}>{agent.open ? 'Open' : 'Closed'}</Text>

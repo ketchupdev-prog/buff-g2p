@@ -1,7 +1,6 @@
 /**
- * Nearby Agents – Buffr G2P. §3.4.
- * List of agents, NamPost branches, and ATMs near the user.
- * Opens external Maps app for navigation (no native maps SDK required).
+ * Nearby Buffr Agents – Buffr G2P. §3.4.
+ * Embedded map view + list of Buffr Agents, NamPost branches, and ATMs.
  */
 import React, { useState } from 'react';
 import {
@@ -17,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack } from 'expo-router';
+import MapView, { Callout, Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import { designSystem } from '@/constants/designSystem';
 
 type AgentType = 'agent' | 'nampost' | 'atm';
@@ -54,7 +54,7 @@ const AGENTS: AgentLocation[] = [
   {
     id: 'a2',
     type: 'agent',
-    name: 'Katutura Pay Point',
+    name: 'Buffr Agent – Katutura',
     address: 'Hosea Kutako Dr, Katutura',
     region: 'Khomas',
     distanceKm: 3.2,
@@ -68,12 +68,11 @@ const AGENTS: AgentLocation[] = [
   {
     id: 'a3',
     type: 'atm',
-    name: 'First National Bank ATM – Maerua Mall',
+    name: 'FNB ATM – Maerua Mall',
     address: 'Maerua Mall, Jan Jonker Rd',
     region: 'Khomas',
     distanceKm: 4.1,
     open: true,
-    phone: undefined,
     hours: '24 hours',
     lat: -22.5694,
     lng: 17.0726,
@@ -96,7 +95,7 @@ const AGENTS: AgentLocation[] = [
   {
     id: 'a5',
     type: 'agent',
-    name: 'Okuryangava Community Agent',
+    name: 'Buffr Agent – Okuryangava',
     address: 'Okuryangava, Windhoek North',
     region: 'Khomas',
     distanceKm: 5.7,
@@ -115,26 +114,47 @@ const AGENTS: AgentLocation[] = [
     region: 'Khomas',
     distanceKm: 1.4,
     open: true,
-    phone: undefined,
     hours: '24 hours',
     lat: -22.5613,
     lng: 17.0844,
     services: ['Cardless Withdrawal'],
   },
+  {
+    id: 'a7',
+    type: 'agent',
+    name: 'Buffr Agent – Independence Ave',
+    address: 'Independence Ave, Windhoek CBD',
+    region: 'Khomas',
+    distanceKm: 1.1,
+    open: true,
+    phone: '+264 81 555 0010',
+    hours: 'Mon–Fri 08:00–17:30, Sat 08:00–13:00',
+    lat: -22.5608,
+    lng: 17.0837,
+    services: ['Cash Out', 'Top Up', 'Bill Pay'],
+  },
 ];
 
-const TYPE_CONFIG: Record<AgentType, { label: string; icon: string; color: string; bg: string }> = {
-  agent:   { label: 'Buffr Agent',  icon: 'person-circle-outline',   color: '#0029D6', bg: '#EFF6FF' },
-  nampost: { label: 'NamPost',      icon: 'business-outline',         color: '#D97706', bg: '#FFFBEB' },
-  atm:     { label: 'ATM',          icon: 'card-outline',             color: '#7C3AED', bg: '#F5F3FF' },
+const TYPE_CONFIG: Record<AgentType, { label: string; icon: string; color: string; bg: string; pin: string }> = {
+  agent:   { label: 'Buffr Agent', icon: 'person-circle-outline', color: '#0029D6', bg: '#EFF6FF', pin: '#0029D6' },
+  nampost: { label: 'NamPost',     icon: 'business-outline',      color: '#D97706', bg: '#FFFBEB', pin: '#D97706' },
+  atm:     { label: 'ATM',         icon: 'card-outline',          color: '#7C3AED', bg: '#F5F3FF', pin: '#7C3AED' },
 };
 
 const TYPE_FILTERS: Array<{ key: AgentType | 'all'; label: string }> = [
-  { key: 'all', label: 'All' },
-  { key: 'agent', label: 'Agents' },
+  { key: 'all',     label: 'All' },
+  { key: 'agent',   label: 'Buffr Agents' },
   { key: 'nampost', label: 'NamPost' },
-  { key: 'atm', label: 'ATMs' },
+  { key: 'atm',     label: 'ATMs' },
 ];
+
+// Windhoek center
+const INITIAL_REGION = {
+  latitude: -22.5597,
+  longitude: 17.0832,
+  latitudeDelta: 0.08,
+  longitudeDelta: 0.08,
+};
 
 function openInMaps(agent: AgentLocation) {
   const label = encodeURIComponent(agent.name);
@@ -153,6 +173,7 @@ function openPhone(phone: string) {
 export default function AgentsNearbyScreen() {
   const [typeFilter, setTypeFilter] = useState<AgentType | 'all'>('all');
   const [refreshing, setRefreshing] = useState(false);
+  const [mapView, setMapView] = useState(true);
 
   const filtered = AGENTS.filter(
     (a) => typeFilter === 'all' || a.type === typeFilter,
@@ -161,7 +182,7 @@ export default function AgentsNearbyScreen() {
   return (
     <View style={styles.screen}>
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <Stack.Screen options={{ headerShown: true, title: 'Nearby', headerBackTitle: '' }} />
+        <Stack.Screen options={{ headerShown: true, title: 'Buffr Agents & ATMs', headerBackTitle: '' }} />
 
         {/* Filter chips */}
         <ScrollView
@@ -183,28 +204,46 @@ export default function AgentsNearbyScreen() {
               </TouchableOpacity>
             );
           })}
+
+          <TouchableOpacity
+            style={[styles.filterChip, styles.viewToggle]}
+            onPress={() => setMapView(v => !v)}
+          >
+            <Ionicons name={mapView ? 'list-outline' : 'map-outline'} size={14} color={designSystem.colors.brand.primary} />
+            <Text style={[styles.filterText, { color: designSystem.colors.brand.primary }]}>
+              {mapView ? 'List' : 'Map'}
+            </Text>
+          </TouchableOpacity>
         </ScrollView>
 
-        {/* Map banner */}
-        <TouchableOpacity
-          style={styles.mapBanner}
-          onPress={() => {
-            const url = Platform.OS === 'ios'
-              ? 'maps://maps.apple.com/?q=Buffr+Agent+Namibia'
-              : 'geo:0,0?q=Buffr+Agent+Namibia';
-            Linking.openURL(url);
-          }}
-          activeOpacity={0.85}
-        >
-          <View style={styles.mapBannerLeft}>
-            <Ionicons name="map-outline" size={32} color="#0029D6" />
-            <View style={styles.mapBannerText}>
-              <Text style={styles.mapBannerTitle}>Open in Maps</Text>
-              <Text style={styles.mapBannerDesc}>View all agents on {Platform.OS === 'ios' ? 'Apple Maps' : 'Google Maps'}</Text>
-            </View>
+        {/* Embedded Map */}
+        {mapView && (
+          <View style={styles.mapContainer}>
+            <MapView
+              style={styles.map}
+              provider={PROVIDER_DEFAULT}
+              initialRegion={INITIAL_REGION}
+              showsUserLocation
+              showsMyLocationButton
+            >
+              {filtered.map((agent) => (
+                <Marker
+                  key={agent.id}
+                  coordinate={{ latitude: agent.lat, longitude: agent.lng }}
+                  pinColor={TYPE_CONFIG[agent.type].pin}
+                >
+                  <Callout tooltip>
+                    <View style={styles.callout}>
+                      <Text style={styles.calloutTitle}>{agent.name}</Text>
+                      <Text style={styles.calloutSub}>{TYPE_CONFIG[agent.type].label}</Text>
+                      <Text style={styles.calloutDist}>{agent.distanceKm.toFixed(1)} km away</Text>
+                    </View>
+                  </Callout>
+                </Marker>
+              ))}
+            </MapView>
           </View>
-          <Ionicons name="open-outline" size={18} color="#9CA3AF" />
-        </TouchableOpacity>
+        )}
 
         <ScrollView
           style={styles.scroll}
@@ -218,7 +257,6 @@ export default function AgentsNearbyScreen() {
             const cfg = TYPE_CONFIG[agent.type];
             return (
               <View key={agent.id} style={styles.card}>
-                {/* Header row */}
                 <View style={styles.cardHeader}>
                   <View style={[styles.typeIcon, { backgroundColor: cfg.bg }]}>
                     <Ionicons name={cfg.icon as never} size={22} color={cfg.color} />
@@ -236,7 +274,6 @@ export default function AgentsNearbyScreen() {
                   <Text style={styles.distance}>{agent.distanceKm.toFixed(1)} km</Text>
                 </View>
 
-                {/* Address + hours */}
                 <View style={styles.infoRow}>
                   <Ionicons name="location-outline" size={14} color="#9CA3AF" />
                   <Text style={styles.infoText} numberOfLines={1}>{agent.address}, {agent.region}</Text>
@@ -246,7 +283,6 @@ export default function AgentsNearbyScreen() {
                   <Text style={styles.infoText}>{agent.hours}</Text>
                 </View>
 
-                {/* Services */}
                 <View style={styles.servicesRow}>
                   {agent.services.map((s) => (
                     <View key={s} style={styles.serviceChip}>
@@ -255,22 +291,13 @@ export default function AgentsNearbyScreen() {
                   ))}
                 </View>
 
-                {/* Action buttons */}
                 <View style={styles.actions}>
-                  <TouchableOpacity
-                    style={styles.actionBtn}
-                    onPress={() => openInMaps(agent)}
-                    activeOpacity={0.8}
-                  >
+                  <TouchableOpacity style={styles.actionBtn} onPress={() => openInMaps(agent)} activeOpacity={0.8}>
                     <Ionicons name="navigate-outline" size={16} color="#0029D6" />
                     <Text style={styles.actionBtnText}>Directions</Text>
                   </TouchableOpacity>
                   {agent.phone && (
-                    <TouchableOpacity
-                      style={styles.actionBtn}
-                      onPress={() => openPhone(agent.phone!)}
-                      activeOpacity={0.8}
-                    >
+                    <TouchableOpacity style={styles.actionBtn} onPress={() => openPhone(agent.phone!)} activeOpacity={0.8}>
                       <Ionicons name="call-outline" size={16} color="#0029D6" />
                       <Text style={styles.actionBtnText}>Call</Text>
                     </TouchableOpacity>
@@ -297,27 +324,35 @@ const styles = StyleSheet.create({
   filterChipActive: { backgroundColor: '#0029D6', borderColor: '#0029D6' },
   filterText: { fontSize: 13, fontWeight: '500', color: '#374151' },
   filterTextActive: { color: '#fff' },
+  viewToggle: { flexDirection: 'row', alignItems: 'center', gap: 4, borderColor: designSystem.colors.brand.primary },
 
-  mapBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#fff',
+  mapContainer: {
+    height: 240,
     marginHorizontal: 16,
     marginBottom: 8,
     borderRadius: 16,
-    padding: 16,
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#DBEAFE',
+    borderColor: '#E5E7EB',
   },
-  mapBannerLeft: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  mapBannerText: { gap: 2 },
-  mapBannerTitle: { fontSize: 15, fontWeight: '700', color: '#111827' },
-  mapBannerDesc: { fontSize: 12, color: '#6B7280' },
+  map: { flex: 1 },
+  callout: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 10,
+    minWidth: 140,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+  },
+  calloutTitle: { fontSize: 13, fontWeight: '700', color: '#111827', marginBottom: 2 },
+  calloutSub: { fontSize: 11, color: '#0029D6', fontWeight: '600', marginBottom: 2 },
+  calloutDist: { fontSize: 11, color: '#6B7280' },
 
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingBottom: 40, paddingTop: 4 },
-
   resultCount: { fontSize: 12, color: '#9CA3AF', fontWeight: '500', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
 
   card: {

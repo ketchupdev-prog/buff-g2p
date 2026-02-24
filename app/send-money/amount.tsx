@@ -62,13 +62,12 @@ export default function ReceiverDetailsScreen() {
     }
     setAmountError(null);
     router.push({
-      pathname: '/send-money/confirm',
+      pathname: '/send-money/receiver-details',
       params: {
         recipientPhone,
         recipientName,
         amount: numeric.toFixed(2),
-        note,
-        walletId: paySource?.id ?? wallets[0]?.id ?? '',
+        note: note ?? '',
       },
     } as never);
   };

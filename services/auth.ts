@@ -81,8 +81,8 @@ export async function getOrCreateBuffrId(phone: string): Promise<{ buffrId: stri
 
 async function getStoredToken(): Promise<string> {
   try {
-    const { getItem } = await import('@react-native-async-storage/async-storage');
-    return (await getItem('buffr_access_token')) ?? '';
+    const { getSecureItem } = await import('@/services/secureStorage');
+    return (await getSecureItem('buffr_access_token')) ?? '';
   } catch {
     return '';
   }

@@ -5,6 +5,7 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PRIMARY_WALLET_CARD_FRAME_ID } from '@/constants/CardDesign';
+import { getSecureItem } from '@/services/secureStorage';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 const STORAGE_KEY_WALLETS = 'buffr_wallets';
@@ -30,7 +31,7 @@ export interface Wallet {
 
 async function getAuthHeader(): Promise<{ Authorization: string } | Record<string, never>> {
   try {
-    const token = await AsyncStorage.getItem('buffr_access_token');
+    const token = await getSecureItem('buffr_access_token');
     return token ? { Authorization: `Bearer ${token}` } : {};
   } catch {
     return {};

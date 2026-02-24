@@ -25,10 +25,9 @@ import {
   type Transaction,
 } from '@/services/transactions';
 
-const WALLET_EMOJI: Record<string, string> = { main: '📊', savings: '💰', grant: '🎁' };
-
-function walletEmoji(w: Wallet): string {
-  return WALLET_EMOJI[w.type] ?? '💼';
+/** User-defined icon (emoji) or neutral – per Buffr design, no predetermined types. */
+function walletDisplayIcon(w: Wallet): string {
+  return w.icon?.trim() ? w.icon : '💼';
 }
 
 function isDebit(tx: Transaction): boolean {
@@ -110,34 +109,40 @@ export default function WalletDetailScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor="#0029D6" />
           }
         >
-          {/* Balance block with emoji */}
+          {/* Balance block with user icon – per Buffr design */}
           <View style={styles.balanceBlock}>
             <View style={styles.iconCircle}>
-              <Text style={styles.iconEmoji}>{walletEmoji(wallet)}</Text>
+              <Text style={styles.iconEmoji}>{walletDisplayIcon(wallet)}</Text>
             </View>
+            <Text style={styles.walletSubtitle}>{wallet.name}</Text>
             <Text style={styles.balanceAmount}>
               N$ {wallet.balance.toLocaleString('en-NA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </Text>
-            <Text style={styles.balanceLabel}>Available Balance</Text>
+            <Text style={styles.balanceLabel}>Total Balance</Text>
+            {/* Monthly Pay line – per design; link to auto-pay when configured */}
+            <TouchableOpacity
+              style={styles.monthlyPayRow}
+              onPress={() => router.push(`/wallets/${wallet.id}/auto-pay` as never)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.monthlyPayLabel}>Monthly Pay</Text>
+              <Ionicons name="chevron-forward" size={16} color="#64748B" />
+            </TouchableOpacity>
           </View>
 
-          {/* Pill action buttons */}
-          <View style={styles.actionsRow}>
-            <TouchableOpacity
-              style={styles.primaryBtn}
-              onPress={() => router.push(`/wallets/${wallet.id}/add-money` as never)}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="add" size={18} color="#fff" />
-              <Text style={styles.primaryBtnText}>Add Funds</Text>
+          {/* Bottom nav: History | Transfer | Add – per Buffr design */}
+          <View style={styles.walletNav}>
+            <TouchableOpacity style={styles.walletNavItem} onPress={() => router.push(`/wallets/${wallet.id}/history` as never)} activeOpacity={0.8}>
+              <Ionicons name="time-outline" size={22} color="#64748B" />
+              <Text style={styles.walletNavLabel}>History</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.secondaryBtn}
-              onPress={() => router.push('/send-money/select-recipient' as never)}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="arrow-up" size={18} color="#020617" />
-              <Text style={styles.secondaryBtnText}>Transfer</Text>
+            <TouchableOpacity style={styles.walletNavItem} onPress={() => router.push('/send-money/select-recipient' as never)} activeOpacity={0.8}>
+              <Ionicons name="swap-horizontal-outline" size={22} color="#64748B" />
+              <Text style={styles.walletNavLabel}>Transfer</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.walletNavItem, styles.walletNavItemActive]} onPress={() => router.push(`/wallets/${wallet.id}/add-money` as never)} activeOpacity={0.8}>
+              <Ionicons name="add" size={22} color="#0029D6" />
+              <Text style={[styles.walletNavLabel, styles.walletNavLabelActive]}>Add</Text>
             </TouchableOpacity>
           </View>
 
@@ -178,7 +183,7 @@ export default function WalletDetailScreen() {
           {/* Recent Activity */}
           <View style={styles.activityHeader}>
             <Text style={styles.activityTitle}>Recent Activity</Text>
-            <TouchableOpacity onPress={() => router.push('/(tabs)/transactions' as never)} activeOpacity={0.8}>
+            <TouchableOpacity onPress={() => router.push(`/wallets/${wallet.id}/history` as never)} activeOpacity={0.8}>
               <Text style={styles.viewAllText}>View All</Text>
             </TouchableOpacity>
           </View>
@@ -266,9 +271,17 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   iconEmoji: { fontSize: 36 },
+  walletSubtitle: { fontSize: 13, color: '#64748B', marginBottom: 4 },
   balanceAmount: { fontSize: 36, fontWeight: '700', color: '#020617', marginBottom: 4 },
   balanceLabel: { fontSize: 14, color: '#64748B' },
-  // Action buttons
+  monthlyPayRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, paddingVertical: 12, paddingHorizontal: 16, backgroundColor: '#F8FAFC', borderRadius: 12 },
+  monthlyPayLabel: { fontSize: 14, color: '#64748B' },
+  walletNav: { flexDirection: 'row', backgroundColor: '#F8FAFC', borderRadius: 16, padding: 8, marginBottom: 24 },
+  walletNavItem: { flex: 1, alignItems: 'center', gap: 6, paddingVertical: 12 },
+  walletNavItemActive: {},
+  walletNavLabel: { fontSize: 12, fontWeight: '500', color: '#64748B' },
+  walletNavLabelActive: { color: '#0029D6' },
+  // Action buttons (legacy)
   actionsRow: { flexDirection: 'row', gap: 12, marginBottom: 28 },
   primaryBtn: { flex: 1, height: 48, borderRadius: 9999, backgroundColor: '#020617', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   primaryBtnText: { fontSize: 14, color: '#fff', fontWeight: '600' },

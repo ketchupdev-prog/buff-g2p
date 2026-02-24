@@ -27,15 +27,15 @@ import { AppHeader } from '@/components/layout';
 import { WalletCarousel, RecentContactsCarousel } from '@/components/home';
 
 // ─── 3×3 Services Grid ────────────────────────────────────────────────────────
-// 9 tiles covering every core G2P journey: money movement, utilities, discovery.
+// 9 tiles per Buffr app design: Proof of Life, Receive, Cash Out, Vouchers, Airtime, Bills, Loans, Groups, Find Agent. Send remains via FAB.
 const SERVICES_GRID = [
   {
-    id: 'send',
-    label: 'Send',
-    icon: 'paper-plane-outline' as const,
-    color: '#0029D6',
-    bg: '#EFF6FF',
-    route: '/send-money/select-recipient',
+    id: 'proof-of-life',
+    label: 'Proof of Life',
+    icon: 'shield-checkmark-outline' as const,
+    color: '#B45309',
+    bg: '#FFFBEB',
+    route: '/proof-of-life/verify',
   },
   {
     id: 'receive',
@@ -86,12 +86,12 @@ const SERVICES_GRID = [
     route: '/(tabs)/home/loans',
   },
   {
-    id: 'tickets',
-    label: 'Buy Tickets',
-    icon: 'ticket-outline' as const,
-    color: '#F97316',
-    bg: '#FFF7ED',
-    route: '/(tabs)/home/bills?category=tickets',
+    id: 'groups',
+    label: 'Groups',
+    icon: 'people-outline' as const,
+    color: '#7C3AED',
+    bg: '#EDE9FE',
+    route: '/groups',
   },
   {
     id: 'agents',
@@ -103,8 +103,19 @@ const SERVICES_GRID = [
   },
 ];
 
+/** True when proof-of-life due date is within the next 14 days. §3.6 screen 58. */
+function isProofOfLifeDueSoon(dueDate: string | null): boolean {
+  if (!dueDate) return false;
+  const due = new Date(dueDate);
+  const now = new Date();
+  const in14 = new Date(now);
+  in14.setDate(in14.getDate() + 14);
+  return due >= now && due <= in14;
+}
+
 export default function HomeScreen() {
-  const { profile, cardNumberMasked } = useUser();
+  const { profile, cardNumberMasked, proofOfLifeDueDate, walletStatus } = useUser();
+  const showProofOfLifeBanner = isProofOfLifeDueSoon(proofOfLifeDueDate);
 
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -138,6 +149,13 @@ export default function HomeScreen() {
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // §3.6 screen 61: when wallet is frozen, redirect to proof-of-life expired
+  useEffect(() => {
+    if (walletStatus === 'frozen') {
+      router.replace('/proof-of-life/expired' as never);
+    }
+  }, [walletStatus]);
 
   const isFirstFocus = useRef(true);
   useFocusEffect(
@@ -192,6 +210,20 @@ export default function HomeScreen() {
           }
           keyboardShouldPersistTaps="handled"
         >
+          {/* §3.6 screen 58: Proof-of-life banner when due within 14 days */}
+          {showProofOfLifeBanner && (
+            <TouchableOpacity
+              style={styles.pofBanner}
+              onPress={() => router.push('/proof-of-life/verify' as never)}
+              activeOpacity={0.9}
+              accessibilityLabel="Proof of life due. Verify now to continue receiving grants."
+            >
+              <Ionicons name="shield-checkmark-outline" size={20} color="#B45309" />
+              <Text style={styles.pofBannerText}>Please verify to continue receiving grants.</Text>
+              <Text style={styles.pofBannerCta}>Verify now</Text>
+            </TouchableOpacity>
+          )}
+
           {/* ── Balance ── */}
           <View style={styles.balanceSection}>
             <Text style={styles.balanceAmount}>
@@ -238,7 +270,15 @@ export default function HomeScreen() {
             <View style={styles.buffrCardTextBlock}>
               <View style={styles.buffrCardTopRow}>
                 <Text style={styles.buffrCardTitle}>Buffr Account</Text>
-                <Text style={styles.buffrCardView}>View &gt;</Text>
+                <View style={styles.buffrCardActions}>
+                  <TouchableOpacity
+                    onPress={(e) => { e.stopPropagation(); router.push(wallets.length ? `/wallets/${wallets[0].id}/add-money` as never : '/wallets' as never); }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Text style={styles.buffrCardAddMoney}>Add money</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.buffrCardView}>View &gt;</Text>
+                </View>
               </View>
               {displayName ? <Text style={styles.buffrCardName}>{displayName}</Text> : null}
               {cardNumberMasked ? (
@@ -384,6 +424,24 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 200 },
 
+  // §3.6 screen 58: Proof-of-life banner
+  pofBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'stretch',
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 4,
+    padding: 14,
+    backgroundColor: '#FFFBEB',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    gap: 10,
+  },
+  pofBannerText: { flex: 1, fontSize: 14, color: '#92400E', fontWeight: '500' },
+  pofBannerCta: { fontSize: 14, fontWeight: '700', color: '#B45309' },
+
   // Balance
   balanceSection: { paddingHorizontal: 16, paddingVertical: 20, alignItems: 'center' },
   balanceAmount: { fontSize: 48, fontWeight: '700', color: '#020617', letterSpacing: -1, marginBottom: 4 },
@@ -416,6 +474,8 @@ const styles = StyleSheet.create({
   buffrCardTextBlock: { flex: 1, minWidth: 0 },
   buffrCardTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   buffrCardTitle: { fontSize: 13, fontWeight: '500', color: '#64748B' },
+  buffrCardActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  buffrCardAddMoney: { fontSize: 13, fontWeight: '600', color: '#059669' },
   buffrCardView: { fontSize: 13, fontWeight: '600', color: '#0029D6' },
   buffrCardName: { fontSize: 17, fontWeight: '700', color: '#111827', marginBottom: 4 },
   buffrCardNumber: { fontSize: 14, fontWeight: '500', color: '#6B7280', letterSpacing: 2 },

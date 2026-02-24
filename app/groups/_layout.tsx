@@ -1,25 +1,23 @@
+/**
+ * Groups stack layout – Buffr G2P.
+ * Routes: index (list), create, [id] (detail), [id]/request.
+ * §3.6 groups flow; design ref: docs/BUFFR_APP_DESIGN_REFERENCE.md.
+ */
 import { Stack } from 'expo-router';
-import { View, Text, StyleSheet } from 'react-native';
 
 export default function GroupsLayout() {
   return (
-    <Stack>
-      <View style={styles.container}>
-        <Text style={styles.text}>Groups Layout</Text>
-      </View>
+    <Stack
+      screenOptions={{
+        headerShown: true,
+        headerBackTitle: 'Back',
+        headerTintColor: '#111827',
+        headerStyle: { backgroundColor: '#FFFFFF' },
+      }}
+    >
+      <Stack.Screen name="index" options={{ title: 'Groups' }} />
+      <Stack.Screen name="create" options={{ title: 'Create Group' }} />
+      <Stack.Screen name="[id]" options={{ headerShown: false }} /> {/* [id]/index = detail, [id]/request = request from group */}
     </Stack>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f0f0f0',
-  },
-  text: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-});

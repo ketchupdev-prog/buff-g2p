@@ -1,10 +1,11 @@
-# Buffr G2P App – Product Requirements Document (Revised v1.5)
+# Buffr G2P App – Product Requirements Document (Revised v1.7)
 
 **Ketchup Software Solutions**  
 **Ecosystem:** Government-to-Person (G2P) – Beneficiary Platform (Mobile App)  
 **Date:** March 2026  
 **v1.5 updates:** Screen header and back navigation consistency (§6.4): every stack screen must provide back or Home; Agent Network and entry screens must fallback to Home when history is empty; header patterns and quick reference table. **v1.6 gap analysis (senior developer review):** §11.12–§11.21 – Offline architecture, Push notifications, Analytics & monitoring, Testing strategy, Deployment & CI/CD, Security implementation details, Accessibility, Internationalization (i18n), Edge case handling, Performance budget. **Card and wallet model (§3.4, §4.3b):** Cards are for the main Buffr account (primary wallet) and can represent additional wallets with user context (name, balance, type; optional cardDesignFrameId per wallet).  
-**Status:** Specification – Build in `buffr_g2p`  
+**v1.7 updates:** **Implementation status & areas for improvement** (§3.13): Group Settings POV (admin vs member), deactivating members, adding members (§3.6 47c-v, 47c-vi); Request Status modal; Wallet History screen (§3.6 50a); implementation checklist and improvement areas.  
+**Status:** Specification – Build in `buffr-g2p`  
 **Self-contained:** This PRD is the **full specification**: wireframes (§3.7), **complete Figma screen index** (§3.8), user flows and flow logic (§7, §7.6), API request/response shapes (§9.4), design system (§5), **full component hierarchy organism→atom** (§4.7, §8.2), project structure and copy-paste code (§11, §11.7–§11.8). **No TODOs**—entry, onboarding, contexts, 2FA, compliance, NAMQR, and Open Banking are fully specified. Implement from this document with **100% confidence**. Use **Archon MCP** with this PRD for code generation (§9.5, §11.9).  
 **Design sources:** Figma MCP (Buffr App Design; file key `VeGAwsChUvwTBZxAU6H8VQ`), Archon (CONSOLIDATED_PRD, BUFFR_G2P_FINAL_ARCHITECTURE).  
 **Compliance:** This revision integrates:
@@ -24,7 +25,7 @@ All QR‑based transactions, payment flows, API interactions, security measures,
 
 1. [Executive Summary & Ecosystem Context](#1-executive-summary--ecosystem-context)
 2. [Buffr G2P App Scope](#2-buffr-g2p-app-scope)
-3. [Complete Screen Inventory & Layouts](#3-complete-screen-inventory--layouts) (§3.8 Figma screen index; §3.9 Receiver Flows; §3.10 USSD Flows & Menus)
+3. [Complete Screen Inventory & Layouts](#3-complete-screen-inventory--layouts) (§3.8 Figma index; §3.9 Receiver; §3.10 USSD; §3.11 PRD↔Complete Doc; §3.12 UX Master Checklist; **§3.13 Implementation Status & Areas for Improvement**)
 4. [Component Inventory](#4-component-inventory) (§4.7 full hierarchy: organisms → atoms from Figma)
 5. [Design System](#5-design-system) (§5.3 Figma effects/backgrounds; §5.4 Design verification: Buffr App Design – cards, wallet, group, animations)
 6. [Layouts & Navigation](#6-layouts--navigation)
@@ -60,7 +61,7 @@ A digital ecosystem for **Government-to-Person (G2P)** payments, social grants, 
 | **USSD (*123#)** | Text menus: balance; redeem voucher; cash-out code; bills; delivery; proof-of-life; SMS confirmations | Feature-phone users; low-literacy; poor data coverage |
 | **Agent Network** | Cash-out (code + ID; biometric at POS); bill pay; airtime; parcel collection; proof-of-life; extended hours | All beneficiaries; those preferring human interaction |
 
-**Buffr G2P** is the **Mobile App** pillar—the beneficiary-facing app (Expo/React Native) that we will build in the `buffr_g2p` project. All critical notifications (voucher issued, redemption confirmation, collection codes, expiry) are sent via **SMS** so beneficiaries without smartphones or data are never left behind.
+**Buffr G2P** is the **Mobile App** pillar—the beneficiary-facing app (Expo/React Native) that we will build in the  /Users/georgenekwaya/buffr-g2p`buffr-g2p` project. All critical notifications (voucher issued, redemption confirmation, collection codes, expiry) are sent via **SMS** so beneficiaries without smartphones or data are never left behind.
 
 ### 1.2 Ecosystem Components (Relevant to App)
 
@@ -245,16 +246,17 @@ Every screen below is planned for implementation in `buffr_g2p`. **Route** = Exp
 | # | Screen name | Route | Layout | Key components / Layout notes |
 |---|-------------|--------|--------|--------------------------------|
 | 25 | Home | `/(tabs)/index` or `/(tabs)` | Tab | Header (avatar, notifications); Search (pill); “Send to” contacts; Balance card; **Buffr Card** (main Buffr account / primary wallet); Wallets carousel; Services grid; FABs (Send, QR); bottom tabs |
-| 26 | Add Money Modal | Modal from Home | Modal | 3 methods: Bank Transfer, Debit Card, Redeem Voucher (→ Vouchers) |
-| 27 | Send Money – Select recipient | `/send-money/select-recipient` | Stack | Contacts list, search, “Send to” selection |
+| 26 | Add Money Modal | Modal from Home or Wallet Detail | Modal / Bottom sheet | **AddMoneyModal:** 3 methods – Bank Transfer, Debit Card, Redeem Voucher (→ Vouchers). Shown from Home “Add” or from Wallet Detail “Add money”. Per Complete Doc §6. |
+| 27 | Send Money – Select recipient | `/send-money/select-recipient` | Stack | **SendToScreen:** Contacts list, search, recents, favorites; “Send to” selection |
+| 27b | Send Money – Receiver details | `/send-money/receiver-details` | Stack | **ReceiverDetailsScreen:** Review recipient, choose payment source (wallet), add note; step **before** 2FA. Align flow: Select recipient → Amount → **Receiver details** → 2FA → Success. |
 | 28 | Send Money – Amount | `/send-money/amount` | Stack | Amount input, note, “Continue” |
-| 29 | Send Money – Confirm | `/send-money/confirm` | Stack | Summary, 2FA, “Send” |
-| 30 | Send Money – Success | `/send-money/success` | Stack | Success, receipt, “Done” |
+| 29 | Send Money – Confirm | `/send-money/confirm` | Stack | Summary, 2FA modal (§11.4.13), “Send” |
+| 30 | Send Money – Success | `/send-money/success` | Stack | **PaymentSuccess** (reusable); success, receipt, “Done” |
 | 31 | Merchant Directory | `/(tabs)/merchants` or `/merchants` | Tab or Stack | Categories, list/map; tap → Pay Merchant |
 | 32 | Pay Merchant | `/merchants/[id]/pay` | Stack | Amount, wallet source, NAMQR flow, 2FA, success |
 | 33 | Bill Payments | `/bills` or `/(tabs)/bills` | Stack or Tab | Billers (electricity, water, municipal), select → amount → pay from wallet |
 | 34 | Add Wallet | `/add-wallet` | Modal | Name, type (main/savings), icon; “Create”; optional step 2: card design picker (§11.4.14) |
-| 34b | Cards View | `/cards` or from Home | Stack or Tab | List of linked cards/wallets; Figma 115:529 |
+| 34b | Cards View | `/cards` or from Home | Stack or Tab | **CardViewScreen:** Buffr (NamPost) main card + any linked bank cards; list/grid; Figma 115:529 |
 | 34c | Add card | `/add-card` | Stack | “Scan your card” or manual; Figma 44:593 |
 | 34d | Add card details | `/add-card/details` | Stack | Card number, expiry, etc.; Figma 44:639 |
 | 34e | Card added | `/add-card/success` | Stack | Success state; Figma 45:660 |
@@ -271,7 +273,7 @@ Every screen below is planned for implementation in `buffr_g2p`. **Route** = Exp
 |---|-------------|--------|--------|--------------------------------|
 | 35 | Profile | `/profile` or `/(tabs)/profile` | Stack or Tab | Avatar, name, Buffr ID; stats (vouchers, wallet); verification status; linked accounts; “Settings” |
 | 36 | Settings | `/settings` or `/profile/settings` | Stack | Sections: Account, Security, Notifications, Privacy, Help, About |
-| 37 | Analytics Dashboard | `/analytics` | Stack | Voucher + wallet analytics (charts, totals, breakdown) |
+| 37 | Analytics Dashboard | `/analytics` | Stack | **TransactionsBalance / Analytics:** Segmented control (Balance / Earnings / Spendings); period selector (Weekly / Monthly / All Time); bar chart; category breakdown. Voucher + wallet analytics (charts, totals). Per Complete Doc §21. |
 | 38 | Location Services | `/location` or `/map` | Stack | Map: agents, NamPost, SmartPay units, ATMs; filters; list view |
 | 39 | Transactions History | `/(tabs)/transactions` or `/transactions` | Tab or Stack | List with filters (date, type); tap → Transaction detail |
 
@@ -281,21 +283,30 @@ Every screen below is planned for implementation in `buffr_g2p`. **Route** = Exp
 
 | # | Screen name | Route | Layout | Key components / Layout notes |
 |---|-------------|--------|--------|--------------------------------|
-| 40 | Loans | `/loans` | Stack | Voucher-backed loans list, apply (up to 1/3 previous voucher, 15% interest), active loan detail, status; repayment auto-debited from wallet when next month’s voucher redeemed to wallet (§2.3) |
+| 40 | Loans | `/loans` | Stack | Voucher-backed loans list, **apply** (amount, terms), **active loan detail** with **timeline** (Loan Credited → Repaid/Overdue), hero card (emoji + name), auto-pay row; repayment auto-debited when next voucher redeemed to wallet (§2.3). Per Complete Doc §23 **LoanDetailScreen**. |
+| 40b | Edit Auto Pay | `/wallets/[id]/auto-pay` or modal | Stack or Modal | **EditAutoPayScreen:** Frequency (weekly/bi-weekly/monthly); deduct date/time (iOS-style rollers); amount N$; number of repayments; payment method (bank cards, wallets). Used after Add Wallet or from Wallet Detail. Per Complete Doc §6 & §25. |
 | 41 | My QR Code | `/qr-code` | Stack or Modal | User’s NAMQR / receive code (display only) |
 | 41b | QR Code Scanner | `/scan-qr` or from Pay Merchant | Stack | Full-screen scanner for pay-by-QR or collect-by-QR; Figma 81:465 |
 | 42 | Notification Center | `/notifications` or modal | Stack or Modal | List of notifications (voucher, redemption, cash-out, system) |
 | 43 | AI Chat | `/ai-chat` | Stack | Chat UI with DeepSeek companion |
-| 44 | Gamification | `/gamification` | Stack | Rewards, points, badges |
+| 44 | Gamification *(effects only)* | — | **Not a screen** | **Gamification is effects only:** badges, points, progress, toasts (e.g. BadgeToast overlay), streak/NumberRoll, micro-interactions. Shown in-context on Profile, Home, or after actions. No dedicated screen; optional badge showcase can be a section or deep link, not core navigation. See §19 (Cross-App Gamification). |
 | 45 | Financial Literacy | `/learn` | Stack | Articles / tips |
 | 46 | Agent Network | `/agents` or `/agents/nearby` | Stack | Map + list of agents; tap → detail / cash-out |
 | 47 | Merchant Directory (full) | `/merchants` | Stack | Categories, search, map |
 | 47b | Create Group | `/groups/create` | Stack | Group name, description, member selection (pill search, chips); “Create”; Figma 174:696 |
-| 47c | Group view / detail | `/groups/[id]` | Stack | Group name, members, activity; optional in G2P scope (§2.1) |
+| 47c | Group view / detail | `/groups/[id]` | Stack | Group name, members, activity; **Send** / **Request** actions; optional in G2P scope (§2.1) |
+| 47c-i | Group Send | `/groups/[id]/send` | Stack | **GroupSendScreen:** Send money to group; amount, note; 2FA → **GroupPaymentSuccess** |
+| 47c-ii | Group Payment Success | `/groups/[id]/send/success` | Stack | **GroupPaymentSuccess:** Confirmation after group send |
+| 47c-iii | Group Request | `/groups/[id]/request` | Stack | **GroupRequestScreen:** Request money from group members; amount, note; 2FA → **GroupRequestSuccess** |
+| 47c-iv | Group Request Success | `/groups/[id]/request/success` | Stack | **GroupRequestSuccess:** Request sent confirmation |
+| 47c-v | Group Settings | `/groups/[id]/settings` | Stack | **GroupSettingsScreen:** POV admin vs member. **Admin:** edit group name, Add members, deactivate other members (remove button), Save. **Member:** read-only name, no Add members, no remove on others; **all:** Deactivate Yourself. Pill layout with contact avatars/initials per Figma. Cross-ref §3.9 receive flows (group invite). |
+| 47c-vi | Add Members | `/groups/[id]/add-members` | Stack | **AddMembersScreen:** Admin-only. Invite by phone (optional name); Send invite → API or local persist; back to Settings. |
+| 47c-vii | Request Status (modal) | Modal from Group detail | Modal | **RequestStatusModal:** Per-member Paid/Pending for a group request; N$ per member, progress bar, member list with badges; Back. Opened from "View status" on request cards. |
 | 47d | Available bank accounts *(optional)* | `/onboarding/bank-accounts` or settings | Stack | Bank linking; Figma 44:537, 60:62 |
 | 48 | 2FA Verification Modal | Shared modal | Modal | PIN or biometric prompt; “Verify” / “Cancel”; validation **server-side only** (§11.4.13) |
 | 49 | Transaction Detail | `/transactions/[id]` | Stack | Amount, type, date, status, receipt, “Share” |
-| 50 | Wallet Detail | `/wallets/[id]` | Stack | Balance, history, “Add money”, “Cash out”, “Transfer”, “Settings” |
+| 50 | Wallet Detail | `/wallets/[id]` | Stack | Balance, **Monthly Pay** (Auto Pay), **History** → Wallet History (50a), "Transfer", "Add"; **Add Money** from Home or here. Cash out, Edit Auto Pay (40b). |
+| 50a | Wallet History | `/wallets/[id]/history` | Stack | Tabs: **Earnings** (receive, voucher_redeem, loan_disbursement), **Added** (add_money). List from getTransactions({ walletId }); tap → Transaction detail (49). |
 
 | 50b | **Proof-of-life reminder** | Modal or `/proof-of-life` | Modal / Stack | Shown when due for quarterly verification (90-day rule). "Confirm your identity to keep your account active." Options: "Verify now", "Remind later", "Learn more". Backend triggers; app displays and can open verification flow. |
 | 58 | Proof-of-Life Banner | Home screen banner | Inline | Appears when `proofOfLifeDueDate` ≤ 14 days away. Text: "Please verify to continue receiving grants. [Verify now]" |
@@ -350,6 +361,260 @@ Welcome to Buffr
 - **Cash-out:** In app, user scans payee QR. In USSD, user requests a code, receives SMS code, presents code and ID at agent. Agent enters code into POS to complete cash-out.
 - **Proof of life:** In app, user can do biometric verification. In USSD, user is instructed to visit agent. When agent verifies at POS, the system updates proof-of-life status, which is reflected in both channels.
 - All transactions are recorded against the same user account, so balance and history are consistent across channels.
+
+### 3.11 PRD ↔ Complete Documentation alignment (v1.6)
+
+This subsection records gaps identified between the PRD (v1.4/1.5) and the **Complete Documentation** (implemented Expo codebase). Additions have been applied so the PRD covers all screens and flows required for Buffr G2P.
+
+**Screens added or enhanced in §3:**
+
+| Addition | PRD location | Source |
+|----------|---------------|--------|
+| **Group payment flows** | §3.6: 47c-i … 47c-v | GroupSendScreen, GroupPaymentSuccess, GroupRequestScreen, GroupRequestSuccess, GroupSettingsScreen (Complete Doc §9). Cross-ref §3.9 receive flows. |
+| **Receiver Details** (before 2FA) | §3.4: 27b | ReceiverDetailsScreen; flow: Select recipient → Amount → **Receiver details** → 2FA → Success (Complete Doc §8). |
+| **Edit Auto Pay** | §3.6: 40b | EditAutoPayScreen – frequency, deduct date/time, amount, repayments, payment method (Complete Doc §6, §25). |
+| **Add Money Modal** | §3.4: 26, §3.6: 50 | Bottom sheet: Bank Transfer, Debit Card, Redeem Voucher; from Home or Wallet Detail (Complete Doc §6). |
+| **Loan Detail** (timeline, hero, auto-pay) | §3.6: 40 | LoanDetailScreen with timeline (Credited → Repaid/Overdue), hero card, auto-pay row (Complete Doc §23). |
+| **Analytics** (segmented, period, chart) | §3.5: 37 | Segmented control (Balance/Earnings/Spendings), period selector, bar chart, category breakdown (Complete Doc §21). |
+| **Cards View** | §3.4: 34b | CardViewScreen: Buffr main card + linked bank cards (Complete Doc §7). |
+| **Gamification** | §3.6: 44 | **Effects only** (badges, points, toasts, streaks); not a screen. In-context on Profile/Home; §19. |
+
+**PRD-only (G2P-specific, not in generic Complete Doc):**
+
+- **Proof-of-life** (screens 50b, 58–61): Quarterly biometric verification; required for G2P compliance (§2.4).
+- **Receive screens** (§3.9, 51–57): Incoming payment, voucher, group invite, request-to-pay; cross-referenced with group request flows.
+
+**Implementation checklist (align with Complete Doc):**
+
+1. Implement Group payment screens (Group Send/Request/Success, Group Settings).
+2. Implement Edit Auto Pay (full-screen or modal) and link from Add Wallet and Wallet Detail.
+3. Implement Add Money Modal as bottom sheet from Home and Wallet Detail.
+4. Enhance Loan Detail with timeline and auto-pay row.
+5. Enhance Analytics with segmented control, period selector, and category breakdown.
+6. Align Send Money flow with Receiver Details step before 2FA.
+7. Retain Proof-of-life screens (G2P-specific).
+8. Treat Gamification as **effects only** (no screen): badges, points, toasts, micro-interactions in-context (Profile/Home); §19.
+
+### 3.12 UX Master Checklist – Screens, Sub-screens, Flows & Steps
+
+Single source of truth for **all** screens, sub-screens/modals, and **every flow with step-by-step UX**. Use for design sign-off, QA, and implementation tracking.
+
+#### 3.12.1 All screens and sub-screens (by ID)
+
+| ID | Name | Route / Location | Type | § Ref |
+|----|------|-------------------|------|--------|
+| 1 | Welcome | `/` or `/onboarding` | Screen | §3.1 |
+| 1b | Country selection *(optional)* | `/onboarding/country` | Screen | §3.1 |
+| 2 | Phone Entry | `/onboarding/phone` | Screen | §3.1 |
+| 3 | OTP Verification | `/onboarding/otp` | Screen | §3.1 |
+| 4 | Name Entry | `/onboarding/name` | Screen | §3.1 |
+| 5 | Photo Upload | `/onboarding/photo` | Screen | §3.1 |
+| 6 | Face ID Setup | `/onboarding/face-id` | Screen | §3.1 |
+| 7 | Onboarding Completion | `/onboarding/complete` | Screen | §3.1 |
+| 8 | Vouchers List | `/(tabs)/vouchers` or `/utilities/vouchers` | Screen | §3.2 |
+| 9 | Voucher Detail | `/utilities/vouchers/[id]` | Screen | §3.2 |
+| 10 | NamPost Branch List | `/utilities/vouchers/redeem/nampost` | Screen | §3.2 |
+| 11 | NamPost Collection Code (NAMQR) | `/utilities/vouchers/redeem/nampost/code` | Screen | §3.2 |
+| 12 | NamPost Success | `/utilities/vouchers/redeem/nampost/success` | Screen | §3.2 |
+| 13 | SmartPay Units | `/utilities/vouchers/redeem/smartpay` | Screen | §3.2 |
+| 14 | SmartPay Collection Code (NAMQR) | `/utilities/vouchers/redeem/smartpay/code` | Screen | §3.2 |
+| 15 | Wallet Redemption (instant) | In-app state / modal | Modal/Stack | §3.2 |
+| 16 | Wallet Success | `/utilities/vouchers/redeem/wallet/success` | Screen | §3.2 |
+| 17 | Wallet Cash-Out Hub | `/wallets/[id]/cash-out` | Screen | §3.3 |
+| 18 | Cash at Till | `/wallets/[id]/cash-out/till` | Screen | §3.3 |
+| 19 | Cash at Agent | `/wallets/[id]/cash-out/agent` | Screen | §3.3 |
+| 20 | Cash at Merchant | `/wallets/[id]/cash-out/merchant` | Screen | §3.3 |
+| 21 | Cash at ATM | `/wallets/[id]/cash-out/atm` | Screen | §3.3 |
+| 22 | Bank Transfer | `/wallets/[id]/cash-out/bank` | Screen | §3.3 |
+| 23 | Cash-Out Success | `/wallets/[id]/cash-out/success` | Screen | §3.3 |
+| 25 | Home | `/(tabs)/index` or `/(tabs)` | Tab | §3.4 |
+| 26 | Add Money Modal | From Home or Wallet Detail | **Modal** (bottom sheet) | §3.4 |
+| 27 | Send Money – Select recipient | `/send-money/select-recipient` | Screen | §3.4 |
+| 27b | Send Money – Receiver details | `/send-money/receiver-details` | Screen | §3.4 |
+| 28 | Send Money – Amount | `/send-money/amount` | Screen | §3.4 |
+| 29 | Send Money – Confirm | `/send-money/confirm` | Screen | §3.4 |
+| 30 | Send Money – Success | `/send-money/success` | Screen | §3.4 |
+| 31 | Merchant Directory | `/(tabs)/merchants` or `/merchants` | Screen | §3.4 |
+| 32 | Pay Merchant | `/merchants/[id]/pay` | Screen | §3.4 |
+| 33 | Bill Payments | `/bills` or `/(tabs)/bills` | Screen | §3.4 |
+| 34 | Add Wallet | `/add-wallet` | Modal | §3.4 |
+| 34b | Cards View | `/cards` | Screen | §3.4 |
+| 34c | Add card | `/add-card` | Screen | §3.4 |
+| 34d | Add card details | `/add-card/details` | Screen | §3.4 |
+| 34e | Card added | `/add-card/success` | Screen | §3.4 |
+| 35 | Profile | `/profile` or `/(tabs)/profile` | Screen | §3.5 |
+| 36 | Settings | `/settings` or `/profile/settings` | Screen | §3.5 |
+| 37 | Analytics Dashboard | `/analytics` | Screen | §3.5 |
+| 38 | Location Services (Agents/Map) | `/location` or `/map` | Screen | §3.5 |
+| 39 | Transactions History | `/(tabs)/transactions` or `/transactions` | Screen | §3.5 |
+| 40 | Loans | `/loans` | Screen | §3.6 |
+| 40b | Edit Auto Pay | `/wallets/[id]/auto-pay` or modal | Screen/Modal | §3.6 |
+| 41 | My QR Code | `/qr-code` | Screen | §3.6 |
+| 41b | QR Code Scanner | `/scan-qr` | Screen | §3.6 |
+| 42 | Notification Center | `/notifications` | Screen/Modal | §3.6 |
+| 43 | AI Chat | `/ai-chat` | Screen | §3.6 |
+| 44 | Gamification *(effects only)* | — | **Effects only (not a screen)** | §3.6, §19 |
+| 45 | Financial Literacy | `/learn` | Screen | §3.6 |
+| 46 | Agent Network | `/agents` or `/agents/nearby` | Screen | §3.6 |
+| 47 | Merchant Directory (full) | `/merchants` | Screen | §3.6 |
+| 47b | Create Group | `/groups/create` | Screen | §3.6 |
+| 47c | Group view / detail | `/groups/[id]` | Screen | §3.6 |
+| 47c-i | Group Send | `/groups/[id]/send` | Screen | §3.6 |
+| 47c-ii | Group Payment Success | `/groups/[id]/send/success` | Screen | §3.6 |
+| 47c-iii | Group Request | `/groups/[id]/request` | Screen | §3.6 |
+| 47c-iv | Group Request Success | `/groups/[id]/request/success` | Screen | §3.6 |
+| 47c-v | Group Settings | `/groups/[id]/settings` | Screen | §3.6 |
+| 47c-vi | Add Members | `/groups/[id]/add-members` | Screen | §3.6 |
+| 47c-vii | Request Status (modal) | Modal from Group detail | **Modal** | §3.6 |
+| 47d | Available bank accounts *(optional)* | `/onboarding/bank-accounts` or settings | Screen | §3.6 |
+| 48 | 2FA Verification Modal | Shared modal | **Modal** | §3.6, §11.4.13 |
+| 49 | Transaction Detail | `/transactions/[id]` | Screen | §3.6 |
+| 50 | Wallet Detail | `/wallets/[id]` | Screen | §3.6 |
+| 50a | Wallet History | `/wallets/[id]/history` | Screen | §3.6 |
+| 50b | Proof-of-life reminder | Modal or `/proof-of-life` | **Modal** / Stack | §3.6 |
+| 51 | Incoming Payment Notification | (modal / push) | Modal / notification | §3.9 |
+| 52 | Receive Money – Details | `/receive/[transactionId]` | Screen | §3.9 |
+| 53 | Receive Voucher – Details | `/receive/voucher/[voucherId]` | Screen | §3.9 |
+| 54 | Receive Group Invitation | `/receive/group-invite/[inviteId]` | Screen | §3.9 |
+| 55 | Incoming Request (Request to Pay) | `/receive/request/[requestId]` | Screen | §3.9 |
+| 56 | Shared QR Code (Receiver's View) | `/receive/my-qr` | Screen | §3.9 |
+| 57 | Scan QR (Receiver's View) | `/scan-qr` | Screen | §3.9 |
+| 58 | Proof-of-Life Banner | Home screen | **Inline** (banner) | §3.6 |
+| 59 | Proof-of-Life – Verify | `/proof-of-life/verify` | Screen | §3.6 |
+| 60 | Proof-of-Life – Success | `/proof-of-life/success` | Screen | §3.6 |
+| 61 | Proof-of-Life – Expired / Frozen | `/proof-of-life/expired` | Screen | §3.6 |
+
+**Modals / overlays (no separate route):** 26 (Add Money), 48 (2FA), 50b (Proof-of-life reminder). **Inline:** 58 (Proof-of-life banner on Home).
+
+#### 3.12.2 Flows with step-by-step UX
+
+Each row is one step; sequence order is by flow then step number. **Screen ID** = checklist ID from §3.12.1.
+
+| Flow | Step | Action / Screen | Screen ID(s) | Notes |
+|------|-----|-----------------|--------------|--------|
+| **Onboarding** | 1 | Welcome | 1 | Get Started / Sign In |
+| | 2 | Country *(optional)* | 1b | If enabled |
+| | 3 | Phone Entry | 2 | +264, Continue |
+| | 4 | OTP Verification | 3 | Resend, Verify |
+| | 5 | Name Entry | 4 | First, last; PATCH profile |
+| | 6 | Photo Upload | 5 | Camera/gallery; PATCH profile |
+| | 7 | Face ID Setup | 6 | Enable / Skip |
+| | 8 | Completion → Home | 7 | Set flag; replace to (tabs) |
+| **Voucher – Redeem to Wallet** | 1 | Vouchers List | 8 | |
+| | 2 | Voucher Detail | 9 | Tap "Redeem to Buffr Wallet" |
+| | 3 | 2FA Modal | 48 | verification_token |
+| | 4 | Wallet Success | 16 | |
+| **Voucher – Cash at NamPost** | 1 | Vouchers List → Detail | 8, 9 | Tap "Cash at NamPost" |
+| | 2 | NamPost Branch List | 10 | Select branch |
+| | 3 | NamPost Collection Code (display NAMQR) | 11 | User scans with app |
+| | 4 | 2FA Modal | 48 | |
+| | 5 | NamPost Success | 12 | |
+| **Voucher – Cash at SmartPay** | 1 | Vouchers List → Detail | 8, 9 | Tap "Cash at SmartPay Unit" |
+| | 2 | SmartPay Units | 13 | Select unit |
+| | 3 | SmartPay Collection Code (display NAMQR) | 14 | User scans with app |
+| | 4 | 2FA Modal | 48 | |
+| | 5 | Success | (as 12) | |
+| **Cash-out – Till / Agent / Merchant / ATM** | 1 | Wallet Detail or Hub | 50 or 17 | |
+| | 2 | Cash-Out Hub | 17 | Tap method (18/19/20/21) |
+| | 3 | Method screen (Till/Agent/Merchant/ATM) | 18, 19, 20, 21 | User scans **payee** NAMQR |
+| | 4 | 2FA Modal | 48 | |
+| | 5 | Cash-Out Success | 23 | |
+| **Cash-out – Bank Transfer** | 1 | Cash-Out Hub | 17 | Tap Bank Transfer |
+| | 2 | Bank Transfer | 22 | Bank, account, amount; OAuth redirect |
+| | 3 | 2FA Modal | 48 | |
+| | 4 | Cash-Out Success | 23 | |
+| **Send Money (P2P)** | 1 | Select recipient | 27 | SendToScreen |
+| | 2 | Amount | 28 | |
+| | 3 | Receiver details | 27b | Review recipient, source wallet, note |
+| | 4 | Confirm + 2FA | 29, 48 | |
+| | 5 | Success | 30 | PaymentSuccess (reusable) |
+| **Group Send** | 1 | Group detail | 47c | Tap Send |
+| | 2 | Group Send | 47c-i | Amount, note |
+| | 3 | 2FA Modal | 48 | |
+| | 4 | Group Payment Success | 47c-ii | |
+| **Group Request** | 1 | Group detail | 47c | Tap Request |
+| | 2 | Group Request | 47c-iii | Amount, note |
+| | 3 | 2FA Modal | 48 | |
+| | 4 | Group Request Success | 47c-iv | |
+| **Receive Money** | 1 | Notification / deep link | 51 | |
+| | 2 | Receive Money Details | 52 | Add to wallet / Cash out now |
+| **Receive Voucher** | 1 | Notification / Vouchers list | 51, 8 | |
+| | 2 | Receive Voucher Details or Voucher Detail | 53 or 9 | Redeem → voucher flow |
+| **Receive Group Invite** | 1 | Notification / deep link | 51 | |
+| | 2 | Receive Group Invitation | 54 | Accept / Decline |
+| **Receive Request to Pay** | 1 | Notification / deep link | 51 | |
+| | 2 | Incoming Request | 55 | Pay now → Send Money flow (27→30) |
+| **Proof-of-Life (in-app)** | 1 | Banner on Home (if due ≤14 days) | 58 | |
+| | 2 | Proof-of-Life Verify | 59 | Start verification |
+| | 3 | Device biometric | – | expo-local-authentication |
+| | 4 | Proof-of-Life Success or Expired | 60 or 61 | |
+| **Add Wallet** | 1 | Add Wallet | 34 | Name, type, icon; optional Auto Pay |
+| | 2 | Edit Auto Pay *(if toggled)* | 40b | Frequency, date, amount, method |
+| | 3 | (Optional) Card design picker | – | §11.4.14 |
+| | 4 | Success → Home | – | |
+| **Add Card** | 1 | Add card | 34c | Scan or manual |
+| | 2 | Add card details | 34d | Number, expiry, etc. |
+| | 3 | Card added | 34e | |
+| **Pay Merchant** | 1 | Merchant Directory or Scan QR | 31, 41b | |
+| | 2 | Pay Merchant | 32 | Amount, wallet; user scans merchant NAMQR |
+| | 3 | 2FA Modal | 48 | |
+| | 4 | Success | (as 30) | |
+| **Loan – Apply** | 1 | Loans | 40 | List / offers |
+| | 2 | Apply (amount, terms) | 40 | In flow or sub-screen |
+| | 3 | 2FA Modal | 48 | |
+| | 4 | Loan detail (timeline, hero, auto-pay row) | 40 | LoanDetailScreen |
+| **Wallet – Add Money** | 1 | Home or Wallet Detail | 25, 50 | Tap Add money |
+| | 2 | Add Money Modal | 26 | Bank Transfer / Debit Card / Redeem Voucher |
+| | 3 | (Sub-flow per method) | – | e.g. Bank → OAuth; Voucher → voucher list |
+
+**Flow logic detail:** §7.6 (entry, onboarding, voucher, cash-out, send money, 2FA, receive, proof-of-life, USSD, loan).
+
+#### 3.12.3 Quick reference – screen count
+
+| Category | Count | IDs |
+|----------|-------|-----|
+| Onboarding | 8 (1 optional) | 1, 1b, 2–7 |
+| G2P Voucher | 10 | 8–16 |
+| Wallet Cash-Out | 8 | 17–23 |
+| Home & Payments | 16 | 25–34, 34b–34e |
+| Profile & Management | 5 | 35–39 |
+| Extras (Groups, QR, Loans, etc.) | 24+ | 40–50, 50a, 50b, 58–61; 47b, 47c, 47c-i…47c-vii |
+| Modals / overlays | 3 | 26, 48, 50b |
+| Inline | 1 | 58 (banner) |
+| Receiver flows | 7 | 51–57 |
+| **Total (unique screens/sub-screens)** | **~70+** | (some IDs are modals/inline) |
+
+### 3.13 Implementation Status & Areas for Improvement
+
+**Purpose:** Track what is implemented in `buffr-g2p` vs PRD and identify gaps for prioritisation.
+
+#### 3.13.1 Implemented (aligns with PRD)
+
+| Area | Screens / behaviour | Notes |
+|------|---------------------|--------|
+| **Group View (47c)** | `/groups/[id]` | Pill member cards, request cards (#EEF2FF), Recent Activity (AsyncStorage), bottom bar (wave, Send, Request). |
+| **Group Settings (47c-v)** | `/groups/[id]/settings` | POV: admin (edit name, Add members, deactivate others, Save) vs member (read-only, Deactivate Yourself). Pill + avatars. |
+| **Add Members (47c-vi)** | `/groups/[id]/add-members` | Admin-only: phone + optional name, Send invite; API or `buffr_group_settings_members_<id>` when offline. |
+| **Request Status modal (47c-vii)** | Modal from Group detail | Per-member Paid/Pending, N$ per member, progress bar; opened from "View status" on request cards. |
+| **Wallet History (50a)** | `/wallets/[id]/history` | Tabs: Earnings (receive, voucher_redeem, loan_disbursement), Added (add_money); tap → Transaction detail (49). |
+| **Persistence (offline)** | AsyncStorage | Member list: `buffr_group_settings_members_<id>`; group txs/requests: `buffr_group_txs_<id>`, `buffr_group_requests_<id>`. |
+
+#### 3.13.2 Areas for improvement
+
+| Priority | Area | Description | § Ref |
+|----------|------|-------------|--------|
+| High | **Offline architecture** | Formalise sync strategy, conflict resolution, and offline-first data model. | §11.12 |
+| High | **Push notifications** | Incoming payment, voucher, group invite, request-to-pay; deep links to screens. | §11.13 |
+| High | **Testing strategy** | Unit (utils, contexts), integration (API, storage), E2E (critical flows: onboarding, send, group). | §11.14 |
+| Medium | **Deployment & CI/CD** | Build, test, and deploy pipeline (EAS or equivalent); environment config. | §11.15 |
+| Medium | **Security implementation** | 2FA server-side only; secure storage for tokens; certificate pinning if required. | §11.16 |
+| Medium | **Accessibility** | Labels, contrast, focus order, screen reader support for core flows. | §11.17 |
+| Medium | **Internationalization (i18n)** | Locale strings (e.g. English / local); date/currency formatting. | §11.18 |
+| Medium | **Edge case handling** | No network, partial failure, duplicate submit; clear error copy and retry. | §11.19 |
+| Lower | **Analytics & monitoring** | Events for key actions; crash reporting; performance metrics. | §11.13 |
+| Lower | **Performance budget** | Bundle size, frame rate, and time-to-interactive targets. | §11.21 |
+
+**Usage:** Update §3.13.1 as features ship; use §3.13.2 for sprint planning and gap closure.
 
 ---
 
@@ -1767,6 +2032,8 @@ await SplashScreen.hideAsync();
 
 ### 11.1 Full project structure (every file)
 
+> **As-Built (February 2026):** Structure below reflects the actual implemented codebase. Tabs are organised as subdirectories under `(tabs)/` for sub-route grouping. Bills canonical screen is `(tabs)/home/bills.tsx`; `bills/pay.tsx` is the universal payment screen. Agents screen lives under `(tabs)/home/agents/` with embedded MapView. Gamification operates as a context + BadgeToast overlay only — not a navigable home screen.
+
 ```
 buffr_g2p/
   app.json
@@ -1774,14 +2041,17 @@ buffr_g2p/
   tsconfig.json
   babel.config.js
   app/
+    _layout.tsx                # Root Stack; wraps AppProviders; mounts BadgeToast
+    index.tsx                  # Entry: redirect to /(tabs) or /onboarding based on AsyncStorage flag
+    +html.tsx
+    +not-found.tsx
+    modal.tsx
     api/
       ussd/
-        menu+route.ts          # USSD endpoint handler (serverless; gateway calls POST /api/v1/ussd/menu) §9.3, §3.10
-    _layout.tsx
-    index.tsx
+        menu+route.tsx         # USSD endpoint handler §9.3, §3.10
     onboarding/
       _layout.tsx
-      index.tsx
+      index.tsx                # Welcome / splash
       phone.tsx
       otp.tsx
       name.tsx
@@ -1789,65 +2059,97 @@ buffr_g2p/
       face-id.tsx
       complete.tsx
     (tabs)/
-      _layout.tsx
-      index.tsx
-      transactions.tsx
-      vouchers.tsx
-      profile.tsx
+      _layout.tsx              # 4-tab bar: Home, Transactions, Vouchers, Me
+      index.tsx                # Redirect → /(tabs)/home
+      two.tsx                  # Placeholder (unused)
+      home/
+        _layout.tsx
+        index.tsx              # Home hub: balance, card, wallets, contacts, 3×3 services, recent tx
+        bills.tsx              # Canonical bills/utilities screen; accepts ?category= param; 2-level drill-down
+        agents/
+          _layout.tsx
+          index.tsx            # Buffr Agents list with search
+          nearby.tsx           # Embedded MapView + agent/NamPost/ATM cards
+        loans/
+          _layout.tsx
+          index.tsx            # Loans list + eligibility
+          apply.tsx            # Multi-step loan application (offer → biometric → credited → add details)
+          [id].tsx             # Loan detail: hero card, auto-pay, timeline
+        merchants/
+          index.tsx            # Merchant browser with category chips; navigates to /merchants/[id]/pay
+      transactions/
+        _layout.tsx
+        index.tsx              # Enhanced analytics: Balance/Earnings/Spendings tabs, bar chart, G2P breakdown
+        [id].tsx               # Transaction detail
+      vouchers/
+        _layout.tsx
+        index.tsx              # Vouchers list with type/status filters + search
+      profile/
+        _layout.tsx
+        index.tsx              # Me tab: user info, profile links
+        settings.tsx           # Account, Security, Privacy, Help, About sections
+        analytics.tsx          # Spending analytics: period tabs, hero card, breakdown — reads from transactions
+        notifications.tsx      # Notification center; seeded from AsyncStorage; mark as read
+        ai-chat.tsx            # Offline FAQ bot with keyword-matching; API-first when backend ready
+        learn.tsx              # Financial literacy: expandable in-app articles (5 topics)
+        qr-code.tsx            # User's static NAMQR for receiving money
+        location.tsx           # Find agents & ATMs (alias for /(tabs)/home/agents/nearby)
+        gamification.tsx       # Badges/points view (reads GamificationContext; not linked from profile nav)
     utilities/
       _layout.tsx
       vouchers/
         _layout.tsx
-        index.tsx
-        [id].tsx
-        history.tsx
+        index.tsx              # Voucher list (with type/status/search filters)
+        [id].tsx               # Voucher detail + 3-method redemption selector
+        history.tsx            # Past voucher history (redeemed, expired)
         redeem/
           nampost/
-            index.tsx
-            booking.tsx
-            success.tsx
+            index.tsx          # NamPost branch selector with search
+            booking.tsx        # Date/time slot picker → booking confirmation with QR
+            success.tsx        # Booking confirmed screen
           smartpay/
-            index.tsx
-            code.tsx
+            index.tsx          # SmartPay agent selector
+            code.tsx           # 30-minute redemption code with countdown + copy
           wallet/
-            success.tsx
+            success.tsx        # Wallet instant redemption success
     wallets/
       _layout.tsx
-      [id].tsx
+      [id].tsx                 # Wallet detail: balance, transactions, auto-pay, cash-out link
       [id]/
         cash-out/
           _layout.tsx
-          index.tsx
-          till.tsx
-          agent.tsx
-          merchant.tsx
-          atm.tsx
-          bank.tsx
-          success.tsx
-        add-money.tsx
+          index.tsx            # Cash-out method hub (5 methods)
+          till.tsx             # Cash at till (scan till's NAMQR)
+          agent.tsx            # Cash at Buffr Agent (scan agent's NAMQR)
+          merchant.tsx         # Cash at merchant (scan merchant's NAMQR)
+          atm.tsx              # Cash at ATM (ATM displays NAMQR, user scans)
+          bank.tsx             # Bank transfer (Open Banking PIS)
+          success.tsx          # Cash-out success with animation
+        add-money.tsx          # Add money to wallet
     send-money/
       _layout.tsx
-      select-recipient.tsx
-      amount.tsx
-      confirm.tsx
-      success.tsx
+      select-recipient.tsx     # Contact picker + phone entry
+      amount.tsx               # Amount entry with quick chips
+      confirm.tsx              # Confirmation with wallet selector + PIN
+      success.tsx              # Animated success with Confetti
     merchants/
       _layout.tsx
-      index.tsx
+      index.tsx                # Merchant browser (category chips + search)
       [id]/
-        pay.tsx
+        pay.tsx                # Pay merchant: amount + wallet selector + PIN
     bills/
       _layout.tsx
-      index.tsx
+      index.tsx                # Redirect → /(tabs)/home/bills
+      pay.tsx                  # Universal bill payment: all categories (electricity/water/airtime/TV/internet/insurance/tickets/other); PIN → success with token for electricity
     agents/
       _layout.tsx
-      index.tsx
-      nearby.tsx
+      index.tsx                # Redirect → /(tabs)/home/agents
+      nearby.tsx               # Redirect → /(tabs)/home/agents/nearby
     transactions/
       _layout.tsx
-      [id].tsx
+      [id].tsx                 # Transaction detail
     profile/
-      _layout.tsx
+      _layout.tsx              # Alias stack for /profile/* routes (redirects to /(tabs)/profile/*)
       settings.tsx
       analytics.tsx
       location.tsx
@@ -1858,120 +2160,81 @@ buffr_g2p/
       learn.tsx
     loans/
       _layout.tsx
-      index.tsx
-      apply.tsx
-      [id].tsx
+      index.tsx                # Redirect → /(tabs)/home/loans
+      apply.tsx                # Redirect → /(tabs)/home/loans/apply
+      [id].tsx                 # Redirect → /(tabs)/home/loans/[id]
     proof-of-life/
       _layout.tsx
-      verify.tsx
-      success.tsx
-      expired.tsx
-    scan-qr.tsx
-    add-wallet.tsx
+      verify.tsx               # Biometric prompt → API or local AsyncStorage fallback
+      success.tsx              # Verification confirmed
+      expired.tsx              # Wallet frozen — reactivation prompt
+    scan-qr.tsx                # Full-screen NAMQR scanner: TLV parse, CRC, Token Vault; mode=payment|cashout|voucher|general
+    add-wallet.tsx             # Add wallet: emoji picker, name (any purpose), optional Auto Pay config
     groups/
       _layout.tsx
-      create.tsx
-      [id].tsx
+      create.tsx               # 3-step: Details (name/purpose/type) → Settings → Invite (phone chips)
+      [id].tsx                 # Group detail: overview/members/activity tabs
     receive/
       _layout.tsx
-      [transactionId].tsx
-      voucher/[voucherId].tsx
-      group-invite/[inviteId].tsx
-      request/[requestId].tsx
+      [transactionId].tsx      # Received payment notification
+      voucher/
+        [voucherId].tsx        # Voucher gift receive: accept → wallet / decline
+      group-invite/
+        [inviteId].tsx         # Group invite accept/decline
+      request/
+        [requestId].tsx        # Money request pay/decline with wallet selector + PIN
   components/
     layout/
-      ScreenContainer.tsx
-      StackScreen.tsx
-      ModalContainer.tsx
-    inputs/
-      SearchBar.tsx
-      PillButton.tsx
-      TextInput.tsx
-      OTPInput.tsx
-      AmountInput.tsx
+      AppHeader.tsx            # Search bar + avatar + notification bell
+    home/
+      WalletCard.tsx           # Wallet card component
+      WalletCarousel.tsx       # Horizontal wallet scroll
+      RecentContactsCarousel.tsx # Contact avatar row
     cards/
-      BalanceCard.tsx
-      WalletCard.tsx
-      CardFlipView.tsx
-      VoucherCard.tsx
-      ServiceCard.tsx
-      ContactChip.tsx
-      MethodCard.tsx
-    list/
-      ListItem.tsx
-    feedback/
-      Toast.tsx
-      LoadingOverlay.tsx
-      ErrorState.tsx
-      EmptyState.tsx
-      NetworkError.tsx
-      TwoFAModal.tsx
-      NotificationBadge.tsx
-    qr/
-      NAMQREncoder.ts
-      NAMQRDecoder.ts
-      SignedQRVerifier.ts
-      QRDisplay.tsx
-      QRCodeScanner.tsx
-      NAMQRDisplay.tsx
-      NAMQRScanner.tsx
+      CardFrame.tsx            # Credit-card visual with CardDesignBackground
+      CardDesignBackground.tsx # SVG frame renderer via SvgUri
+    animations/
+      BadgeToast.tsx           # Achievement badge pop-up (Reanimated 4)
+      Confetti.tsx             # Confetti burst animation
+      SuccessIcon.tsx          # Animated checkmark
+    navigation/
+      TabBarIcon.tsx
+    ui/
+      Avatar.tsx               # Initials circle with deterministic colour hash
+      StatusBadge.tsx          # Coloured pill badge
+      Toggle.tsx               # Animated custom switch
+      InfoBanner.tsx           # Warning/info/error/success strip
+      SegmentedControl.tsx     # Pill or underline tabs (generic <T extends string>)
+      BottomSheet.tsx          # Slide-up modal with handle + title
+      EmojiPicker.tsx          # Emoji grid sheet + EmojiIcon tap target
+      PayFromSheet.tsx         # Wallet + linked bank card selector
+      Timeline.tsx             # Vertical event list with dots/lines
+      AmountStepper.tsx        # +/− stepper with large amount display
+      SuccessScreen.tsx        # Animated checkmark + title + value + actions
   constants/
-    Theme.ts
-    Layout.ts
-    CardDesign.ts
-    designSystem.ts
-    legalTerms.ts
+    CardDesign.ts              # Card dimensions; CARD_FRAME_FILL; CARD_FRAME_MODULES
+    designSystem.ts            # All design tokens (colors, spacing, radius, typography, shadows)
   contexts/
-    UserContext.tsx
-    WalletsContext.tsx
-    VouchersContext.tsx
-    OAuthContext.tsx
-    ComplianceContext.tsx
-    AppProviders.tsx
+    UserContext.tsx            # User profile + buffrId; AsyncStorage-persisted; useUser() hook
+    GamificationContext.tsx    # 12-badge system; recordEvent(); pendingToast drives BadgeToast
+    AppProviders.tsx           # Wraps UserProvider + GamificationProvider
   services/
-    api.ts
-    vouchers.ts
-    wallets.ts
-    send.ts                    # P2P, contacts (expo-contacts when no API) §11.3.2
-    device.ts                  # Location, gallery, camera picker, biometrics §11.3.2
-    ussdHandler.ts             # Core USSD menu logic, session management (backend-only; used by app/api/ussd) §3.10, §7.6.6–7.6.7
-    auth.ts
-    tokenVault.ts
-    oauth.ts
-    mTLSClient.ts
-    keyManager.ts
-    incidentReporter.ts
-    affidavitGenerator.ts
-    complianceReporter.ts
-    notifications.ts
-    loans.ts
-  hooks/
-    useAuth.ts
-    useVouchers.ts
-    useWallets.ts
-    useOAuth.ts
-    use2FA.ts
-  docs/
-    FIGMA_BATCH_PLAN.md
-    BUFFR_G2P_FIGMA_DESIGN_SPEC.json
-    NEXT_STEPS.md
+    vouchers.ts                # getVouchers, getVoucher, redeemVoucher; AsyncStorage fallback
+    wallets.ts                 # getWallets, createWallet, updateWallet; AsyncStorage fallback
+    send.ts                    # getContacts, sendMoney; AsyncStorage fallback (key: buffr_contacts)
+    transactions.ts            # getTransactions, getTransaction; AsyncStorage fallback (key: buffr_transactions)
+    auth.ts                    # verifyOtp, generateBuffrIdFromPhone, getOrCreateBuffrId
+    cashout.ts                 # validateQR (Token Vault), cashOut methods; AsyncStorage fallback
+    seedData.ts                # SEED_WALLETS, SEED_TRANSACTIONS; populates AsyncStorage on first launch
   utils/
-    cryptoHelpers.ts
-    tlv.ts
-    namqr.ts
-    crc.ts
-    auditLogger.ts
-    encryption.ts
-  types/
-    api.d.ts
-    voucher.d.ts
-    wallet.d.ts
-    loan.d.ts
+    haptics.ts                 # Graceful haptic wrapper (no-op if expo-haptics not installed)
   assets/
     fonts/
     images/
+      card-designs/
+        frame-{2..32}.svg      # 31 SVG card frame assets
   docs/
-    PRD.md
+    PRD.md                     # This document
 ```
 
 ---
@@ -5132,42 +5395,83 @@ const styles = StyleSheet.create({
 
 ### 11.5 Route-to-file reference (Expo Router)
 
-| Route | File | Layout |
+> **As-Built (February 2026):** ✅ = implemented with full logic; 🔀 = redirect stub; 📋 = specification only (not yet built).
+
+| Route | File | Status |
 |-------|------|--------|
-| `/` | `app/index.tsx` | Root Stack |
-| `/onboarding` | `app/onboarding/index.tsx` | onboarding Stack |
-| `/onboarding/country` | `app/onboarding/country.tsx` | onboarding Stack (optional) |
-| `/onboarding/phone` | `app/onboarding/phone.tsx` | onboarding Stack |
-| `/(tabs)` | `app/(tabs)/index.tsx` | Tabs |
-| `/(tabs)/transactions` | `app/(tabs)/transactions.tsx` | Tabs |
-| `/(tabs)/vouchers` | `app/(tabs)/vouchers.tsx` | Tabs |
-| `/(tabs)/profile` | `app/(tabs)/profile.tsx` | Tabs |
-| `/utilities/vouchers` | `app/utilities/vouchers/index.tsx` | utilities Stack |
-| `/utilities/vouchers/[id]` | `app/utilities/vouchers/[id].tsx` | utilities Stack |
-| `/utilities/vouchers/redeem/nampost/*` | `app/utilities/vouchers/redeem/nampost/*.tsx` | nested Stack |
-| `/utilities/vouchers/redeem/smartpay/*` | `app/utilities/vouchers/redeem/smartpay/*.tsx` | nested Stack |
-| `/utilities/vouchers/redeem/wallet/success` | `app/utilities/vouchers/redeem/wallet/success.tsx` | nested Stack |
-| `/wallets/[id]` | `app/wallets/[id].tsx` | wallets Stack |
-| `/wallets/[id]/cash-out` | `app/wallets/[id]/cash-out/index.tsx` | cash-out Stack |
-| `/wallets/[id]/add-money` | `app/wallets/[id]/add-money.tsx` | Stack |
-| `/send-money/*` | `app/send-money/*.tsx` | send-money Stack |
-| `/merchants`, `/merchants/[id]/pay` | `app/merchants/index.tsx`, `app/merchants/[id]/pay.tsx` | merchants Stack |
-| `/bills` | `app/bills/index.tsx` | bills Stack |
-| `/agents`, `/agents/nearby` | `app/agents/index.tsx`, `app/agents/nearby.tsx` | agents Stack |
-| `/transactions/[id]` | `app/transactions/[id].tsx` | Stack |
-| `/profile/settings`, `/profile/analytics`, etc. | `app/profile/*.tsx` | profile Stack |
-| `/add-wallet` | `app/add-wallet.tsx` or modal | Modal / Stack |
-| `/cards` | `app/cards/index.tsx` | Stack |
-| `/add-card`, `/add-card/details`, `/add-card/success` | `app/add-card/*.tsx` | Stack |
-| `/scan-qr` | `app/scan-qr.tsx` | Stack |
-| `/groups/create`, `/groups/[id]` | `app/groups/create.tsx`, `app/groups/[id].tsx` | Stack |
-| `/loans`, `/loans/apply`, `/loans/[id]` | `app/loans/index.tsx`, `app/loans/apply.tsx`, `app/loans/[id].tsx` | loans Stack |
-| `/onboarding/bank-accounts` | `app/onboarding/bank-accounts.tsx` | Stack (optional) |
-| `/proof-of-life/verify`, `/proof-of-life/success`, `/proof-of-life/expired` | `app/proof-of-life/verify.tsx`, `success.tsx`, `expired.tsx` | proof-of-life Stack (§11.4.25) |
-| `/receive/[transactionId]` | `app/receive/[transactionId].tsx` | receive Stack |
-| `/receive/voucher/[voucherId]` | `app/receive/voucher/[voucherId].tsx` | receive Stack |
-| `/receive/group-invite/[inviteId]` | `app/receive/group-invite/[inviteId].tsx` | receive Stack |
-| `/receive/request/[requestId]` | `app/receive/request/[requestId].tsx` | receive Stack |
+| `/` | `app/index.tsx` | ✅ Entry redirect |
+| `/onboarding` | `app/onboarding/index.tsx` | ✅ |
+| `/onboarding/phone` | `app/onboarding/phone.tsx` | ✅ |
+| `/onboarding/otp` | `app/onboarding/otp.tsx` | ✅ |
+| `/onboarding/name` | `app/onboarding/name.tsx` | ✅ |
+| `/onboarding/photo` | `app/onboarding/photo.tsx` | ✅ |
+| `/onboarding/face-id` | `app/onboarding/face-id.tsx` | ✅ |
+| `/onboarding/complete` | `app/onboarding/complete.tsx` | ✅ |
+| `/(tabs)` | `app/(tabs)/index.tsx` → redirect to home | ✅ |
+| `/(tabs)/home` | `app/(tabs)/home/index.tsx` | ✅ Hub: balance, card, wallets, services, tx |
+| `/(tabs)/home/bills` | `app/(tabs)/home/bills.tsx` | ✅ 2-level category→biller drill-down; `?category=` param |
+| `/(tabs)/home/bills?category=airtime` | same | ✅ Pre-selects Airtime category |
+| `/(tabs)/home/bills?category=tickets` | same | ✅ Pre-selects Tickets category |
+| `/(tabs)/home/agents` | `app/(tabs)/home/agents/index.tsx` | ✅ Buffr Agents list |
+| `/(tabs)/home/agents/nearby` | `app/(tabs)/home/agents/nearby.tsx` | ✅ Embedded MapView + agent/ATM cards |
+| `/(tabs)/home/loans` | `app/(tabs)/home/loans/index.tsx` | ✅ Loans list + eligibility |
+| `/(tabs)/home/loans/apply` | `app/(tabs)/home/loans/apply.tsx` | ✅ Multi-step: offer→biometric→credited→details |
+| `/(tabs)/home/loans/[id]` | `app/(tabs)/home/loans/[id].tsx` | ✅ Loan detail with timeline |
+| `/(tabs)/home/merchants` | `app/(tabs)/home/merchants/index.tsx` | ✅ Merchant browser → `/merchants/[id]/pay` |
+| `/(tabs)/transactions` | `app/(tabs)/transactions/index.tsx` | ✅ Analytics: Balance/Earnings/Spendings tabs |
+| `/(tabs)/transactions/[id]` | `app/(tabs)/transactions/[id].tsx` | ✅ Transaction detail |
+| `/(tabs)/vouchers` | `app/(tabs)/vouchers/index.tsx` | ✅ Voucher list with filters |
+| `/(tabs)/profile` | `app/(tabs)/profile/index.tsx` | ✅ Me tab: user info, profile links |
+| `/(tabs)/profile/settings` | `app/(tabs)/profile/settings.tsx` | ✅ |
+| `/(tabs)/profile/analytics` | `app/(tabs)/profile/analytics.tsx` | ✅ Real monthly totals from transactions |
+| `/(tabs)/profile/notifications` | `app/(tabs)/profile/notifications.tsx` | ✅ AsyncStorage-seeded; mark as read |
+| `/(tabs)/profile/ai-chat` | `app/(tabs)/profile/ai-chat.tsx` | ✅ Offline FAQ bot + quick questions |
+| `/(tabs)/profile/learn` | `app/(tabs)/profile/learn.tsx` | ✅ Expandable articles (5 topics) |
+| `/(tabs)/profile/qr-code` | `app/(tabs)/profile/qr-code.tsx` | ✅ Static NAMQR display |
+| `/(tabs)/profile/location` | `app/(tabs)/profile/location.tsx` | ✅ Alias → agents/nearby |
+| `/utilities/vouchers` | `app/utilities/vouchers/index.tsx` | ✅ |
+| `/utilities/vouchers/[id]` | `app/utilities/vouchers/[id].tsx` | ✅ |
+| `/utilities/vouchers/history` | `app/utilities/vouchers/history.tsx` | ✅ |
+| `/utilities/vouchers/redeem/nampost` | `app/utilities/vouchers/redeem/nampost/index.tsx` | ✅ Branch selector |
+| `/utilities/vouchers/redeem/nampost/booking` | `app/utilities/vouchers/redeem/nampost/booking.tsx` | ✅ Slot picker |
+| `/utilities/vouchers/redeem/nampost/success` | `app/utilities/vouchers/redeem/nampost/success.tsx` | ✅ |
+| `/utilities/vouchers/redeem/smartpay` | `app/utilities/vouchers/redeem/smartpay/index.tsx` | ✅ Agent selector |
+| `/utilities/vouchers/redeem/smartpay/code` | `app/utilities/vouchers/redeem/smartpay/code.tsx` | ✅ 30-min countdown code |
+| `/utilities/vouchers/redeem/wallet/success` | `app/utilities/vouchers/redeem/wallet/success.tsx` | ✅ |
+| `/wallets/[id]` | `app/wallets/[id].tsx` | ✅ Wallet detail |
+| `/wallets/[id]/cash-out` | `app/wallets/[id]/cash-out/index.tsx` | ✅ 5-method hub |
+| `/wallets/[id]/cash-out/bank` | `app/wallets/[id]/cash-out/bank.tsx` | ✅ Bank transfer |
+| `/wallets/[id]/cash-out/till` | `app/wallets/[id]/cash-out/till.tsx` | ✅ Cash at till |
+| `/wallets/[id]/cash-out/agent` | `app/wallets/[id]/cash-out/agent.tsx` | ✅ Cash at agent |
+| `/wallets/[id]/cash-out/merchant` | `app/wallets/[id]/cash-out/merchant.tsx` | ✅ Cash at merchant |
+| `/wallets/[id]/cash-out/atm` | `app/wallets/[id]/cash-out/atm.tsx` | ✅ Cardless ATM |
+| `/wallets/[id]/cash-out/success` | `app/wallets/[id]/cash-out/success.tsx` | ✅ Animated |
+| `/wallets/[id]/add-money` | `app/wallets/[id]/add-money.tsx` | ✅ |
+| `/send-money/select-recipient` | `app/send-money/select-recipient.tsx` | ✅ |
+| `/send-money/amount` | `app/send-money/amount.tsx` | ✅ |
+| `/send-money/confirm` | `app/send-money/confirm.tsx` | ✅ |
+| `/send-money/success` | `app/send-money/success.tsx` | ✅ Confetti |
+| `/merchants` | `app/merchants/index.tsx` | ✅ Category chips + search |
+| `/merchants/[id]/pay` | `app/merchants/[id]/pay.tsx` | ✅ Amount + PIN |
+| `/bills` | `app/bills/index.tsx` | 🔀 Redirect → `/(tabs)/home/bills` |
+| `/bills/pay` | `app/bills/pay.tsx` | ✅ Universal payment: all 8 categories; electricity token; bundle selection |
+| `/agents` | `app/agents/index.tsx` | 🔀 Redirect → `/(tabs)/home/agents` |
+| `/agents/nearby` | `app/agents/nearby.tsx` | 🔀 Redirect → `/(tabs)/home/agents/nearby` |
+| `/transactions/[id]` | `app/transactions/[id].tsx` | ✅ |
+| `/add-wallet` | `app/add-wallet.tsx` | ✅ Emoji + name + Auto Pay config |
+| `/scan-qr` | `app/scan-qr.tsx` | ✅ NAMQR scanner with TLV parse + CRC |
+| `/groups/create` | `app/groups/create.tsx` | ✅ 3-step flow |
+| `/groups/[id]` | `app/groups/[id].tsx` | ✅ Overview/members/activity tabs |
+| `/loans` | `app/loans/index.tsx` | 🔀 Redirect → loans tab |
+| `/loans/apply` | `app/loans/apply.tsx` | 🔀 Redirect → loans tab apply |
+| `/loans/[id]` | `app/loans/[id].tsx` | 🔀 Redirect → loans tab detail |
+| `/proof-of-life/verify` | `app/proof-of-life/verify.tsx` | ✅ Biometric + offline fallback |
+| `/proof-of-life/success` | `app/proof-of-life/success.tsx` | ✅ |
+| `/proof-of-life/expired` | `app/proof-of-life/expired.tsx` | ✅ |
+| `/receive/[transactionId]` | `app/receive/[transactionId].tsx` | ✅ |
+| `/receive/voucher/[voucherId]` | `app/receive/voucher/[voucherId].tsx` | ✅ Accept gift voucher |
+| `/receive/group-invite/[inviteId]` | `app/receive/group-invite/[inviteId].tsx` | ✅ |
+| `/receive/request/[requestId]` | `app/receive/request/[requestId].tsx` | ✅ Pay/decline with PIN |
 
 ---
 

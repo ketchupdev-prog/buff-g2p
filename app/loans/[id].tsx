@@ -1,16 +1,18 @@
-import { View, Text, StyleSheet } from 'react-native';
-import { Stack } from 'expo-router';
+/**
+ * Loan Detail – redirect to the canonical tabs implementation.
+ * §4.3 loan detail lives at /(tabs)/home/loans/[id].
+ */
+import { useEffect } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
 
-export default function LoanDetailScreen() {
-  return (
-    <View style={styles.container}>
-      <Stack.Screen options={{ headerShown: true, title: 'Loan Details', headerBackTitle: '' }} />
-      <Text style={styles.text}>Loan details – coming soon</Text>
-    </View>
-  );
+export default function LoanDetailRedirect() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  useEffect(() => {
+    if (id) {
+      router.replace({ pathname: '/(tabs)/home/loans/[id]' as never, params: { id } });
+    } else {
+      router.replace('/(tabs)' as never);
+    }
+  }, [id]);
+  return null;
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC' },
-  text: { fontSize: 16, color: '#6B7280' },
-});

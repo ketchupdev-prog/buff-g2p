@@ -19,7 +19,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
-import { createWallet, type Wallet } from '@/services/wallets';
+import { createWallet } from '@/services/wallets';
 import {
   BottomSheet,
   EmojiIcon,
@@ -29,22 +29,14 @@ import {
   type PaySource,
 } from '@/components/ui';
 
-type WalletType = Wallet['type'];
 type Frequency = 'Weekly' | 'Bi-weekly' | 'Monthly';
 const FREQUENCIES: Frequency[] = ['Weekly', 'Bi-weekly', 'Monthly'];
 const REPAYMENT_OPTIONS = ['3', '6', '9', '12', '24'];
 const DAYS = Array.from({ length: 28 }, (_, i) => String(i + 1));
 
-const WALLET_TYPES: Array<{ key: WalletType; label: string; description: string; emoji: string }> = [
-  { key: 'main',    label: 'Main Wallet', description: 'Your primary spending wallet', emoji: '📊' },
-  { key: 'savings', label: 'Savings',     description: 'Set money aside for later',    emoji: '💰' },
-  { key: 'grant',   label: 'Grant Wallet',description: 'Dedicated to G2P payments',   emoji: '🎁' },
-];
-
 export default function AddWalletScreen() {
   const [walletName,    setWalletName]    = useState('');
-  const [selectedIcon,  setSelectedIcon]  = useState('📊');
-  const [type,          setType]          = useState<WalletType>('main');
+  const [selectedIcon,  setSelectedIcon]  = useState('💳');
   const [nameFocused,   setNameFocused]   = useState(false);
 
   const [showEmojiPicker,  setShowEmojiPicker]  = useState(false);
@@ -72,7 +64,7 @@ export default function AddWalletScreen() {
     setError(null);
     setLoading(true);
     try {
-      const result = await createWallet(trimmed, type, undefined, undefined, selectedIcon);
+      const result = await createWallet(trimmed, 'savings', undefined, undefined, selectedIcon);
       if (result.success) {
         setSaveSuccess(true);
         Animated.sequence([
@@ -108,16 +100,19 @@ export default function AddWalletScreen() {
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
 
-          {/* Icon */}
-          <EmojiIcon value={selectedIcon} onPress={() => setShowEmojiPicker(true)} size={80} />
+          {/* Icon – per Buffr design: Set icon + emoji picker */}
+          <View style={styles.iconField}>
+            <EmojiIcon value={selectedIcon} onPress={() => setShowEmojiPicker(true)} size={80} />
+            <Text style={styles.setIconLabel}>Set icon</Text>
+          </View>
 
-          {/* Name */}
+          {/* Name – user-defined, e.g. Aquarium */}
           <View style={styles.field}>
             <Text style={styles.fieldLabel}>Wallet Name</Text>
             <View style={[styles.inputWrap, nameFocused && styles.inputWrapFocused]}>
               <TextInput
                 style={styles.input}
-                placeholder="e.g. My Savings"
+                placeholder="e.g. Aquarium"
                 placeholderTextColor="#94A3B8"
                 value={walletName}
                 onChangeText={(t) => { setWalletName(t); setError(null); }}
@@ -128,27 +123,6 @@ export default function AddWalletScreen() {
               />
             </View>
           </View>
-
-          {/* Type */}
-          <Text style={styles.fieldLabel}>Type</Text>
-          {WALLET_TYPES.map(wt => {
-            const isActive = type === wt.key;
-            return (
-              <TouchableOpacity
-                key={wt.key}
-                style={[styles.typeCard, isActive && styles.typeCardActive]}
-                onPress={() => { setType(wt.key); setSelectedIcon(wt.emoji); }}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.typeEmoji}>{wt.emoji}</Text>
-                <View style={styles.typeText}>
-                  <Text style={[styles.typeLabel, isActive && styles.typeLabelActive]}>{wt.label}</Text>
-                  <Text style={styles.typeDesc}>{wt.description}</Text>
-                </View>
-                {isActive && <Ionicons name="checkmark-circle" size={22} color="#0029D6" />}
-              </TouchableOpacity>
-            );
-          })}
 
           <View style={styles.divider} />
 
@@ -315,6 +289,9 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 24, paddingBottom: 24 },
+
+  iconField: { alignItems: 'center', marginBottom: 20 },
+  setIconLabel: { fontSize: 13, color: '#64748B', marginTop: 8 },
 
   field: { marginBottom: 20 },
   fieldLabel: { fontSize: 14, color: '#64748B', marginBottom: 8, fontWeight: '500' },
