@@ -5,16 +5,26 @@
   "type": "module",
   "scripts": {
     "db:check": "node scripts/check-db.mjs",
+    "db:seed": "node scripts/seed-db.mjs",
+    "dev": "nodemon --watch src --ext ts,mjs,js --exec 'npx tsx src/server.ts'",
     "migrate": "node scripts/run-migrations.mjs",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
-    "dotenv": "^16.6.1"
+    "cors": "^2.8.6",
+    "dotenv": "^16.6.1",
+    "express": "^5.2.1",
+    "morgan": "^1.10.1"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/morgan": "^1.9.10",
     "@types/node": "^20",
+    "nodemon": "^3.1.14",
     "pg": "^8.13.0",
+    "tsx": "^4.19.2",
     "typescript": "^5"
   }
 }

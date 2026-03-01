@@ -1,0 +1,118 @@
+{
+  "demoUser": {
+    "phone": "+264811234567",
+    "firstName": "Demo",
+    "lastName": "User"
+  },
+  "wallets": [
+    {
+      "id": "w_main_001",
+      "name": "Buffr Account",
+      "type": "main",
+      "balance": 1250,
+      "currency": "NAD",
+      "cardDesignFrameId": 10,
+      "isPrimary": true,
+      "createdAtDaysAgo": 90
+    },
+    {
+      "id": "w_grant_001",
+      "name": "Grant Wallet",
+      "type": "grant",
+      "balance": 3800,
+      "currency": "NAD",
+      "cardDesignFrameId": 15,
+      "createdAtDaysAgo": 75
+    },
+    {
+      "id": "w_sav_001",
+      "name": "Savings",
+      "type": "savings",
+      "balance": 450,
+      "currency": "NAD",
+      "cardDesignFrameId": 2,
+      "targetAmount": 2000,
+      "createdAtDaysAgo": 60
+    }
+  ],
+  "transactions": [
+    { "id": "tx_001", "type": "voucher_redeem", "amount": 3800, "currency": "NAD", "description": "Old Age Pension – Feb 2026", "status": "success", "walletId": "w_grant_001", "reference": "GRN-2026-0215-001", "createdAtDaysAgo": 0 },
+    { "id": "tx_002", "type": "send", "amount": 200, "currency": "NAD", "description": "School fees", "status": "success", "walletId": "w_main_001", "counterparty": "Maria Nakashona", "createdAtDaysAgo": 1 },
+    { "id": "tx_003", "type": "bill_pay", "amount": 450, "currency": "NAD", "description": "NamPower Electricity – Feb", "status": "success", "walletId": "w_main_001", "counterparty": "NamPower", "createdAtDaysAgo": 2 },
+    { "id": "tx_004", "type": "airtime", "amount": 50, "currency": "NAD", "description": "MTC Airtime Top-Up", "status": "success", "walletId": "w_main_001", "counterparty": "MTC Namibia", "createdAtDaysAgo": 3 },
+    { "id": "tx_005", "type": "receive", "amount": 500, "currency": "NAD", "description": "Money received", "status": "success", "walletId": "w_main_001", "counterparty": "Petrus Hamutenya", "createdAtDaysAgo": 5 },
+    { "id": "tx_006", "type": "cash_out", "amount": 300, "currency": "NAD", "description": "Cash out at NamPost", "status": "success", "walletId": "w_main_001", "counterparty": "NamPost Katutura", "fee": 15, "createdAtDaysAgo": 7 },
+    { "id": "tx_007", "type": "add_money", "amount": 1000, "currency": "NAD", "description": "Bank transfer in", "status": "success", "walletId": "w_main_001", "counterparty": "FNB Namibia", "createdAtDaysAgo": 10 },
+    { "id": "tx_008", "type": "voucher_redeem", "amount": 3500, "currency": "NAD", "description": "Old Age Pension – Jan 2026", "status": "success", "walletId": "w_grant_001", "reference": "GRN-2026-0115-001", "createdAtDaysAgo": 45 },
+    { "id": "tx_009", "type": "send", "amount": 150, "currency": "NAD", "description": "Groceries share", "status": "success", "walletId": "w_main_001", "counterparty": "Anna Nghilifa", "createdAtDaysAgo": 12 },
+    { "id": "tx_010", "type": "receive", "amount": 800, "currency": "NAD", "description": "Payment from Johannes", "status": "success", "walletId": "w_main_001", "counterparty": "Johannes Kaulinge", "createdAtDaysAgo": 15 },
+    { "id": "tx_011", "type": "bill_pay", "amount": 280, "currency": "NAD", "description": "Water – Municipality", "status": "success", "walletId": "w_main_001", "counterparty": "City of Windhoek", "createdAtDaysAgo": 18 },
+    { "id": "tx_012", "type": "add_money", "amount": 500, "currency": "NAD", "description": "Deposit to Savings", "status": "success", "walletId": "w_sav_001", "counterparty": "Internal transfer", "createdAtDaysAgo": 20 },
+    { "id": "tx_013", "type": "airtime", "amount": 100, "currency": "NAD", "description": "MTC bundle", "status": "success", "walletId": "w_main_001", "counterparty": "MTC Namibia", "createdAtDaysAgo": 22 },
+    { "id": "tx_014", "type": "send", "amount": 75, "currency": "NAD", "description": "Taxi fare", "status": "success", "walletId": "w_main_001", "counterparty": "Thomas Shipanga", "createdAtDaysAgo": 25 },
+    { "id": "tx_015", "type": "receive", "amount": 350, "currency": "NAD", "description": "Repayment", "status": "success", "walletId": "w_main_001", "counterparty": "Selma Nghifikepunye", "createdAtDaysAgo": 28 },
+    { "id": "tx_016", "type": "voucher_redeem", "amount": 1200, "currency": "NAD", "description": "Child Grant – Feb", "status": "success", "walletId": "w_grant_001", "reference": "GRN-2026-0212-002", "createdAtDaysAgo": 30 },
+    { "id": "tx_017", "type": "cash_out", "amount": 500, "currency": "NAD", "description": "Agent cash out", "status": "success", "walletId": "w_main_001", "counterparty": "SmartPay Agent", "fee": 20, "createdAtDaysAgo": 33 },
+    { "id": "tx_018", "type": "bill_pay", "amount": 180, "currency": "NAD", "description": "DSTV Compact", "status": "success", "walletId": "w_main_001", "counterparty": "MultiChoice", "createdAtDaysAgo": 35 },
+    { "id": "tx_019", "type": "send", "amount": 400, "currency": "NAD", "description": "Rent contribution", "status": "success", "walletId": "w_main_001", "counterparty": "Hilma Nghipangelwa", "createdAtDaysAgo": 38 },
+    { "id": "tx_020", "type": "receive", "amount": 600, "currency": "NAD", "description": "Group payout", "status": "success", "walletId": "w_main_001", "counterparty": "Savings Circle", "createdAtDaysAgo": 40 },
+    { "id": "tx_021", "type": "add_money", "amount": 2000, "currency": "NAD", "description": "Bank transfer", "status": "success", "walletId": "w_main_001", "counterparty": "FNB Namibia", "createdAtDaysAgo": 42 },
+    { "id": "tx_022", "type": "airtime", "amount": 30, "currency": "NAD", "description": "Airtime", "status": "success", "walletId": "w_main_001", "counterparty": "MTC", "createdAtDaysAgo": 44 },
+    { "id": "tx_023", "type": "send", "amount": 250, "currency": "NAD", "description": "Medication", "status": "success", "walletId": "w_main_001", "counterparty": "Erastus Uutoni", "createdAtDaysAgo": 48 },
+    { "id": "tx_024", "type": "receive", "amount": 150, "currency": "NAD", "description": "Money received", "status": "success", "walletId": "w_main_001", "counterparty": "Maria Nakashona", "createdAtDaysAgo": 50 },
+    { "id": "tx_025", "type": "add_money", "amount": 300, "currency": "NAD", "description": "Savings top-up", "status": "success", "walletId": "w_sav_001", "counterparty": "Internal", "createdAtDaysAgo": 52 },
+    { "id": "tx_026", "type": "bill_pay", "amount": 420, "currency": "NAD", "description": "NamPower – Jan", "status": "success", "walletId": "w_main_001", "counterparty": "NamPower", "createdAtDaysAgo": 55 },
+    { "id": "tx_027", "type": "cash_out", "amount": 200, "currency": "NAD", "description": "ATM withdrawal", "status": "success", "walletId": "w_main_001", "counterparty": "ATM", "fee": 10, "createdAtDaysAgo": 58 },
+    { "id": "tx_028", "type": "receive", "amount": 3800, "currency": "NAD", "description": "Old Age Pension – Jan", "status": "success", "walletId": "w_grant_001", "counterparty": "Government", "createdAtDaysAgo": 60 },
+    { "id": "tx_029", "type": "send", "amount": 100, "currency": "NAD", "description": "Donation", "status": "success", "walletId": "w_main_001", "counterparty": "Church Group", "createdAtDaysAgo": 62 },
+    { "id": "tx_030", "type": "airtime", "amount": 50, "currency": "NAD", "description": "Airtime", "status": "success", "walletId": "w_main_001", "counterparty": "MTC", "createdAtDaysAgo": 65 },
+    { "id": "tx_031", "type": "receive", "amount": 450, "currency": "NAD", "description": "Payment received", "status": "success", "walletId": "w_main_001", "counterparty": "Petrus Hamutenya", "createdAtDaysAgo": 68 },
+    { "id": "tx_032", "type": "bill_pay", "amount": 95, "currency": "NAD", "description": "TV licence", "status": "success", "walletId": "w_main_001", "counterparty": "NBC", "createdAtDaysAgo": 70 },
+    { "id": "tx_033", "type": "send", "amount": 80, "currency": "NAD", "description": "School lunch", "status": "success", "walletId": "w_main_001", "counterparty": "School", "createdAtDaysAgo": 72 },
+    { "id": "tx_034", "type": "add_money", "amount": 1500, "currency": "NAD", "description": "Salary", "status": "success", "walletId": "w_main_001", "counterparty": "Employer", "createdAtDaysAgo": 75 },
+    { "id": "tx_035", "type": "receive", "amount": 200, "currency": "NAD", "description": "Refund", "status": "success", "walletId": "w_main_001", "counterparty": "Shop", "createdAtDaysAgo": 78 },
+    { "id": "tx_036", "type": "cash_out", "amount": 400, "currency": "NAD", "description": "NamPost cash", "status": "success", "walletId": "w_main_001", "counterparty": "NamPost", "fee": 15, "createdAtDaysAgo": 80 },
+    { "id": "tx_037", "type": "voucher_redeem", "amount": 900, "currency": "NAD", "description": "Disability Grant – Oct", "status": "success", "walletId": "w_grant_001", "reference": "GRN-2025-1015-003", "createdAtDaysAgo": 85 },
+    { "id": "tx_038", "type": "send", "amount": 120, "currency": "NAD", "description": "Transport", "status": "success", "walletId": "w_main_001", "counterparty": "Driver", "createdAtDaysAgo": 86 },
+    { "id": "tx_039", "type": "receive", "amount": 300, "currency": "NAD", "description": "Family support", "status": "success", "walletId": "w_main_001", "counterparty": "Anna Nghilifa", "createdAtDaysAgo": 88 },
+    { "id": "tx_040", "type": "add_money", "amount": 250, "currency": "NAD", "description": "Savings", "status": "success", "walletId": "w_sav_001", "counterparty": "Internal", "createdAtDaysAgo": 90 }
+  ],
+  "vouchers": [
+    { "id": "v_001", "amount": 3800, "currency": "NAD", "status": "available", "programme": "Old Age Pension", "issuedAtDaysAgo": 5, "expiresAtDaysFromNow": 60, "reference": "GRN-2026-0215-001" },
+    { "id": "v_002", "amount": 1200, "currency": "NAD", "status": "available", "programme": "Child Grant", "issuedAtDaysAgo": 3, "expiresAtDaysFromNow": 75, "reference": "GRN-2026-0212-002" },
+    { "id": "v_003", "amount": 3500, "currency": "NAD", "status": "redeemed", "programme": "Old Age Pension", "issuedAtDaysAgo": 50, "expiresAtDaysAgo": 20, "redeemedAtDaysAgo": 45, "redeemedMethod": "wallet", "reference": "GRN-2026-0115-001" },
+    { "id": "v_004", "amount": 900, "currency": "NAD", "status": "expired", "programme": "Disability Grant", "issuedAtDaysAgo": 120, "expiresAtDaysAgo": 60, "reference": "GRN-2025-1015-003" }
+  ],
+  "contacts": [
+    { "id": "c1", "name": "Maria Nakashona", "phone": "+264817654321" },
+    { "id": "c2", "name": "Petrus Hamutenya", "phone": "+264819876543" },
+    { "id": "c3", "name": "Anna Nghilifa", "phone": "+264812345678" },
+    { "id": "c4", "name": "Johannes Kaulinge", "phone": "+264813456789" },
+    { "id": "c5", "name": "Selma Nghifikepunye", "phone": "+264814567890" },
+    { "id": "c6", "name": "Thomas Shipanga", "phone": "+264815678901" },
+    { "id": "c7", "name": "Hilma Nghipangelwa", "phone": "+264816789012" },
+    { "id": "c8", "name": "Erastus Uutoni", "phone": "+264818901234" }
+  ],
+  "groups": [
+    { "id": "grp_001", "name": "Savings Circle", "description": "Monthly savings group", "memberContactIds": ["c1", "c2", "c3", "c4", "c5", "c6"], "createdAtDaysAgo": 70 },
+    { "id": "grp_002", "name": "Family Fund", "description": "Household expenses", "memberContactIds": ["c1", "c3", "c7"], "createdAtDaysAgo": 50 },
+    { "id": "grp_003", "name": "Church Group", "description": "Church contributions", "memberContactIds": ["c2", "c4", "c8"], "createdAtDaysAgo": 85 }
+  ],
+  "loanOffer": {
+    "id": "offer_001",
+    "maxAmount": 1267,
+    "interestRate": 15,
+    "previousVoucherAmount": 3800,
+    "repaymentInfo": "Auto-repaid from next grant disbursement"
+  },
+  "activeLoans": [
+    { "id": "loan_001", "amount": 500, "interestAmount": 75, "totalRepayable": 575, "disbursedAtDaysAgo": 20, "status": "active", "repaymentDueDaysFromNow": 15 }
+  ],
+  "notifications": [
+    { "type": "payment", "title": "Money received", "body": "N$500 from Petrus Hamutenya", "createdAtDaysAgo": 5 },
+    { "type": "voucher", "title": "Voucher available", "body": "Old Age Pension N$3,800 ready to redeem", "createdAtDaysAgo": 2 },
+    { "type": "system", "title": "Welcome to Buffr", "body": "Your Buffr Account is ready.", "createdAtDaysAgo": 90 },
+    { "type": "group", "title": "Group payout", "body": "Savings Circle sent you N$600", "createdAtDaysAgo": 40 },
+    { "type": "payment", "title": "Payment received", "body": "N$350 from Selma Nghifikepunye", "createdAtDaysAgo": 28 }
+  ]
+}

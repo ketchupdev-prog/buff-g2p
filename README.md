@@ -1,28 +1,32 @@
-# buff-g2p
+# buffr-g2p
 
-Buffr G2P (Government-to-Person) — Expo (React Native) app for vouchers, wallets, and related flows.
+Buffr G2P (Government-to-Person) — backend and mobile app (vouchers, wallets, and related flows).
 
-## Stack
+## Repo layout
 
-- **Expo SDK 54** with Expo Router (file-based routing)
-- **React Native** with TypeScript
-- Native projects generated with `npx expo prebuild` (ios/android not committed)
+| Folder   | Description |
+|----------|-------------|
+| **backend/** | Backend API and services |
+| **mobile/**  | Buffr Expo (React Native) app — all app code, native projects, and config |
 
-## Setup
+## Backend
 
 ```bash
+cd backend
 npm install
-npx expo prebuild   # when you need native ios/android
+# See backend/README.md for run and deploy instructions.
 ```
 
-## Scripts
+## Mobile
 
-| Command | Description |
-|--------|-------------|
-| `npm start` | Start Expo dev server |
-| `npm run ios` | Run iOS app (requires prebuild) |
-| `npm run android` | Run Android app (requires prebuild) |
-| `npm run web` | Run web |
+```bash
+cd mobile
+npm install
+npx expo prebuild   # when you need native ios/android
+npm start           # Expo dev server
+npm run ios         # Run iOS (see mobile/docs/IOS_SETUP.md if needed)
+npm run android     # Run Android
+```
 
 ## Repo
 
