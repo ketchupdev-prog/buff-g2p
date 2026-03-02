@@ -21,6 +21,7 @@ import { useUser } from '@/contexts/UserContext';
 import { getWallets, type Wallet } from '@/services/wallets';
 import { getContacts, type Contact } from '@/services/send';
 import { getTransactions, formatTransactionType, formatTransactionAmount, transactionIcon, type Transaction } from '@/services/transactions';
+import { checkApiReachable, getApiBaseUrl } from '@/services/network';
 import { designSystem } from '@/constants/designSystem';
 import CardFrame from '@/components/cards/CardFrame';
 import { AppHeader } from '@/components/layout';
@@ -127,6 +128,7 @@ export default function HomeScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [showAddMoneyModal, setShowAddMoneyModal] = useState(false);
+  const [apiReachable, setApiReachable] = useState<boolean | null>(null); // null = not checked yet
 
   const displayName = [profile?.firstName, profile?.lastName].filter(Boolean).join(' ');
   const totalBalance = wallets.reduce((sum, w) => sum + w.balance, 0);
@@ -158,8 +160,15 @@ export default function HomeScreen() {
       setWallets(ws);
       setContacts(cs);
       setRecentTx(txs);
+      if (getApiBaseUrl()) {
+        const reachable = await checkApiReachable();
+        setApiReachable(reachable);
+      } else {
+        setApiReachable(null);
+      }
     } catch {
       setLoadError('Could not load data. Tap to retry.');
+      if (getApiBaseUrl()) setApiReachable(false);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -244,6 +253,19 @@ export default function HomeScreen() {
               <Ionicons name="shield-checkmark-outline" size={20} color="#B45309" />
               <Text style={styles.pofBannerText}>Please verify to continue receiving grants.</Text>
               <Text style={styles.pofBannerCta}>Verify now</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* API status: show when real API is configured but unreachable */}
+          {getApiBaseUrl() && apiReachable === false && (
+            <TouchableOpacity
+              style={styles.apiBanner}
+              onPress={loadData}
+              activeOpacity={0.9}
+              accessibilityLabel="API unreachable. Using cached data. Tap to retry."
+            >
+              <Ionicons name="cloud-offline-outline" size={18} color="#B45309" />
+              <Text style={styles.apiBannerText}>API unreachable. Using cached data. Pull to refresh to retry.</Text>
             </TouchableOpacity>
           )}
 
@@ -483,6 +505,22 @@ const styles = StyleSheet.create({
   },
   pofBannerText: { flex: 1, fontSize: 14, color: '#92400E', fontWeight: '500' },
   pofBannerCta: { fontSize: 14, fontWeight: '700', color: '#B45309' },
+
+  apiBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'stretch',
+    marginHorizontal: 16,
+    marginTop: 4,
+    marginBottom: 4,
+    padding: 12,
+    backgroundColor: '#FFFBEB',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    gap: 8,
+  },
+  apiBannerText: { flex: 1, fontSize: 13, color: '#92400E' },
 
   // Balance
   balanceSection: { paddingHorizontal: 16, paddingVertical: 20, alignItems: 'center' },

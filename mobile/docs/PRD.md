@@ -1,8 +1,9 @@
-# Buffr G2P App – Product Requirements Document (Revised v1.21)
+# Buffr G2P App – Product Requirements Document (Revised v1.23)
 
 **Ketchup Software Solutions**  
 **Ecosystem:** Government-to-Person (G2P) – Beneficiary Platform (Mobile App)  
 **Date:** March 2026  
+**v1.23 updates:** **Testing & CI implemented.** Full test suite documented in **`mobile/docs/TEST_SUITE.md`** (unit, component, integration, E2E, security, compliance, accessibility). **CI** (`.github/workflows/ci.yml`): runs on push/PR to `main`; **Backend** – `cd backend`, `npm ci`, `npm run type-check`; **Mobile** – `cd mobile`, `npm ci`, `npm test -- --passWithNoTests`. No root `package.json`; repo layout is `backend/` and `mobile/`. Backend `tsconfig.json` uses `"types": ["node"]` so type-check does not pull unrelated @types. See §11.14–§11.15 gap and TEST_SUITE.md for full test plan and traceability to PRD.
 **v1.5 updates:** Screen header and back navigation consistency (§6.4): every stack screen must provide back or Home; Agent Network and entry screens must fallback to Home when history is empty; header patterns and quick reference table. **v1.6 gap analysis (senior developer review):** §11.12–§11.21 – Offline architecture, Push notifications, Analytics & monitoring, Testing strategy, Deployment & CI/CD, Security implementation details, Accessibility, Internationalization (i18n), Edge case handling, Performance budget. **Card and wallet model (§3.4, §4.3b):** Cards are for the main Buffr account (primary wallet) and can represent additional wallets with user context (name, balance, type; optional cardDesignFrameId per wallet).  
 **v1.7 updates:** **Implementation status & areas for improvement** (§3.13): Group Settings POV (admin vs member), deactivating members, adding members (§3.6 47c-v, 47c-vi); Request Status modal; Wallet History screen (§3.6 50a); implementation checklist and improvement areas.  
 **v1.8 updates:** **Design source and implementation alignment** (§3.0): BuffrCrew/Buffr App Design folder (Downloads); Home balance pill "+" = **Add funds** (not Add wallet); EFT account name = **Buffr Financial Services**; Add Money – Debit/Credit Card = **link card to top up** (navigate to /add-card), not "coming soon".  
@@ -2018,6 +2019,38 @@ Design components follow the same organism → atom structure for consistent imp
 - **USSD (gateway calls backend):**  
   - **`POST /api/v1/ussd/menu`** – receives USSD input, returns next menu text. Request: `{ sessionId: string, serviceCode: string, phoneNumber: string, text: string }`. Response: `{ response: string, endSession: boolean }` (conforms to USSD gateway spec). All other actions (balance, voucher redeem, cash-out code generation, etc.) are orchestrated by the USSD handler reusing existing APIs.  
   - **Compliance:** USSD transaction volumes must be included in monthly stats (PSD-1 §23).
+
+### 9.3.1 Buffr G2P Backend – Implemented endpoints (verified)
+
+The Buffr G2P backend (`backend/src/server.ts`) exposes the following REST endpoints. Base URL: `EXPO_PUBLIC_API_BASE_URL` (e.g. `http://localhost:3001`). Auth: optional `x-user-id` header in dev; otherwise first user in DB is used. When the live Neon DB is missing tables or columns (e.g. `groups`, `voucher_redemptions`), endpoints return empty data or 404/503 instead of 500.
+
+**Curl verification (Feb 2026):** All 19 routes exercised. `GET /healthz` 200; `POST auth/request-otp` 200; `POST auth/verify-otp` 200 (with `buffrId`, `cardNumberMasked`, `token`) or 400; `GET user/card` 200; `GET/POST/PATCH/DELETE wallets` 200/201/200/204 (400 when deleting only wallet, 404 for unknown id); `POST wallets/:id/add-money` 201; `GET transactions` & `GET transactions/:id` 200; `GET groups` 200 `{ groups: [] }`; `GET contacts` & `GET contacts/lookup` 200; `POST send` 404 when recipient not found; `GET vouchers` 200 `{ vouchers: [] }`; `GET vouchers/:id` 404 for unknown id; `POST vouchers/:id/redeem` 503 when schema missing.
+
+| Method | Path | Status | Response / notes |
+|--------|------|--------|------------------|
+| GET | `/healthz` | 200 | `{ "status": "ok" }` – DB connectivity check |
+| POST | `/api/v1/mobile/auth/request-otp` | 200 | Body: `{ "phone": string }`. Response: `{ "success": true }`. |
+| POST | `/api/v1/mobile/auth/verify-otp` | 200/400 | Body: `{ "phone", "code" }`. 200: `{ "success", "buffrId?", "cardNumberMasked?", "token?", "expiryDate?" }`. 400 if missing phone/code. |
+| GET | `/api/v1/mobile/user/card` | 200 | `{ "buffrId", "cardNumberMasked", "expiryDate" }` |
+| GET | `/api/v1/mobile/wallets` | 200 | `{ "wallets": Wallet[] }` – aligned with live Neon (id, user_id, balance, currency, updated_at) |
+| GET | `/api/v1/mobile/wallets/:id` | 200/404 | `{ "wallet": Wallet }`. 404 for unknown id. |
+| POST | `/api/v1/mobile/wallets` | 201 | Body: `{ "name"?, "type"? }`. Returns `{ "wallet": Wallet }`. |
+| PATCH | `/api/v1/mobile/wallets/:id` | 200/404 | Body: `{}` (updates updated_at). Returns `{ "wallet": Wallet }`. |
+| DELETE | `/api/v1/mobile/wallets/:id` | 204/400/404 | 204 on success. 400 `"Cannot delete only wallet"`. 404 when id not found. |
+| POST | `/api/v1/mobile/wallets/:walletId/add-money` | 201 | Body: `{ "amount": number, "method"?: string }`. Returns `{ "ok": true }`. |
+| GET | `/api/v1/mobile/transactions` | 200 | Query: `walletId`, `type`, `limit`, `offset`. Returns `{ "transactions": Transaction[] }`. |
+| GET | `/api/v1/mobile/transactions/:id` | 200/404 | `{ "transaction": Transaction }`. 404 when id not found. |
+| GET | `/api/v1/mobile/groups` | 200 | `{ "groups": Group[] }`. Returns `[]` when `groups` table missing. |
+| GET | `/api/v1/mobile/contacts` | 200 | `{ "contacts": Contact[] }` – from users (full_name, phone) |
+| GET | `/api/v1/mobile/contacts/lookup?q=phone` | 200 | `{ "contact": Contact \| null }` |
+| POST | `/api/v1/mobile/send` | 201/404 | Body: `{ "recipientPhone", "amount", "walletId", "note"? }`. 404 `"Recipient not found"`. 201: `{ "transactionId"?: string }`. |
+| GET | `/api/v1/mobile/vouchers` | 200 | `{ "vouchers": Voucher[] }`. Returns `[]` when table/schema missing. |
+| GET | `/api/v1/mobile/vouchers/:id` | 200/404 | Single voucher. 404 when not found or schema missing. |
+| POST | `/api/v1/mobile/vouchers/:id/redeem` | 200/400/404/503 | Body: `{ "method": "wallet"|"nampost"|"smartpay" }`. 503 `"Voucher redeem unavailable (schema mismatch)"` when `voucher_redemptions` or column missing. |
+
+**Wallet shape (API):** `{ id, name, type, balance, currency, isPrimary?, createdAt }` (name/type synthetic when DB has only balance/currency/updated_at).  
+**Transaction shape:** `{ id, type, amount, currency, description, status, createdAt, date, walletId }`.  
+**Contact shape:** `{ id, name, phone, buffrId? }`.
 
 ### 9.4 API request/response shapes (TypeScript)
 
@@ -7700,37 +7733,39 @@ eas build --platform android
 
 #### 4. Testing Strategy
 
-**Current state:** No testing plan.
+**Current state:** Full test suite documented; CI runs backend type-check and mobile tests.
 
-**Gaps:**
-- No guidance on unit, integration, or end‑to‑end tests.
+**Implemented:**
+- **`mobile/docs/TEST_SUITE.md`** – Single reference for all tests: unit (Jest – utils, services, hooks), component (React Native Testing Library), integration (mocked API/storage), E2E (Maestro/Detox), security & compliance, QR/payment, accessibility. Traceability to PRD (§2, §3, §6.4, §7, §9.4, §10, §11.14, §14, §18, §19).
+- **Mobile:** `npm test` (Jest); existing unit tests for `utils/walletDisplay.ts` (6 tests). Add further tests per TEST_SUITE.md.
+- **Backend:** `npm run type-check` (tsc --noEmit); `backend/tsconfig.json` uses `"types": ["node"]` to avoid pulling unrelated @types. No backend unit test script yet; add per TEST_SUITE.md if needed.
+- **CI:** GitHub Actions (`.github/workflows/ci.yml`) runs on push/PR to `main`: Backend – install + type-check; Mobile – install + tests. See §11.15 (Deployment & CI/CD) for workflow details.
 
-**Recommendations:**
-- Add **"Testing"** (§11.15):
-  - **Unit tests**: Use Jest for services, hooks, and utility functions (e.g., TLV encoder, CRC validation).
-  - **Component tests**: Use React Native Testing Library for isolated component rendering.
-  - **Integration tests**: Use `@testing-library/react-native` with mocked API clients to test critical flows (onboarding, voucher redemption).
-  - **E2E tests**: Use **Detox** or **Maestro** for critical user journeys. Include a test plan covering happy path and error scenarios (network loss, invalid QR, expired voucher).
-  - Add a `test:` script to `package.json` and run in CI.
+**Recommendations (from v1.6 gap):**
+- **Unit tests**: Use Jest for services, hooks, and utility functions (e.g., TLV encoder, CRC validation).
+- **Component tests**: Use React Native Testing Library for isolated component rendering.
+- **Integration tests**: Use `@testing-library/react-native` with mocked API clients to test critical flows (onboarding, voucher redemption).
+- **E2E tests**: Use **Detox** or **Maestro** for critical user journeys. Include a test plan covering happy path and error scenarios (network loss, invalid QR, expired voucher).
+- Expand coverage per TEST_SUITE.md; run full suite before release.
 
 ---
 
 #### 5. Deployment & CI/CD
 
-**Current state:** Not covered.
+**Current state:** CI pipeline implemented; EAS Build and store submission to be added.
+
+**Implemented:**
+- **CI (GitHub Actions):** `.github/workflows/ci.yml` runs on push and pull_request to `main`. Two steps: (1) **Backend** – `cd backend`, `npm ci`, `npm run type-check`; (2) **Mobile** – `cd mobile`, `npm ci`, `npm test -- --passWithNoTests`. Repo has no root `package.json` (backend and mobile are separate).
 
 **Gaps:**
-- No description of how to build and distribute the app (App Store, Google Play).
-- No CI/CD pipeline.
+- No EAS Build or store distribution yet.
+- No automated build on merge to main.
 
 **Recommendations:**
 - Add **"Deployment"** (§11.16):
   - Use **EAS Build** for creating production builds. Provide `eas.json` profiles for development, preview, and production.
   - Code signing: use EAS credentials manager or manual upload.
-  - **CI/CD**: Use GitHub Actions (or Bitrise) to run tests on PRs and trigger EAS builds on merge to main.
-  - Example GitHub Actions workflow:
-    - Checkout, install dependencies, run tests.
-    - On main branch push, run `eas build --platform ios --profile production` and `eas build --platform android --profile production`.
+  - **CI/CD**: Extend GitHub Actions to run EAS builds on merge to main (e.g. `eas build --platform ios --profile production` and `eas build --platform android --profile production`).
   - App store submission: document process of uploading builds via Transporter (iOS) and Google Play Console (Android).
 
 ---
@@ -8470,6 +8505,8 @@ For local/dev and demos, the backend provides a **full demo seed** via `npm run 
 **Note:** Proof-of-life status does not affect Open Banking PIS/AIS flows directly – those are bank‑side. However, if a beneficiary's wallet is frozen, the app will block any attempt to initiate bank transfer from Buffr wallet (cash-out method 1). §2.4, §7.6.5.
 
 Backend APIs for Buffr G2P and their mapping to **Namibian Open Banking** (data/links/meta, ParticipantId, x-v) and **ISO 20022** where the backend integrates with banks or clearing.
+
+**No mocks:** Open Banking and ISO 20022 messaging **must not use mocks or stub data**. The backend must call the real Data Provider (bank) with mTLS (QWAC) and Open Banking headers for list banks, consent, and token exchange. Bank transfer (cash-out) must use real **ISO 20022** messaging: build **pain.001** (Payment Initiation) when initiating payment and handle **pacs.002** (Payment Status) from the bank. When Open Banking or bank endpoints are not configured, the backend must return **503 Service Unavailable** with a clear message (e.g. "Open Banking is not configured"), not fake success or stub payloads.
 
 ### 17.1 Open Banking API structure (Namibian Standards)
 

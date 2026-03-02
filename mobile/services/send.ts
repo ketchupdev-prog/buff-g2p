@@ -59,7 +59,11 @@ export async function getContacts(): Promise<Contact[]> {
         if (apiContacts.length > 0) return apiContacts;
       }
     } catch (e) {
-      if (__DEV__) { console.error('getContacts API error:', e); } // SEC-S10
+      if (__DEV__) {
+        const isNetwork = e instanceof TypeError && (e.message === 'Network request failed' || e.message?.includes('fetch'));
+        if (isNetwork) console.warn('getContacts: API unreachable, using local/device contacts');
+        else console.error('getContacts API error:', e);
+      }
     }
   }
 

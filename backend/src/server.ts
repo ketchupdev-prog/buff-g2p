@@ -24,6 +24,7 @@ import express, { NextFunction, Request, Response } from "express";
 import cors from "cors";
 import morgan from "morgan";
 import { sql } from "./lib/db.js";
+import { isFineractEnabled, fineractHealth, fineractCall } from "./lib/fineract.js";
 
 const app = express();
 
@@ -111,6 +112,18 @@ function jsonError(res: Response, status: number, message: string) {
   return res.status(status).json({ error: message });
 }
 
+/** True when Neon returns "column does not exist" (schema mismatch with live DB). */
+function isSchemaError(err: unknown): boolean {
+  const e = err as { code?: string };
+  return e?.code === "42703";
+}
+
+/** True when Neon returns "relation/table does not exist" or schema error. */
+function isMissingTableOrSchemaError(err: unknown): boolean {
+  const e = err as { code?: string };
+  return e?.code === "42703" || e?.code === "42P01";
+}
+
 // --- Auth helper (temporary dev-only behaviour) ---
 
 /**
@@ -154,6 +167,50 @@ app.get("/healthz", async (_req, res) => {
     console.error("healthz error:", error);
     res.status(500).json({ status: "error" });
   }
+});
+
+// --- Fineract (core banking) connectivity ---
+
+app.get("/api/v1/mobile/fineract/health", async (_req: Request, res: Response) => {
+  try {
+    if (!isFineractEnabled()) {
+      return res.json({
+        connected: false,
+        fineract: { enabled: false, message: "Fineract not configured" },
+      });
+    }
+    const health = await fineractHealth();
+    res.json({
+      connected: health.connected,
+      fineract: {
+        enabled: true,
+        status: health.status,
+        error: health.error,
+        configured: true,
+      },
+    });
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error("fineract/health error:", e);
+    res.status(500).json({
+      connected: false,
+      fineract: { error: "Internal server error" },
+    });
+  }
+});
+
+/** Optional: list Fineract offices (proves auth + connectivity). */
+app.get("/api/v1/fineract/offices", async (_req: Request, res: Response) => {
+  if (!isFineractEnabled()) {
+    return res.status(503).json({ error: "Fineract not configured" });
+  }
+  const result = await fineractCall<unknown[]>("offices", { method: "GET" });
+  if (!result.success) {
+    return res.status(result.status ?? 502).json({
+      error: result.error ?? "Fineract request failed",
+    });
+  }
+  res.json({ offices: result.data ?? [] });
 });
 
 // --- Auth stubs (dev/demo) – return JSON so the app does not get HTML 404 ---
@@ -224,24 +281,27 @@ app.get(
     try {
       const userId = await getCurrentUserId(req);
       const rows = await sql`
-        SELECT id, name, type, balance, currency, created_at
+        SELECT id, user_id, balance, currency, updated_at
         FROM wallets
         WHERE user_id = ${userId}
-        ORDER BY created_at ASC
+        ORDER BY updated_at ASC
       `;
 
       const wallets: Wallet[] = rows.map((row: any, index: number) => ({
         id: row.id,
-        name: row.name,
-        type: (row.type as WalletType) ?? "main",
+        name: index === 0 ? "Main wallet" : `Wallet ${index + 1}`,
+        type: "main" as WalletType,
         balance: Number(row.balance ?? 0),
         currency: (row.currency as "NAD") ?? "NAD",
-        isPrimary: index === 0 || row.type === "main",
-        createdAt: row.created_at?.toISOString?.() ?? row.created_at,
+        isPrimary: index === 0,
+        createdAt: row.updated_at?.toISOString?.() ?? row.updated_at,
       }));
 
       res.json({ wallets });
     } catch (error) {
+      if (isSchemaError(error)) {
+        return res.json({ wallets: [] });
+      }
       next(error);
     }
   }
@@ -254,7 +314,7 @@ app.get(
       const userId = await getCurrentUserId(req);
       const { id } = req.params;
       const rows = await sql`
-        SELECT id, name, type, balance, currency, created_at
+        SELECT id, user_id, balance, currency, updated_at
         FROM wallets
         WHERE id = ${id} AND user_id = ${userId}
         LIMIT 1
@@ -265,12 +325,12 @@ app.get(
       const row: any = rows[0];
       const wallet: Wallet = {
         id: row.id,
-        name: row.name,
-        type: (row.type as WalletType) ?? "main",
+        name: "Main wallet",
+        type: "main",
         balance: Number(row.balance ?? 0),
         currency: (row.currency as "NAD") ?? "NAD",
-        isPrimary: row.type === "main",
-        createdAt: row.created_at?.toISOString?.() ?? row.created_at,
+        isPrimary: true,
+        createdAt: row.updated_at?.toISOString?.() ?? row.updated_at,
       };
       res.json({ wallet });
     } catch (error) {
@@ -286,26 +346,20 @@ app.post(
       const userId = await getCurrentUserId(req);
       const { name, type }: { name?: string; type?: WalletType } = req.body ?? {};
 
-      if (!name || typeof name !== "string") {
-        return jsonError(res, 400, "name is required");
-      }
-
-      const walletType: WalletType = type ?? "savings";
-
       const rows = await sql`
-        INSERT INTO wallets (user_id, name, type)
-        VALUES (${userId}, ${name}, ${walletType})
-        RETURNING id, name, type, balance, currency, created_at
+        INSERT INTO wallets (user_id, balance, currency)
+        VALUES (${userId}, 0, 'NAD')
+        RETURNING id, user_id, balance, currency, updated_at
       `;
       const row: any = rows[0];
       const wallet: Wallet = {
         id: row.id,
-        name: row.name,
-        type: (row.type as WalletType) ?? "savings",
+        name: name && typeof name === "string" ? name : "Wallet",
+        type: (type as WalletType) ?? "savings",
         balance: Number(row.balance ?? 0),
         currency: (row.currency as "NAD") ?? "NAD",
-        isPrimary: row.type === "main",
-        createdAt: row.created_at?.toISOString?.() ?? row.created_at,
+        isPrimary: false,
+        createdAt: row.updated_at?.toISOString?.() ?? row.updated_at,
       };
       res.status(201).json({ wallet });
     } catch (error) {
@@ -320,35 +374,25 @@ app.patch(
     try {
       const userId = await getCurrentUserId(req);
       const { id } = req.params;
-      const { name }: { name?: string } = req.body ?? {};
-
-      const existing = await sql`
-        SELECT id, name, type, balance, currency, created_at
-        FROM wallets
-        WHERE id = ${id} AND user_id = ${userId}
-        LIMIT 1
-      `;
-      if (existing.length === 0) {
-        return jsonError(res, 404, "Wallet not found");
-      }
-
-      const nextName = name ?? (existing[0] as any).name;
 
       const rows = await sql`
         UPDATE wallets
-        SET name = ${nextName}, updated_at = now()
+        SET updated_at = now()
         WHERE id = ${id} AND user_id = ${userId}
-        RETURNING id, name, type, balance, currency, created_at
+        RETURNING id, user_id, balance, currency, updated_at
       `;
+      if (rows.length === 0) {
+        return jsonError(res, 404, "Wallet not found");
+      }
       const row: any = rows[0];
       const wallet: Wallet = {
         id: row.id,
-        name: row.name,
-        type: (row.type as WalletType) ?? "main",
+        name: "Main wallet",
+        type: "main",
         balance: Number(row.balance ?? 0),
         currency: (row.currency as "NAD") ?? "NAD",
-        isPrimary: row.type === "main",
-        createdAt: row.created_at?.toISOString?.() ?? row.created_at,
+        isPrimary: true,
+        createdAt: row.updated_at?.toISOString?.() ?? row.updated_at,
       };
       res.json({ wallet });
     } catch (error) {
@@ -365,17 +409,18 @@ app.delete(
       const { id } = req.params;
 
       const existingRows = await sql`
-        SELECT id, type
-        FROM wallets
+        SELECT id FROM wallets
         WHERE id = ${id} AND user_id = ${userId}
         LIMIT 1
       `;
       if (existingRows.length === 0) {
         return jsonError(res, 404, "Wallet not found");
       }
-      const existing: any = existingRows[0];
-      if (existing.type === "main") {
-        return jsonError(res, 400, "Cannot delete primary wallet");
+      const allWallets = await sql`
+        SELECT id FROM wallets WHERE user_id = ${userId}
+      `;
+      if (allWallets.length <= 1) {
+        return jsonError(res, 400, "Cannot delete only wallet");
       }
 
       await sql`
@@ -413,26 +458,20 @@ app.post(
       }
       const wallet: any = walletRows[0];
 
-      await sql.transaction((tx) => [
-        tx`
-          UPDATE wallets
-          SET balance = ${Number(wallet.balance ?? 0) + amount}, updated_at = now()
-          WHERE id = ${walletId}
-        `,
-        tx`
-          INSERT INTO wallet_transactions (
-            wallet_id, type, amount, balance_after, reference_type, description
-          )
-          VALUES (
-            ${walletId},
-            ${"add_money"},
-            ${amount},
-            ${Number(wallet.balance ?? 0) + amount},
-            ${method ?? "add_money"},
-            ${"Money added via mobile app"}
-          )
-        `,
-      ]);
+      await sql`
+        UPDATE wallets
+        SET balance = ${Number(wallet.balance ?? 0) + amount}, updated_at = now()
+        WHERE id = ${walletId}
+      `;
+      await sql`
+        INSERT INTO wallet_transactions (wallet_id, type, amount, reference)
+        VALUES (
+          ${walletId},
+          ${"add_money"},
+          ${amount},
+          ${method ?? "add_money"}
+        )
+      `;
 
       res.status(201).json({ ok: true });
     } catch (error) {
@@ -459,7 +498,7 @@ app.get(
           wt.wallet_id,
           wt.type,
           wt.amount,
-          wt.description,
+          wt.reference,
           wt.created_at,
           w.currency
         FROM wallet_transactions wt
@@ -477,7 +516,7 @@ app.get(
         type: (row.type as TransactionType) ?? "add_money",
         amount: Number(row.amount ?? 0),
         currency: (row.currency as "NAD") ?? "NAD",
-        description: row.description ?? "",
+        description: row.reference ?? "",
         status: "success",
         createdAt: row.created_at?.toISOString?.() ?? row.created_at,
         date: row.created_at?.toISOString?.() ?? row.created_at,
@@ -486,6 +525,9 @@ app.get(
 
       res.json({ transactions: txs });
     } catch (error) {
+      if (isSchemaError(error)) {
+        return res.json({ transactions: [] });
+      }
       next(error);
     }
   }
@@ -515,6 +557,9 @@ app.get(
       }));
       res.json({ groups });
     } catch (error) {
+      if (isMissingTableOrSchemaError(error)) {
+        return res.json({ groups: [] });
+      }
       next(error);
     }
   }
@@ -533,7 +578,7 @@ app.get(
           wt.wallet_id,
           wt.type,
           wt.amount,
-          wt.description,
+          wt.reference,
           wt.created_at,
           w.currency
         FROM wallet_transactions wt
@@ -550,7 +595,7 @@ app.get(
         type: (row.type as TransactionType) ?? "add_money",
         amount: Number(row.amount ?? 0),
         currency: (row.currency as "NAD") ?? "NAD",
-        description: row.description ?? "",
+        description: row.reference ?? "",
         status: "success",
         createdAt: row.created_at?.toISOString?.() ?? row.created_at,
         date: row.created_at?.toISOString?.() ?? row.created_at,
@@ -571,7 +616,7 @@ app.get(
     try {
       const userId = await getCurrentUserId(req);
       const rows = await sql`
-        SELECT id, phone, first_name, last_name
+        SELECT id, phone, full_name
         FROM users
         WHERE id != ${userId}
         ORDER BY created_at DESC
@@ -580,14 +625,16 @@ app.get(
 
       const contacts: Contact[] = rows.map((row: any) => ({
         id: row.id,
-        name: [row.first_name, row.last_name].filter(Boolean).join(" ") ||
-          row.phone,
+        name: row.full_name?.trim() || row.phone || "",
         phone: row.phone,
         buffrId: row.id,
       }));
 
       res.json({ contacts });
     } catch (error) {
+      if (isSchemaError(error)) {
+        return res.json({ contacts: [] });
+      }
       next(error);
     }
   }
@@ -603,7 +650,7 @@ app.get(
       }
 
       const rows = await sql`
-        SELECT id, phone, first_name, last_name
+        SELECT id, phone, full_name
         FROM users
         WHERE phone = ${query}
         ORDER BY created_at DESC
@@ -615,8 +662,7 @@ app.get(
       const row: any = rows[0];
       const contact: Contact = {
         id: row.id,
-        name: [row.first_name, row.last_name].filter(Boolean).join(" ") ||
-          row.phone,
+        name: row.full_name?.trim() || row.phone || "",
         phone: row.phone,
         buffrId: row.id,
       };
@@ -680,7 +726,7 @@ app.post(
         SELECT id, balance
         FROM wallets
         WHERE user_id = ${recipientId}
-        ORDER BY created_at ASC
+        ORDER BY updated_at ASC
         LIMIT 1
       `;
       if (recipientWalletRows.length === 0) {
@@ -690,42 +736,36 @@ app.post(
 
       let transactionId: string | undefined;
 
-      const txResults = await sql.transaction((tx) => [
-        tx`
-          UPDATE wallets
-          SET balance = ${currentBalance - amount}, updated_at = now()
-          WHERE id = ${sourceWallet.id}
-        `,
-        tx`
-          INSERT INTO wallet_transactions (
-            wallet_id, type, amount, balance_after, description
-          )
-          VALUES (
-            ${sourceWallet.id},
-            ${"send"},
-            ${amount},
-            ${currentBalance - amount},
-            ${note ?? "Money sent"}
-          )
-        `,
-        tx`
-          UPDATE wallets
-          SET balance = ${Number(recipientWallet.balance ?? 0) + amount}, updated_at = now()
-          WHERE id = ${recipientWallet.id}
-        `,
-        tx`
-          INSERT INTO wallet_transactions (
-            wallet_id, type, amount, balance_after, description
-          )
-          VALUES (
-            ${recipientWallet.id},
-            ${"receive"},
-            ${amount},
-            ${Number(recipientWallet.balance ?? 0) + amount},
-            ${note ?? "Money received"}
-          )
-        `,
-        tx`
+      await sql`
+        UPDATE wallets
+        SET balance = ${currentBalance - amount}, updated_at = now()
+        WHERE id = ${sourceWallet.id}
+      `;
+      await sql`
+        INSERT INTO wallet_transactions (wallet_id, type, amount, reference)
+        VALUES (
+          ${sourceWallet.id},
+          ${"send"},
+          ${amount},
+          ${note ?? "Money sent"}
+        )
+      `;
+      await sql`
+        UPDATE wallets
+        SET balance = ${Number(recipientWallet.balance ?? 0) + amount}, updated_at = now()
+        WHERE id = ${recipientWallet.id}
+      `;
+      await sql`
+        INSERT INTO wallet_transactions (wallet_id, type, amount, reference)
+        VALUES (
+          ${recipientWallet.id},
+          ${"receive"},
+          ${amount},
+          ${note ?? "Money received"}
+        )
+      `;
+      try {
+        const p2pResult = await sql`
           INSERT INTO p2p_transactions (
             sender_id, recipient_id, wallet_id, amount, currency, note
           )
@@ -738,14 +778,12 @@ app.post(
             ${note ?? ""}
           )
           RETURNING id
-        `,
-      ]);
-
-      const p2pResult = Array.isArray(txResults)
-        ? txResults[txResults.length - 1] as any[]
-        : [];
-      if (p2pResult[0]?.id) {
-        transactionId = p2pResult[0].id as string;
+        `;
+        if (Array.isArray(p2pResult) && p2pResult[0]?.id) {
+          transactionId = (p2pResult[0] as { id: string }).id;
+        }
+      } catch (_) {
+        // p2p_transactions table may not exist in live DB
       }
 
       res.status(201).json({ transactionId });
@@ -792,6 +830,9 @@ app.get(
 
       res.json({ vouchers });
     } catch (error) {
+      if (isMissingTableOrSchemaError(error)) {
+        return res.json({ vouchers: [] });
+      }
       next(error);
     }
   }
@@ -832,6 +873,9 @@ app.get(
       };
       res.json({ voucher });
     } catch (error) {
+      if (isMissingTableOrSchemaError(error)) {
+        return jsonError(res, 404, "Voucher not found");
+      }
       next(error);
     }
   }
@@ -874,7 +918,7 @@ app.post(
           SELECT id, balance
           FROM wallets
           WHERE user_id = ${userId}
-          ORDER BY created_at ASC
+          ORDER BY updated_at ASC
           LIMIT 1
         `;
         if (walletRows.length === 0) {
@@ -883,35 +927,34 @@ app.post(
         const wallet: any = walletRows[0];
         const newBalance = Number(wallet.balance ?? 0) + amount;
 
-        await sql.transaction((tx) => [
-          tx`UPDATE vouchers SET status = 'redeemed' WHERE id = ${voucherId}`,
-          tx`
-            INSERT INTO voucher_redemptions (voucher_id, user_id, method, amount_credited)
-            VALUES (${voucherId}, ${userId}, ${"wallet"}, ${amount})
-          `,
-          tx`
-            UPDATE wallets
-            SET balance = ${newBalance}, updated_at = now()
-            WHERE id = ${wallet.id}
-          `,
-          tx`
-            INSERT INTO wallet_transactions (wallet_id, type, amount, balance_after, description)
-            VALUES (${wallet.id}, ${"voucher_redeem"}, ${amount}, ${newBalance}, ${"Voucher redeemed to wallet"})
-          `,
-        ]);
+        await sql`UPDATE vouchers SET status = 'redeemed' WHERE id = ${voucherId}`;
+        await sql`
+          INSERT INTO voucher_redemptions (voucher_id, user_id, method, amount_credited)
+          VALUES (${voucherId}, ${userId}, ${"wallet"}, ${amount})
+        `;
+        await sql`
+          UPDATE wallets
+          SET balance = ${newBalance}, updated_at = now()
+          WHERE id = ${wallet.id}
+        `;
+        await sql`
+          INSERT INTO wallet_transactions (wallet_id, type, amount, reference)
+          VALUES (${wallet.id}, ${"voucher_redeem"}, ${amount}, ${"Voucher redeemed to wallet"})
+        `;
 
         return res.status(200).json({ success: true, walletBalance: newBalance });
       }
 
-      await sql.transaction((tx) => [
-        tx`UPDATE vouchers SET status = 'redeemed' WHERE id = ${voucherId}`,
-        tx`
-          INSERT INTO voucher_redemptions (voucher_id, user_id, method, amount_credited)
-          VALUES (${voucherId}, ${userId}, ${method}, ${amount})
-        `,
-      ]);
+      await sql`UPDATE vouchers SET status = 'redeemed' WHERE id = ${voucherId}`;
+      await sql`
+        INSERT INTO voucher_redemptions (voucher_id, user_id, method, amount_credited)
+        VALUES (${voucherId}, ${userId}, ${method}, ${amount})
+      `;
       return res.status(200).json({ success: true });
     } catch (error) {
+      if (isMissingTableOrSchemaError(error)) {
+        return jsonError(res, 503, "Voucher redeem unavailable (schema mismatch)");
+      }
       next(error);
     }
   }

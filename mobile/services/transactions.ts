@@ -74,7 +74,11 @@ export async function getTransactions(params?: {
         return data.transactions ?? data.data ?? [];
       }
     } catch (e) {
-      console.error('getTransactions API error:', e);
+      if (__DEV__) {
+        const isNetwork = e instanceof TypeError && (e.message === 'Network request failed' || e.message?.includes('fetch'));
+        if (isNetwork) console.warn('getTransactions: API unreachable, using local data');
+        else console.error('getTransactions API error:', e);
+      }
     }
   }
   // Fallback: read from AsyncStorage (populated by seedData on first launch)

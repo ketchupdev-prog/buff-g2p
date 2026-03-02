@@ -1,8 +1,10 @@
 /**
  * Network / offline awareness – Buffr G2P.
- * Exposes isOnline and a simple retry helper. Use with NetInfo when installed.
+ * Exposes isOnline, API reachability check, and a simple retry helper.
  * Location: services/network.ts
  */
+
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 
 let _isOnline = true;
 
@@ -18,6 +20,30 @@ export function isOnline(): boolean {
  */
 export function setNetworkState(online: boolean): void {
   _isOnline = online;
+}
+
+/**
+ * Ping backend /healthz. Use to confirm "real API" is reachable.
+ * Returns true if API_BASE_URL is set and GET /healthz returns 200.
+ */
+export async function checkApiReachable(): Promise<boolean> {
+  if (!API_BASE_URL) return false;
+  try {
+    const res = await fetch(`${API_BASE_URL.replace(/\/$/, '')}/healthz`, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Base URL when using real API (for display in banners).
+ */
+export function getApiBaseUrl(): string {
+  return API_BASE_URL;
 }
 
 /**

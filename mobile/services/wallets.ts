@@ -50,7 +50,11 @@ export async function getWallets(): Promise<Wallet[]> {
         return data.wallets ?? data.data ?? [];
       }
     } catch (e) {
-      if (__DEV__) { console.error('getWallets API error:', e); } // SEC-S10
+      if (__DEV__) {
+        const isNetwork = e instanceof TypeError && (e.message === 'Network request failed' || e.message?.includes('fetch'));
+        if (isNetwork) console.warn('getWallets: API unreachable, using local data');
+        else console.error('getWallets API error:', e);
+      }
     }
   }
   try {

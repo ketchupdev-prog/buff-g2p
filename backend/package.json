@@ -6,6 +6,7 @@
   "scripts": {
     "db:check": "node scripts/check-db.mjs",
     "db:seed": "node scripts/seed-db.mjs",
+    "fineract:check": "node scripts/check-fineract.mjs",
     "dev": "nodemon --watch src --ext ts,mjs,js --exec 'npx tsx src/server.ts'",
     "migrate": "node scripts/run-migrations.mjs",
     "type-check": "tsc --noEmit"
