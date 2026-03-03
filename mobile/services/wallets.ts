@@ -1,14 +1,11 @@
 /**
  * Wallets service – Buffr G2P.
- * Fetches and manages user wallets. Uses API when EXPO_PUBLIC_API_BASE_URL is set;
- * falls back to AsyncStorage-persisted local wallets.
+ * Fetches and manages user wallets from backend/API only.
  */
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PRIMARY_WALLET_CARD_FRAME_ID } from '@/constants/CardDesign';
 import { getSecureItem } from '@/services/secureStorage';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
-const STORAGE_KEY_WALLETS = 'buffr_wallets';
 
 export interface Wallet {
   id: string;
@@ -50,18 +47,8 @@ export async function getWallets(): Promise<Wallet[]> {
         return data.wallets ?? data.data ?? [];
       }
     } catch (e) {
-      if (__DEV__) {
-        const isNetwork = e instanceof TypeError && (e.message === 'Network request failed' || e.message?.includes('fetch'));
-        if (isNetwork) console.warn('getWallets: API unreachable, using local data');
-        else console.error('getWallets API error:', e);
-      }
+      if (__DEV__) console.error('getWallets API error:', e);
     }
-  }
-  try {
-    const stored = await AsyncStorage.getItem(STORAGE_KEY_WALLETS);
-    if (stored) return JSON.parse(stored) as Wallet[];
-  } catch (e) {
-    if (__DEV__) { console.error('getWallets storage error:', e); } // SEC-S10
   }
   return [];
 }
@@ -110,27 +97,7 @@ export async function createWallet(
       return { success: false, error: 'Network error' };
     }
   }
-  try {
-    const wallets = await getWallets();
-    const newWallet: Wallet = {
-      id: `wallet_${Date.now()}`,
-      name,
-      type,
-      balance: 0,
-      currency: 'NAD',
-      ...(isPrimary && { isPrimary: true }),
-      ...(cardDesignFrameId != null && { cardDesignFrameId }),
-      ...(targetAmount != null && targetAmount > 0 && { targetAmount }),
-      ...(icon != null && icon.trim() !== '' && { icon: icon.trim() }),
-      createdAt: new Date().toISOString(),
-    };
-    wallets.push(newWallet);
-    await AsyncStorage.setItem(STORAGE_KEY_WALLETS, JSON.stringify(wallets));
-    return { success: true, wallet: newWallet };
-  } catch (e) {
-    if (__DEV__) { console.error('createWallet storage error:', e); } // SEC-S10
-    return { success: false, error: 'Failed to save wallet' };
-  }
+  return { success: false, error: 'Backend not configured' };
 }
 
 /**
@@ -175,18 +142,7 @@ export async function updateWallet(
       return { success: false, error: 'Network error' };
     }
   }
-  try {
-    const wallets = await getWallets();
-    const idx = wallets.findIndex((w) => w.id === id);
-    if (idx < 0) return { success: false, error: 'Wallet not found' };
-    const next = { ...wallets[idx], ...updates };
-    wallets[idx] = next;
-    await AsyncStorage.setItem(STORAGE_KEY_WALLETS, JSON.stringify(wallets));
-    return { success: true, wallet: next };
-  } catch (e) {
-    if (__DEV__) { console.error('updateWallet storage error:', e); } // SEC-S10
-    return { success: false, error: 'Failed to save' };
-  }
+  return { success: false, error: 'Backend not configured' };
 }
 
 /**
@@ -208,18 +164,7 @@ export async function deleteWallet(id: string): Promise<{ success: boolean; erro
       return { success: false, error: 'Network error' };
     }
   }
-  try {
-    const wallets = await getWallets();
-    const w = wallets.find((x) => x.id === id);
-    if (!w) return { success: false, error: 'Wallet not found' };
-    if (w.isPrimary || w.type === 'main') return { success: false, error: 'Cannot delete primary wallet' };
-    const next = wallets.filter((x) => x.id !== id);
-    await AsyncStorage.setItem(STORAGE_KEY_WALLETS, JSON.stringify(next));
-    return { success: true };
-  } catch (e) {
-    if (__DEV__) { console.error('deleteWallet storage error:', e); } // SEC-S10
-    return { success: false, error: 'Failed to delete wallet' };
-  }
+  return { success: false, error: 'Backend not configured' };
 }
 
 export async function addMoneyToWallet(

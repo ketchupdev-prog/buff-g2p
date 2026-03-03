@@ -105,7 +105,7 @@ export default function OtpVerificationScreen() {
             ...designSystem.typography.textStyles.title,
             color: designSystem.colors.neutral.text,
           },
-          headerBackButtonDisplayMode: 'minimal',
+          headerBackTitleVisible: false,
           headerTintColor: designSystem.colors.neutral.text,
         }}
       />

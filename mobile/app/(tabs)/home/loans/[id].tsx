@@ -20,7 +20,6 @@ import { getSecureItem } from '@/services/secureStorage';
 import { useUser } from '@/contexts/UserContext';
 import { InfoBanner, StatusBadge, statusToVariant, Timeline, Toggle, type TimelineEvent } from '@/components/ui';
 import type { ActiveLoan } from './index';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 
@@ -43,19 +42,11 @@ async function getLoan(id: string): Promise<ActiveLoan | null> {
       if (res.ok) return (await res.json()) as ActiveLoan;
     } catch (e) { console.error('getLoan:', e); }
   }
-  try {
-    const raw = await AsyncStorage.getItem('buffr_active_loans');
-    const loans = raw ? (JSON.parse(raw) as ActiveLoan[]) : [];
-    return loans.find(l => l.id === id) ?? null;
-  } catch { return null; }
+  return null;
 }
 
-async function getLoanMeta(id: string): Promise<LoanMeta> {
-  try {
-    const raw = await AsyncStorage.getItem('buffr_loan_details') ?? '{}';
-    const all = JSON.parse(raw) as Record<string, LoanMeta>;
-    return all[id] ?? { name: 'My Loan', icon: '💰' };
-  } catch { return { name: 'My Loan', icon: '💰' }; }
+async function getLoanMeta(_id: string): Promise<LoanMeta> {
+  return { name: 'My Loan', icon: '💰' };
 }
 
 function formatDate(iso: string): string {

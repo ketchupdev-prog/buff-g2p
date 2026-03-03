@@ -1,6 +1,6 @@
 /**
  * Group Detail – Buffr G2P. §3.6 screen 47c.
- * Horizontal member card, request cards with status, group activity from AsyncStorage.
+ * Horizontal member card, request cards with status, group activity from API.
  * Design matches Figma: blue gradient bg, per-member pill, ✓/⏱ status icons.
  */
 import React, { useCallback, useEffect, useState } from 'react';
@@ -16,7 +16,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSecureItem } from '@/services/secureStorage';
 import { designSystem } from '@/constants/designSystem';
 import { Avatar } from '@/components/ui';
@@ -58,7 +57,7 @@ interface Group {
   creatorName?: string;
 }
 
-async function fetchGroup(id: string): Promise<Group> {
+async function fetchGroup(id: string): Promise<Group | null> {
   if (API_BASE_URL) {
     try {
       const h = await getAuthHeader();
@@ -66,77 +65,34 @@ async function fetchGroup(id: string): Promise<Group> {
         headers: { 'Content-Type': 'application/json', ...h },
       });
       if (res.ok) return (await res.json()) as Group;
+      if (res.status === 404) return null;
     } catch { /* fall through */ }
   }
-  return {
-    id,
-    name: 'Savings Circle',
-    memberCount: 5,
-    isAdmin: true,
-    members: [
-      { id: 'm1', name: 'Stephanie Nakale', phone: '+264 81 234 5678', role: 'member' },
-      { id: 'm2', name: 'Florence Nandago', phone: '+264 81 765 4321', role: 'member' },
-      { id: 'm3', name: 'Prudence Shapwa', phone: '+264 81 555 0001', role: 'member' },
-      { id: 'm4', name: 'Shilunga Shikongo', phone: '+264 81 555 0002', role: 'member' },
-      { id: 'm5', name: 'Eino Nashikoto', phone: '+264 81 555 0003', role: 'admin' },
-    ],
-  };
+  return null;
 }
 
 async function loadActivity(groupId: string): Promise<GroupActivity[]> {
+  if (!API_BASE_URL) return [];
   try {
-    const [txsRaw, reqsRaw] = await Promise.all([
-      AsyncStorage.getItem(`buffr_group_txs_${groupId}`),
-      AsyncStorage.getItem(`buffr_group_requests_${groupId}`),
-    ]);
-    const txs = txsRaw
-      ? (JSON.parse(txsRaw) as Array<{ id: string; amount: number; note?: string; walletId?: string; createdAt: string }>)
-          .map(t => ({ id: t.id, memberName: 'You', amount: t.amount, type: 'contribution' as const, note: t.note, createdAt: t.createdAt }))
-      : [];
-    const reqs = reqsRaw
-      ? (JSON.parse(reqsRaw) as Array<{ id: string; amount: number; note?: string; createdAt: string }>)
-          .map(r => ({ id: r.id, memberName: 'You', amount: r.amount, type: 'request' as const, note: r.note, createdAt: r.createdAt }))
-      : [];
-    return [...txs, ...reqs].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const h = await getAuthHeader();
+    const res = await fetch(`${API_BASE_URL}/api/v1/mobile/groups/${groupId}/activity`, { headers: h });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { activity?: GroupActivity[] };
+    const list = Array.isArray(data?.activity) ? data.activity : [];
+    return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   } catch { return []; }
 }
 
-/** Build mock requests with full contribution data for the RequestStatusModal. */
-function buildRequests(group: Group): GroupRequestStatus[] {
-  const perMember1 = 250;
-  const perMember2 = 125;
-  return [
-    {
-      id: 'req1',
-      amount: perMember1 * group.members.length,
-      note: 'Gift for everyone',
-      perMemberAmount: perMember1,
-      paidCount: group.members.length, // fully collected
-      totalMembers: group.members.length,
-      contributions: group.members.map((m, i) => ({
-        memberId: m.id,
-        name: m.name,
-        status: 'Paid' as const,
-        paidAt: new Date(Date.now() - (i + 1) * 3600_000).toISOString(),
-      })),
-      date: new Date(Date.now() - 2 * 86400_000).toISOString(),
-    },
-    {
-      id: 'req2',
-      amount: perMember2 * group.members.length,
-      note: 'Collecting for our fund',
-      perMemberAmount: perMember2,
-      paidCount: 2,
-      totalMembers: group.members.length,
-      contributions: group.members.map((m, i) => ({
-        memberId: m.id,
-        name: m.name,
-        status: (i < 2 ? 'Paid' : 'Pending') as 'Paid' | 'Pending',
-        paidAt: i < 2 ? new Date(Date.now() - (i + 1) * 3600_000).toISOString() : undefined,
-      })),
-      date: new Date(Date.now() - 1 * 86400_000).toISOString(),
-    },
-  ];
+/** Load group requests from API; returns empty array when no API or no endpoint. */
+async function loadRequests(groupId: string): Promise<GroupRequestStatus[]> {
+  if (!API_BASE_URL) return [];
+  try {
+    const h = await getAuthHeader();
+    const res = await fetch(`${API_BASE_URL}/api/v1/mobile/groups/${groupId}/requests`, { headers: h });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { requests?: GroupRequestStatus[] };
+    return Array.isArray(data?.requests) ? data.requests : [];
+  } catch { return []; }
 }
 
 function formatFullDate(iso: string): string {
@@ -169,9 +125,10 @@ export default function GroupDetailScreen() {
   const loadAll = useCallback(async () => {
     if (!id) return;
     try {
-      const [g, acts] = await Promise.all([fetchGroup(id), loadActivity(id)]);
+      const g = await fetchGroup(id);
+      const [reqs, acts] = await Promise.all([loadRequests(id), loadActivity(id)]);
       setGroup(g);
-      setRequests(buildRequests(g));
+      setRequests(reqs);
       setActivity(acts);
     } catch { /* */ } finally {
       setLoading(false);
@@ -316,7 +273,7 @@ export default function GroupDetailScreen() {
             </View>
           )}
 
-          {/* Recent Activity – loaded from AsyncStorage */}
+          {/* Recent Activity – from API */}
           {activity.length > 0 && (
             <View style={styles.activitySection}>
               <Text style={styles.sectionLabel}>Recent Activity</Text>

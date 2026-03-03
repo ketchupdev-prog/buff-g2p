@@ -1,20 +1,18 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { UserProvider } from './UserContext';
 import { GamificationProvider } from './GamificationContext';
 import { OAuthProvider } from './OAuthContext';
-import { seedDemoDataIfNeeded } from '@/services/seedData';
+import { NetworkProvider } from './NetworkContext';
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
-  useEffect(() => {
-    seedDemoDataIfNeeded();
-  }, []);
-
   return (
     <UserProvider>
       <OAuthProvider>
-        <GamificationProvider>
-          {children}
-        </GamificationProvider>
+        <NetworkProvider>
+          <GamificationProvider>
+            {children}
+          </GamificationProvider>
+        </NetworkProvider>
       </OAuthProvider>
     </UserProvider>
   );

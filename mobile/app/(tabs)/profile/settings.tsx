@@ -1,6 +1,6 @@
 /**
  * Profile Settings – Buffr G2P.
- * §3.5 screen 36, §3.5.1 full specification. Sections: Account, Security, Privacy, Help, About.
+ * §3.5 screen 36. Sections: Account, Security, Notifications, Privacy, Help, About.
  * Uses UserContext for profile and state consistency.
  */
 import React from 'react';
@@ -8,7 +8,6 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
-import Constants from 'expo-constants';
 import { designSystem } from '@/constants/designSystem';
 import { useUser } from '@/contexts/UserContext';
 
@@ -53,7 +52,6 @@ const SECTIONS: Array<{ title: string; items: SettingItem[] }> = [
     ],
   },
 ];
-const APP_VERSION = Constants.expoConfig?.version ?? '1.0.0';
 
 export default function ProfileSettingsScreen() {
   useUser();
@@ -89,7 +87,7 @@ export default function ProfileSettingsScreen() {
                     <View style={styles.rowLeft}>
                       <Ionicons name={item.icon as never} size={20} color={designSystem.colors.neutral.textSecondary} />
                       <Text style={[styles.rowLabel, item.id === 'version' && styles.rowLabelMuted]}>{item.label}</Text>
-                      {item.id === 'version' && <Text style={styles.versionText}>{APP_VERSION}</Text>}
+                      {item.id === 'version' && <Text style={styles.versionText}>1.0.0</Text>}
                     </View>
                     {item.id !== 'version' && <Ionicons name="chevron-forward" size={18} color={designSystem.colors.neutral.textTertiary} />}
                   </TouchableOpacity>

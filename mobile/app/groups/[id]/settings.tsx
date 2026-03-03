@@ -32,14 +32,6 @@ interface GroupSettingsData {
   isAdmin: boolean;
 }
 
-const DEFAULT_MEMBERS: GroupMember[] = [
-  { id: 'm1', name: 'Stephanie Nakale', role: 'member' },
-  { id: 'm2', name: 'Florence Nandago', role: 'member' },
-  { id: 'm3', name: 'Prudence Shapwa', role: 'member' },
-  { id: 'm4', name: 'Shilunga Shikongo', role: 'member' },
-  { id: 'm5', name: 'Eino Nashikoto', role: 'admin', isCurrentUser: true },
-];
-
 async function fetchGroupSettings(id: string): Promise<GroupSettingsData> {
   if (API_BASE_URL) {
     try {
@@ -57,25 +49,12 @@ async function fetchGroupSettings(id: string): Promise<GroupSettingsData> {
       }
     } catch { /* fall through */ }
   }
-  // Offline: use persisted list if any, else defaults and seed storage
-  let members: GroupMember[];
-  try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY_GROUP_MEMBERS + id);
-    if (raw) {
-      members = JSON.parse(raw) as GroupMember[];
-      if (!members.some(m => m.isCurrentUser)) members.forEach((m, i) => { if (m.role === 'admin') (members as GroupMember[])[i] = { ...m, isCurrentUser: true }; });
-    } else {
-      members = [...DEFAULT_MEMBERS];
-      await AsyncStorage.setItem(STORAGE_KEY_GROUP_MEMBERS + id, JSON.stringify(members));
-    }
-  } catch {
-    members = [...DEFAULT_MEMBERS];
-  }
+  // Require backend API - return empty state when not available
   return {
-    name: 'Group of 5',
-    memberCount: members.length,
-    members,
-    isAdmin: members.some(m => m.isCurrentUser && m.role === 'admin'),
+    name: 'Group',
+    members: [],
+    memberCount: 0,
+    isAdmin: false,
   };
 }
 

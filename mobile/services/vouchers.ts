@@ -1,9 +1,7 @@
 /**
  * Vouchers service – Buffr G2P.
- * Manages G2P vouchers: list, detail, and 3 redemption methods.
- * API when EXPO_PUBLIC_API_BASE_URL is set; empty-state fallback otherwise.
+ * Manages G2P vouchers from API only.
  */
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSecureItem } from '@/services/secureStorage';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
@@ -62,13 +60,6 @@ export async function getVouchers(): Promise<Voucher[]> {
       console.error('getVouchers API error:', e);
     }
   }
-  // Fallback: read from AsyncStorage (populated by seedData on first launch)
-  try {
-    const stored = await AsyncStorage.getItem('buffr_vouchers');
-    if (stored) return JSON.parse(stored) as Voucher[];
-  } catch (e) {
-    console.error('getVouchers storage error:', e);
-  }
   return [];
 }
 
@@ -88,14 +79,6 @@ export async function getVoucher(id: string): Promise<Voucher | null> {
       console.error('getVoucher API error:', e);
     }
   }
-  // Fallback: find in AsyncStorage
-  try {
-    const stored = await AsyncStorage.getItem('buffr_vouchers');
-    if (stored) {
-      const vouchers = JSON.parse(stored) as Voucher[];
-      return vouchers.find((v) => v.id === id) ?? null;
-    }
-  } catch { /* ignore */ }
   return null;
 }
 

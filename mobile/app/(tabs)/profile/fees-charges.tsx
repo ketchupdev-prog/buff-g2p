@@ -1,6 +1,6 @@
 /**
  * Fees and Charges – Buffr G2P.
- * §12.6 PSD-1 §10.4, PSD-3 §14. Full schedule from legalDocuments; link to Contact us.
+ * §12.6 PSD-1 §10.4, PSD-3 §14. Displays fees, redemption rights from legalTerms.
  * Location: app/(tabs)/profile/fees-charges.tsx
  */
 import React from 'react';
@@ -9,11 +9,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
 import { designSystem } from '@/constants/designSystem';
-import { FEES_AND_CHARGES_SCHEDULE } from '@/constants/legalDocuments';
+import { LEGAL_TERMS } from '@/constants/legalTerms';
 
 export default function FeesChargesScreen() {
-  const handleContact = () => router.push('/(tabs)/profile/contact-us' as never);
-
   return (
     <View style={styles.screen}>
       <View style={styles.backgroundFallback} />
@@ -26,13 +24,10 @@ export default function FeesChargesScreen() {
           <Text style={styles.headerTitle}>Fees and charges</Text>
         </View>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          <Text style={styles.fullDocument}>{FEES_AND_CHARGES_SCHEDULE}</Text>
-
-          <TouchableOpacity style={styles.contactLink} onPress={handleContact}>
-            <Ionicons name="chatbubble-ellipses-outline" size={18} color={designSystem.colors.brand.primary} />
-            <Text style={styles.contactLinkText}>Questions? Contact us</Text>
-            <Ionicons name="chevron-forward" size={16} color={designSystem.colors.brand.primary} />
-          </TouchableOpacity>
+          <Text style={styles.sectionTitle}>Fees</Text>
+          <Text style={styles.body}>{LEGAL_TERMS.feesAndCharges}</Text>
+          <Text style={styles.sectionTitle}>Redemption rights</Text>
+          <Text style={styles.body}>{LEGAL_TERMS.redemptionRights}</Text>
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -56,18 +51,11 @@ const styles = StyleSheet.create({
   headerTitle: { ...designSystem.typography.textStyles.title, color: designSystem.colors.neutral.text },
   scroll: { flex: 1 },
   scrollContent: { padding: designSystem.spacing.g2p.horizontalPadding, paddingTop: 16, paddingBottom: 32 },
-  fullDocument: {
-    ...designSystem.typography.textStyles.body,
+  sectionTitle: {
+    ...designSystem.typography.textStyles.titleSm,
     color: designSystem.colors.neutral.text,
-    lineHeight: 22,
     marginBottom: 8,
+    marginTop: 16,
   },
-  contactLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 20,
-    paddingVertical: 10,
-  },
-  contactLinkText: { ...designSystem.typography.textStyles.body, fontWeight: '600', color: designSystem.colors.brand.primary },
+  body: { ...designSystem.typography.textStyles.body, color: designSystem.colors.neutral.text, marginBottom: 4 },
 });

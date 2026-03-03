@@ -10,13 +10,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { designSystem } from '@/constants/designSystem';
 import { useUser } from '@/contexts/UserContext';
+import { useNetwork } from '@/contexts/NetworkContext';
 import { sendMoney } from '@/services/send';
 import { TwoFAModal } from '@/components/modals';
 import { LEGAL_TERMS } from '@/constants/legalTerms';
 
 export default function ConfirmSendScreen() {
   const { walletStatus } = useUser();
+  const { isOnline: isOnlineState } = useNetwork();
   const isFrozen = walletStatus === 'frozen';
+  const isOffline = !isOnlineState;
+  const disableSend = isFrozen || isOffline;
   const { recipientPhone, recipientName, amount, note, walletId } = useLocalSearchParams<{
     recipientPhone: string;
     recipientName: string;
@@ -56,7 +60,7 @@ export default function ConfirmSendScreen() {
           headerShown: true,
           headerTitle: 'Transfer',
           headerTitleStyle: { ...designSystem.typography.textStyles.title, color: designSystem.colors.neutral.text },
-          headerBackButtonDisplayMode: 'minimal',
+          headerBackTitleVisible: false,
           headerTintColor: designSystem.colors.neutral.text,
         }}
       />
@@ -92,10 +96,18 @@ export default function ConfirmSendScreen() {
               </Text>
             </View>
           )}
+          {isOffline && (
+            <View style={styles.frozenBanner}>
+              <Ionicons name="cloud-offline" size={18} color={designSystem.colors.semantic.warning} />
+              <Text style={styles.frozenBannerText}>
+                You are offline. Financial actions are disabled.
+              </Text>
+            </View>
+          )}
           <TouchableOpacity
-            style={[styles.sendButton, isFrozen && styles.sendButtonDisabled]}
-            onPress={() => !isFrozen && setShow2FA(true)}
-            disabled={isFrozen}
+            style={[styles.sendButton, disableSend && styles.sendButtonDisabled]}
+            onPress={() => !disableSend && setShow2FA(true)}
+            disabled={disableSend}
             accessibilityLabel="Confirm with PIN"
           >
             <Ionicons name="send" size={18} color="#fff" style={{ marginRight: 8 }} />

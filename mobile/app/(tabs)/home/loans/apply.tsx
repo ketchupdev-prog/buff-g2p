@@ -28,7 +28,6 @@ import {
   Toggle,
 } from '@/components/ui';
 import type { LoanOffer } from './index';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 type Step = 'offer' | 'biometric' | 'credited' | 'details';
@@ -50,10 +49,7 @@ async function getOffer(offerId: string): Promise<LoanOffer | null> {
       if (res.ok) return (await res.json()) as LoanOffer;
     } catch (e) { console.error('getOffer:', e); }
   }
-  try {
-    const raw = await AsyncStorage.getItem('buffr_loan_offer');
-    return raw ? (JSON.parse(raw) as LoanOffer) : null;
-  } catch { return null; }
+  return null;
 }
 
 async function applyForLoan(offerId: string, amount: number): Promise<{ success: boolean; loanId?: string; error?: string }> {
@@ -73,32 +69,12 @@ async function applyForLoan(offerId: string, amount: number): Promise<{ success:
       return { success: false, error: err.message ?? 'Application failed.' };
     } catch (e) { console.error('applyForLoan:', e); }
   }
-  try {
-    const loanId = `loan_${Date.now()}`;
-    const interest = Math.round(amount * 0.15);
-    const dueDate = new Date();
-    dueDate.setMonth(dueDate.getMonth() + 1);
-    const newLoan = {
-      id: loanId, amount, interestAmount: interest,
-      totalRepayable: amount + interest,
-      disbursedAt: new Date().toISOString(),
-      status: 'active' as const,
-      repaymentDue: dueDate.toISOString(),
-    };
-    const existing = await AsyncStorage.getItem('buffr_active_loans');
-    const loans = existing ? (JSON.parse(existing) as typeof newLoan[]) : [];
-    await AsyncStorage.setItem('buffr_active_loans', JSON.stringify([...loans, newLoan]));
-    return { success: true, loanId };
-  } catch { return { success: false, error: 'Could not process application.' }; }
+  return { success: false, error: 'Backend not configured. Loan applications require the API.' };
 }
 
 async function saveLoanDetails(loanId: string, name: string, icon: string): Promise<void> {
-  try {
-    const raw = await AsyncStorage.getItem('buffr_loan_details') ?? '{}';
-    const details = JSON.parse(raw) as Record<string, { name: string; icon: string }>;
-    details[loanId] = { name, icon };
-    await AsyncStorage.setItem('buffr_loan_details', JSON.stringify(details));
-  } catch { /* non-critical */ }
+  // Optional: persist display name/icon via API when backend supports it.
+  void loanId; void name; void icon;
 }
 
 const TIER_LABELS: Record<string, string> = {

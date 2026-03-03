@@ -1,79 +1,64 @@
 /**
  * Edit Profile – Buffr G2P.
- * §3.5 Settings sub-screen. Editable name, photo, phone; persists to UserContext (AsyncStorage).
- * Optional backend sync when API is available.
+ * §3.5 Settings sub-screen. Edit name, photo, phone.
  * Location: app/(tabs)/profile/edit-profile.tsx
  */
-import React, { useCallback, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import React, { useState } from 'react';
+import { Alert, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
 import { designSystem } from '@/constants/designSystem';
 import { useUser } from '@/contexts/UserContext';
-import { pickImageFromGallery } from '@/services/device';
+import { updateProfile } from '@/services/profile';
 
 export default function EditProfileScreen() {
-  const { profile, setProfile } = useUser();
+  const { profile, setProfile, user } = useUser();
+  
   const [firstName, setFirstName] = useState(profile?.firstName ?? '');
   const [lastName, setLastName] = useState(profile?.lastName ?? '');
-  const [phone, setPhone] = useState(profile?.phone ?? '');
-  const [photoUri, setPhotoUri] = useState<string | null>(profile?.photoUri ?? null);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [photoUri, setPhotoUri] = useState(profile?.photoUri ?? null);
+  const [loading, setLoading] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
 
-  const handlePickPhoto = useCallback(async () => {
-    const uri = await pickImageFromGallery();
-    if (uri) setPhotoUri(uri);
-  }, []);
+  const handleChange = () => {
+    setHasChanges(true);
+  };
 
-  const validate = useCallback((): boolean => {
-    const trimmedFirst = firstName.trim();
-    const trimmedLast = lastName.trim();
-    if (!trimmedFirst && !trimmedLast) {
-      setError('Please enter at least a first or last name.');
-      return false;
+  const handleSave = async () => {
+    if (!firstName.trim()) {
+      Alert.alert('Required', 'First name is required');
+      return;
     }
-    setError(null);
-    return true;
-  }, [firstName, lastName]);
 
-  const handleSave = useCallback(async () => {
-    if (!validate()) return;
-    setSaving(true);
-    setError(null);
+    setLoading(true);
     try {
-      await setProfile({
+      const result = await updateProfile({
         firstName: firstName.trim(),
         lastName: lastName.trim(),
-        phone: phone.trim() || '',
-        photoUri: photoUri || null,
+        photoUrl: photoUri ?? undefined,
       });
-      Alert.alert('Saved', 'Your profile has been updated.', [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
-    } catch (e) {
-      console.error('EditProfile save:', e);
-      setError('Failed to save. Please try again.');
-    } finally {
-      setSaving(false);
-    }
-  }, [firstName, lastName, phone, photoUri, setProfile, validate]);
 
-  const initials =
-    (firstName.trim()[0] ?? '')?.toUpperCase() + (lastName.trim()[0] ?? '')?.toUpperCase() || '?';
+      if (result.success) {
+        // Update local context
+        await setProfile({
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          photoUri: photoUri,
+        });
+        
+        Alert.alert('Success', 'Your profile has been updated.', [
+          { text: 'OK', onPress: () => router.back() }
+        ]);
+      } else {
+        Alert.alert('Error', result.error ?? 'Failed to update profile');
+      }
+    } catch (e) {
+      Alert.alert('Error', 'An unexpected error occurred');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <View style={styles.screen}>
@@ -85,94 +70,71 @@ export default function EditProfileScreen() {
             <Ionicons name="arrow-back" size={22} color={designSystem.colors.neutral.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Edit profile</Text>
-        </View>
-
-        <KeyboardAvoidingView
-          style={styles.keyboard}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
-        >
-          <ScrollView
-            style={styles.scroll}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
+          <TouchableOpacity 
+            onPress={handleSave} 
+            style={[styles.saveBtn, !hasChanges && styles.saveBtnDisabled]}
+            disabled={!hasChanges || loading}
           >
+            <Text style={[styles.saveBtnText, !hasChanges && styles.saveBtnTextDisabled]}>
+              {loading ? 'Saving...' : 'Save'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardView}
+        >
+          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
             {/* Photo */}
             <View style={styles.photoSection}>
-              <TouchableOpacity
-                onPress={handlePickPhoto}
-                style={styles.avatarTouch}
-                accessibilityLabel="Change profile photo"
-              >
+              <View style={styles.photoContainer}>
                 {photoUri ? (
-                  <Image source={{ uri: photoUri }} style={styles.avatar} />
+                  <Image source={{ uri: photoUri }} style={styles.photo} />
                 ) : (
-                  <View style={styles.avatarFallback}>
-                    <Text style={styles.avatarInitials}>{initials}</Text>
+                  <View style={styles.photoPlaceholder}>
+                    <Ionicons name="person" size={40} color={designSystem.colors.neutral.textTertiary} />
                   </View>
                 )}
-                <View style={styles.avatarBadge}>
-                  <Ionicons name="camera" size={14} color="#fff" />
-                </View>
+              </View>
+              <TouchableOpacity style={styles.changePhotoBtn}>
+                <Text style={styles.changePhotoText}>Change photo</Text>
               </TouchableOpacity>
-              <Text style={styles.photoHint}>Tap to change photo</Text>
             </View>
 
-            {/* Form */}
-            <View style={styles.card}>
-              <Text style={styles.label}>First name</Text>
+            {/* Phone (read-only) */}
+            <View style={styles.field}>
+              <Text style={styles.label}>Phone</Text>
+              <View style={styles.readOnlyField}>
+                <Text style={styles.readOnlyText}>{user?.phone ?? '—'}</Text>
+              </View>
+              <Text style={styles.hint}>Phone number cannot be changed</Text>
+            </View>
+
+            {/* First Name */}
+            <View style={styles.field}>
+              <Text style={styles.label}>First Name</Text>
               <TextInput
                 style={styles.input}
                 value={firstName}
-                onChangeText={setFirstName}
-                placeholder="First name"
+                onChangeText={(text) => { setFirstName(text); handleChange(); }}
+                placeholder="Enter first name"
                 placeholderTextColor={designSystem.colors.neutral.textTertiary}
                 autoCapitalize="words"
-                autoCorrect={false}
-                editable={!saving}
               />
             </View>
-            <View style={styles.card}>
-              <Text style={styles.label}>Last name</Text>
+
+            {/* Last Name */}
+            <View style={styles.field}>
+              <Text style={styles.label}>Last Name</Text>
               <TextInput
                 style={styles.input}
                 value={lastName}
-                onChangeText={setLastName}
-                placeholder="Last name"
+                onChangeText={(text) => { setLastName(text); handleChange(); }}
+                placeholder="Enter last name"
                 placeholderTextColor={designSystem.colors.neutral.textTertiary}
                 autoCapitalize="words"
-                autoCorrect={false}
-                editable={!saving}
               />
             </View>
-            <View style={styles.card}>
-              <Text style={styles.label}>Phone</Text>
-              <TextInput
-                style={styles.input}
-                value={phone}
-                onChangeText={setPhone}
-                placeholder="e.g. +264 81 123 4567"
-                placeholderTextColor={designSystem.colors.neutral.textTertiary}
-                keyboardType="phone-pad"
-                editable={!saving}
-              />
-            </View>
-
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-            <TouchableOpacity
-              style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
-              onPress={handleSave}
-              disabled={saving}
-              accessibilityLabel="Save profile"
-            >
-              {saving ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={styles.saveBtnText}>Save</Text>
-              )}
-            </TouchableOpacity>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -194,67 +156,60 @@ const styles = StyleSheet.create({
     backgroundColor: designSystem.colors.neutral.surface,
   },
   backBtn: { padding: 4, marginRight: 12 },
-  headerTitle: { ...designSystem.typography.textStyles.title, color: designSystem.colors.neutral.text },
-  keyboard: { flex: 1 },
+  headerTitle: { ...designSystem.typography.textStyles.title, color: designSystem.colors.neutral.text, flex: 1 },
+  saveBtn: { padding: 4 },
+  saveBtnDisabled: { opacity: 0.5 },
+  saveBtnText: { ...designSystem.typography.textStyles.body, color: designSystem.colors.brand.primary, fontWeight: '600' },
+  saveBtnTextDisabled: { color: designSystem.colors.neutral.textTertiary },
+  keyboardView: { flex: 1 },
   scroll: { flex: 1 },
-  scrollContent: { padding: designSystem.spacing.g2p.horizontalPadding, paddingTop: 24, paddingBottom: 32 },
+  scrollContent: { padding: designSystem.spacing.g2p.horizontalPadding, paddingTop: 16 },
   photoSection: { alignItems: 'center', marginBottom: 24 },
-  avatarTouch: { position: 'relative' },
-  avatar: { width: 96, height: 96, borderRadius: 48 },
-  avatarFallback: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: designSystem.colors.brand.primaryMuted,
-    justifyContent: 'center',
-    alignItems: 'center',
+  photoContainer: { width: 100, height: 100, borderRadius: 50, overflow: 'hidden', marginBottom: 12 },
+  photo: { width: '100%', height: '100%' },
+  photoPlaceholder: { 
+    width: '100%', 
+    height: '100%', 
+    backgroundColor: designSystem.colors.neutral.border, 
+    justifyContent: 'center', 
+    alignItems: 'center' 
   },
-  avatarInitials: {
-    fontSize: 32,
-    fontWeight: '700',
+  changePhotoBtn: { padding: 4 },
+  changePhotoText: { 
+    ...designSystem.typography.textStyles.body, 
     color: designSystem.colors.brand.primary,
+    fontWeight: '600',
   },
-  avatarBadge: {
-    position: 'absolute',
-    right: 0,
-    bottom: 0,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: designSystem.colors.brand.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
+  field: { marginBottom: 16 },
+  label: { 
+    ...designSystem.typography.textStyles.bodySm, 
+    color: designSystem.colors.neutral.textSecondary,
+    marginBottom: 8,
   },
-  photoHint: { ...designSystem.typography.textStyles.caption, color: designSystem.colors.neutral.textTertiary, marginTop: 8 },
-  card: {
+  input: {
+    height: 48,
     backgroundColor: designSystem.colors.neutral.surface,
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: designSystem.colors.neutral.border,
-    padding: 16,
-    marginBottom: 12,
-  },
-  label: { ...designSystem.typography.textStyles.bodySm, color: designSystem.colors.neutral.textSecondary, marginBottom: 6 },
-  input: {
+    paddingHorizontal: 16,
     ...designSystem.typography.textStyles.body,
     color: designSystem.colors.neutral.text,
-    paddingVertical: 8,
-    paddingHorizontal: 0,
   },
-  errorText: {
-    ...designSystem.typography.textStyles.bodySm,
-    color: designSystem.colors.semantic.error,
-    marginBottom: 12,
-  },
-  saveBtn: {
-    backgroundColor: designSystem.colors.brand.primary,
+  readOnlyField: {
+    height: 48,
+    backgroundColor: designSystem.colors.neutral.border,
     borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
+    paddingHorizontal: 16,
     justifyContent: 'center',
-    marginTop: 8,
-    minHeight: 48,
   },
-  saveBtnDisabled: { opacity: 0.7 },
-  saveBtnText: { ...designSystem.typography.textStyles.body, fontWeight: '600', color: '#fff' },
+  readOnlyText: { 
+    ...designSystem.typography.textStyles.body, 
+    color: designSystem.colors.neutral.textTertiary 
+  },
+  hint: { 
+    ...designSystem.typography.textStyles.caption, 
+    color: designSystem.colors.neutral.textTertiary, 
+    marginTop: 4 
+  },
 });

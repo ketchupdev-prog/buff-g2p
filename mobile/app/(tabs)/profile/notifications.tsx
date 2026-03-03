@@ -1,6 +1,6 @@
 /**
  * Notifications – Buffr G2P.
- * §3.5 / §3.6 Notification Center. Preference toggles (persisted) + inbox from AsyncStorage with seeded data.
+ * §3.5 / §3.6 Notification Center. Preference toggles (persisted) + inbox from API only.
  * Location: app/(tabs)/profile/notifications.tsx
  */
 import React, { useCallback, useEffect, useState } from 'react';
@@ -19,8 +19,9 @@ import { router, Stack } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { designSystem } from '@/constants/designSystem';
 import { useUser } from '@/contexts/UserContext';
+import { getSecureItem } from '@/services/secureStorage';
 
-const STORAGE_KEY = 'buffr_notifications';
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 const PREFERENCES_KEY = 'buffr_notification_preferences';
 
 export type NotifPrefKey = 'voucher' | 'payment' | 'security' | 'system' | 'reminder';
@@ -89,76 +90,54 @@ function relativeTime(iso: string): string {
   return new Date(iso).toLocaleDateString('en-NA', { day: 'numeric', month: 'short' });
 }
 
-// Seed notifications relative to now
-function buildSeedNotifications(): NotifItem[] {
-  const now = Date.now();
-  const h = (n: number) => new Date(now - n * 3600000).toISOString();
-  return [
-    {
-      id: 'n1',
-      type: 'voucher',
-      title: 'Child Support Voucher ready',
-      body: 'Your N$750.00 Child Support Grant voucher is available. Redeem at any NamPost branch or SmartPay agent.',
-      time: h(2),
-      read: false,
-    },
-    {
-      id: 'n2',
-      type: 'payment',
-      title: 'Payment received',
-      body: 'Lucia Aukongo sent you N$200.00. Your wallet balance has been updated.',
-      time: h(6),
-      read: false,
-    },
-    {
-      id: 'n3',
-      type: 'security',
-      title: 'New login detected',
-      body: 'A login was detected on your account. If this wasn\'t you, contact support immediately.',
-      time: h(24),
-      read: true,
-    },
-    {
-      id: 'n4',
-      type: 'reminder',
-      title: 'Proof of life due soon',
-      body: 'Your quarterly identity verification is due in 14 days. Keep your account active by verifying.',
-      time: h(48),
-      read: true,
-    },
-    {
-      id: 'n5',
-      type: 'payment',
-      title: 'Bill payment confirmed',
-      body: 'Your NamPower prepaid electricity payment of N$150.00 was successful. Token: 1234 5678 9012 3456 7890.',
-      time: h(72),
-      read: true,
-    },
-    {
-      id: 'n6',
-      type: 'system',
-      title: 'Welcome to Buffr',
-      body: 'Your account is set up and ready. You can now receive government vouchers, send money, and pay bills.',
-      time: h(168),
-      read: true,
-    },
-  ];
+async function loadNotificationsFromAPI(): Promise<NotifItem[]> {
+  if (!API_BASE_URL) return [];
+  try {
+    const token = await getSecureItem('buffr_access_token');
+    const res = await fetch(`${API_BASE_URL}/api/v1/mobile/notifications`, {
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { notifications?: Array<{ id: string; type?: string; title?: string; message?: string; body?: string; read?: boolean; created_at?: string; date?: string }> };
+    const list = data.notifications ?? [];
+    return list.map((n) => ({
+      id: n.id,
+      type: (n.type as NotifType) ?? 'system',
+      title: n.title ?? '',
+      body: n.message ?? n.body ?? '',
+      time: n.created_at ?? n.date ?? new Date().toISOString(),
+      read: n.read ?? false,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+async function markReadAPI(id: string | 'all'): Promise<void> {
+  if (!API_BASE_URL) return;
+  try {
+    const token = await getSecureItem('buffr_access_token');
+    if (id === 'all') {
+      await fetch(`${API_BASE_URL}/api/v1/mobile/notifications/read-all`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
+    } else {
+      await fetch(`${API_BASE_URL}/api/v1/mobile/notifications/${id}/read`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
+    }
+  } catch { /* ignore */ }
 }
 
 async function loadNotifications(): Promise<NotifItem[]> {
-  try {
-    const stored = await AsyncStorage.getItem(STORAGE_KEY);
-    if (stored) return JSON.parse(stored) as NotifItem[];
-    // First launch — seed
-    const seed = buildSeedNotifications();
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
-    return seed;
-  } catch { return buildSeedNotifications(); }
+  return loadNotificationsFromAPI();
 }
 
 async function markRead(id: string | 'all', notifs: NotifItem[]): Promise<NotifItem[]> {
   const updated = notifs.map(n => id === 'all' || n.id === id ? { ...n, read: true } : n);
-  try { await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated)); } catch { /* ignore */ }
+  await markReadAPI(id);
   return updated;
 }
 

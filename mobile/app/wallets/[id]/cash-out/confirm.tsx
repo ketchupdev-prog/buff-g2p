@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { designSystem } from '@/constants/designSystem';
 import { useUser } from '@/contexts/UserContext';
+import { useNetwork } from '@/contexts/NetworkContext';
 import { executeCashOut, CASH_OUT_METHODS, type CashOutMethod } from '@/services/cashout';
 import { TwoFAModal } from '@/components/modals';
 
@@ -26,7 +27,9 @@ function parseLockoutSeconds(error?: string): number | undefined {
 
 export default function CashOutConfirmScreen() {
   const { walletStatus } = useUser();
+  const { isOnline: isOnlineState } = useNetwork();
   const isFrozen = walletStatus === 'frozen';
+  const isOffline = !isOnlineState;
   const params = useLocalSearchParams<{
     id?: string;
     payeeName?: string;
@@ -60,7 +63,7 @@ export default function CashOutConfirmScreen() {
   const displayAmount = parseFloat(amount ?? '0').toFixed(2);
   const hasValidWallet = Boolean(id?.trim());
   const isLockedOut = lockoutRemaining > 0;
-  const isDisabled = !hasValidWallet || isLockedOut || isFrozen;
+  const isDisabled = !hasValidWallet || isLockedOut || isFrozen || isOffline;
 
   async function handleVerify(pin: string) {
     const result = await executeCashOut({
@@ -171,6 +174,15 @@ export default function CashOutConfirmScreen() {
             <Ionicons name="lock-closed" size={18} color={designSystem.colors.semantic.error} />
             <Text style={styles.lockoutText}>
               Your wallet is frozen. Transactions are disabled.
+            </Text>
+          </View>
+        )}
+
+        {isOffline && (
+          <View style={styles.frozenBanner}>
+            <Ionicons name="cloud-offline" size={18} color={designSystem.colors.semantic.warning} />
+            <Text style={styles.lockoutText}>
+              You are offline. Financial actions are disabled.
             </Text>
           </View>
         )}

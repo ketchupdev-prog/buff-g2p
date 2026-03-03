@@ -1,10 +1,9 @@
 /**
  * NearbyAgentsContent – Buffr G2P §3.4.
  * Shared map + list UI for nearby Buffr agents, NamPost, ATMs.
- * Used by app/agents/nearby.tsx (Map) and app/(tabs)/home/agents/nearby.tsx.
- * When native map (AIRMap/AIRMapMarker) is unavailable (Expo Go or unlinked dev build), we show list + placeholder.
+ * Data from backend/API only.
  */
-import React, { Component, useState } from 'react';
+import React, { Component, useState, useEffect, useCallback } from 'react';
 import {
   Linking,
   Platform,
@@ -20,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import MapView, { Marker, PROVIDER_DEFAULT, PROVIDER_GOOGLE } from 'react-native-maps';
 import { designSystem } from '@/constants/designSystem';
+import { getSecureItem } from '@/services/secureStorage';
 
 const isExpoGo = Constants.appOwnership === 'expo';
 
@@ -54,15 +54,7 @@ export interface AgentLocation {
   services: string[];
 }
 
-const AGENTS: AgentLocation[] = [
-  { id: 'a1', type: 'nampost', name: 'NamPost Windhoek Main', address: 'Independence Ave, Windhoek', region: 'Khomas', distanceKm: 0.8, open: true, phone: '+264 61 201 3000', hours: 'Mon–Fri 08:00–16:30, Sat 08:00–12:00', lat: -22.5597, lng: 17.0832, services: ['Cash Out', 'Voucher Redeem', 'Grant Collection'] },
-  { id: 'a2', type: 'agent', name: 'Buffr Agent – Katutura', address: 'Hosea Kutako Dr, Katutura', region: 'Khomas', distanceKm: 3.2, open: true, phone: '+264 81 234 5678', hours: 'Mon–Sat 07:30–18:00', lat: -22.5464, lng: 17.0456, services: ['Cash Out', 'Airtime', 'Bill Pay'] },
-  { id: 'a3', type: 'atm', name: 'FNB ATM – Maerua Mall', address: 'Maerua Mall, Jan Jonker Rd', region: 'Khomas', distanceKm: 4.1, open: true, hours: '24 hours', lat: -22.5694, lng: 17.0726, services: ['Cardless Withdrawal', 'QR Cash Out'] },
-  { id: 'a4', type: 'nampost', name: 'NamPost Katutura', address: 'Mandume Ndemufayo Ave, Katutura', region: 'Khomas', distanceKm: 3.5, open: false, phone: '+264 61 201 3100', hours: 'Mon–Fri 08:00–16:30', lat: -22.5433, lng: 17.0369, services: ['Cash Out', 'Voucher Redeem', 'Grant Collection'] },
-  { id: 'a5', type: 'agent', name: 'Buffr Agent – Okuryangava', address: 'Okuryangava, Windhoek North', region: 'Khomas', distanceKm: 5.7, open: true, phone: '+264 81 987 6543', hours: 'Mon–Fri 08:00–17:00, Sat 08:00–13:00', lat: -22.5201, lng: 17.0601, services: ['Cash Out', 'Airtime'] },
-  { id: 'a6', type: 'atm', name: 'Standard Bank ATM – Wernhil Park', address: 'Wernhil Park, Independence Ave', region: 'Khomas', distanceKm: 1.4, open: true, hours: '24 hours', lat: -22.5613, lng: 17.0844, services: ['Cardless Withdrawal'] },
-  { id: 'a7', type: 'agent', name: 'Buffr Agent – Independence Ave', address: 'Independence Ave, Windhoek CBD', region: 'Khomas', distanceKm: 1.1, open: true, phone: '+264 81 555 0010', hours: 'Mon–Fri 08:00–17:30, Sat 08:00–13:00', lat: -22.5608, lng: 17.0837, services: ['Cash Out', 'Top Up', 'Bill Pay'] },
-];
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 
 const TYPE_CONFIG: Record<AgentType, { label: string; icon: string; color: string; bg: string; pin: string }> = {
   agent:   { label: 'Buffr Agent', icon: 'person-circle-outline', color: '#0029D6', bg: '#EFF6FF', pin: '#0029D6' },
@@ -93,12 +85,71 @@ function openPhone(phone: string) {
   Linking.openURL(`tel:${phone}`);
 }
 
+function parseAgentLocation(a: Record<string, unknown>): AgentLocation | null {
+  const lat = typeof a.lat === 'number' ? a.lat : Number(a.lat);
+  const lng = typeof a.lng === 'number' ? a.lng : Number(a.lng);
+  if (Number.isNaN(lat) || Number.isNaN(lng)) return null;
+  return {
+    id: String(a.id ?? ''),
+    type: (a.type as AgentType) ?? 'agent',
+    name: String(a.name ?? ''),
+    address: String(a.address ?? ''),
+    region: String(a.region ?? ''),
+    distanceKm: typeof a.distanceKm === 'number' ? a.distanceKm : Number(a.distanceKm) || 0,
+    open: Boolean(a.open),
+    phone: a.phone != null ? String(a.phone) : undefined,
+    hours: String(a.hours ?? ''),
+    lat,
+    lng,
+    services: Array.isArray(a.services) ? (a.services as string[]) : [],
+  };
+}
+
 export function NearbyAgentsContent() {
+  const [agents, setAgents] = useState<AgentLocation[]>([]);
+  const [loading, setLoading] = useState(true);
   const [typeFilter, setTypeFilter] = useState<AgentType | 'all'>('all');
   const [refreshing, setRefreshing] = useState(false);
   const [mapView, setMapView] = useState(false);
 
-  const filtered = AGENTS.filter(
+  const loadAgents = useCallback(async () => {
+    if (!API_BASE_URL) {
+      setAgents([]);
+      setLoading(false);
+      return;
+    }
+    try {
+      const token = await getSecureItem('buffr_access_token');
+      const res = await fetch(`${API_BASE_URL}/api/v1/mobile/locations/nearby`, {
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { locations?: unknown[] };
+        const list = data.locations ?? [];
+        const parsed = list.map((a) => parseAgentLocation(a as Record<string, unknown>)).filter((a): a is AgentLocation => a != null);
+        setAgents(parsed);
+      } else {
+        setAgents([]);
+      }
+    } catch {
+      setAgents([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    loadAgents();
+  }, [loadAgents]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    loadAgents();
+  }, [loadAgents]);
+
+  const filtered = agents.filter(
     (a) => typeFilter === 'all' || a.type === typeFilter,
   ).sort((a, b) => a.distanceKm - b.distanceKm);
 
@@ -177,9 +228,11 @@ export function NearbyAgentsContent() {
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => setRefreshing(false)} tintColor="#0029D6" />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0029D6" />}
         >
-          <Text style={styles.resultCount}>{filtered.length} location{filtered.length !== 1 ? 's' : ''} near you</Text>
+          <Text style={styles.resultCount}>
+          {loading ? 'Loading…' : `${filtered.length} location${filtered.length !== 1 ? 's' : ''} near you`}
+        </Text>
           {filtered.map((agent) => {
             const cfg = TYPE_CONFIG[agent.type];
             return (

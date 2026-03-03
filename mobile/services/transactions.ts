@@ -1,8 +1,7 @@
 /**
  * Transactions service – Buffr G2P.
- * Fetches transaction history and details from API.
+ * Fetches transaction history and details from API only.
  */
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSecureItem } from '@/services/secureStorage';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
@@ -74,26 +73,8 @@ export async function getTransactions(params?: {
         return data.transactions ?? data.data ?? [];
       }
     } catch (e) {
-      if (__DEV__) {
-        const isNetwork = e instanceof TypeError && (e.message === 'Network request failed' || e.message?.includes('fetch'));
-        if (isNetwork) console.warn('getTransactions: API unreachable, using local data');
-        else console.error('getTransactions API error:', e);
-      }
+      if (__DEV__) console.error('getTransactions API error:', e);
     }
-  }
-  // Fallback: read from AsyncStorage (populated by seedData on first launch)
-  try {
-    const stored = await AsyncStorage.getItem('buffr_transactions');
-    if (stored) {
-      let txs = JSON.parse(stored) as Transaction[];
-      if (params?.walletId) txs = txs.filter((t) => t.walletId === params.walletId);
-      if (params?.type) txs = txs.filter((t) => t.type === params.type);
-      if (params?.offset) txs = txs.slice(params.offset);
-      if (params?.limit) txs = txs.slice(0, params.limit);
-      return txs;
-    }
-  } catch (e) {
-    console.error('getTransactions storage error:', e);
   }
   return [];
 }
@@ -114,14 +95,6 @@ export async function getTransaction(id: string): Promise<Transaction | null> {
       console.error('getTransaction API error:', e);
     }
   }
-  // Fallback: find in AsyncStorage
-  try {
-    const stored = await AsyncStorage.getItem('buffr_transactions');
-    if (stored) {
-      const txs = JSON.parse(stored) as Transaction[];
-      return txs.find((t) => t.id === id) ?? null;
-    }
-  } catch { /* ignore */ }
   return null;
 }
 

@@ -10,7 +10,9 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { AppProviders } from '@/contexts/AppProviders';
 import { useGamification } from '@/contexts/GamificationContext';
+import { useNetwork } from '@/contexts/NetworkContext';
 import { BadgeToast } from '@/components/animations/BadgeToast';
+import { OfflineBanner } from '@/components/common/OfflineBanner';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -18,7 +20,18 @@ SplashScreen.preventAutoHideAsync();
 
 function GlobalOverlays() {
   const { pendingToast, clearToast } = useGamification();
-  return <BadgeToast badgeId={pendingToast} onDismiss={clearToast} />;
+  const { isOnline } = useNetwork();
+  return (
+    <>
+      {!isOnline && (
+        <OfflineBanner
+          message="Offline – data may be outdated. Financial actions are disabled."
+          showRetry={false}
+        />
+      )}
+      <BadgeToast badgeId={pendingToast} onDismiss={clearToast} />
+    </>
+  );
 }
 
 export default function RootLayout() {

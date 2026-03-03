@@ -25,11 +25,11 @@ Backend for the Buffr G2P app. Uses the **same Neon PostgreSQL database** as the
 ## Usage
 
 ```ts
-import { sql, getEnv } from "./src/lib/db.js";
+import { sql, getDatabaseUrl } from "./src/lib/db.js";
 
 // Parameterized query (always use this; never string concat)
 const rows = await sql`SELECT * FROM my_table WHERE id = ${id}`;
-const env = getEnv();
+const dbUrl = getDatabaseUrl();
 ```
 
 ## Env (from .env)

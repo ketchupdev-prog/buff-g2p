@@ -1,6 +1,6 @@
 /**
  * Privacy Policy – Buffr G2P.
- * §3.5.1 / §3.5.2. Full Namibian-aligned Privacy Policy from legalDocuments; optional “Open in browser” when URL set.
+ * §3.5 Settings sub-screen. Static summary; link to full policy when URL available.
  * Location: app/(tabs)/profile/privacy-policy.tsx
  */
 import React from 'react';
@@ -9,12 +9,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
 import { designSystem } from '@/constants/designSystem';
-import { PRIVACY_POLICY_FULL } from '@/constants/legalDocuments';
-import { SUPPORT_URLS, openSupportUrl } from '@/constants/support';
 
 export default function PrivacyPolicyScreen() {
-  const handleOpenFull = () => openSupportUrl(SUPPORT_URLS.privacyPolicy);
-
   return (
     <View style={styles.screen}>
       <View style={styles.backgroundFallback} />
@@ -27,13 +23,11 @@ export default function PrivacyPolicyScreen() {
           <Text style={styles.headerTitle}>Privacy policy</Text>
         </View>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          <Text style={styles.fullDocument}>{PRIVACY_POLICY_FULL}</Text>
-          {SUPPORT_URLS.privacyPolicy ? (
-            <TouchableOpacity style={styles.linkButton} onPress={handleOpenFull}>
-              <Ionicons name="open-outline" size={18} color={designSystem.colors.brand.primary} />
-              <Text style={styles.linkButtonText}>Open full policy in browser</Text>
-            </TouchableOpacity>
-          ) : null}
+          <Text style={styles.body}>
+            Buffr G2P respects your privacy. We collect and use your data to provide the service, process
+            vouchers and payments, and comply with legal obligations. We do not sell your personal data.
+            For the full privacy policy, visit our website or contact support when the link is available.
+          </Text>
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -56,19 +50,6 @@ const styles = StyleSheet.create({
   backBtn: { padding: 4, marginRight: 12 },
   headerTitle: { ...designSystem.typography.textStyles.title, color: designSystem.colors.neutral.text },
   scroll: { flex: 1 },
-  scrollContent: { padding: designSystem.spacing.g2p.horizontalPadding, paddingTop: 16, paddingBottom: 32 },
-  fullDocument: {
-    ...designSystem.typography.textStyles.body,
-    color: designSystem.colors.neutral.text,
-    lineHeight: 22,
-    marginBottom: 16,
-  },
-  linkButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 8,
-    paddingVertical: 12,
-  },
-  linkButtonText: { ...designSystem.typography.textStyles.body, fontWeight: '600', color: designSystem.colors.brand.primary },
+  scrollContent: { padding: designSystem.spacing.g2p.horizontalPadding, paddingTop: 16 },
+  body: { ...designSystem.typography.textStyles.body, color: designSystem.colors.neutral.text },
 });

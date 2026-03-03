@@ -8,7 +8,7 @@
 
 **Yes.** All in-app logic is implemented in `buffr-g2p`:
 
-- **Data layer:** Services in `services/` (wallets, transactions, send, vouchers, auth, cashout, etc.) call the backend API when `EXPO_PUBLIC_API_BASE_URL` is set; otherwise they use **AsyncStorage** (and seed data) so the app works offline/demo.
+- **Data layer:** Services in `services/` (wallets, transactions, send, vouchers, auth, cashout, etc.) call the backend API when `EXPO_PUBLIC_API_BASE_URL` is set; otherwise they return empty data or errors. No local fallback data.
 - **Screens:** All PRD §3 screens are implemented (onboarding, home, wallets, send, receive, groups, loans, cards, vouchers, merchants, bills, proof-of-life, transactions, profile, etc.).
 - **Flows:** Send money, add money, cash-out, voucher redeem, loans, groups, add card, etc. are wired in the app.
 
@@ -20,7 +20,7 @@
 
 - **Env:** `EXPO_PUBLIC_API_BASE_URL` (e.g. `https://your-api.vercel.app` or `http://localhost:3000`).
 - **When set:** Services use `fetch(EXPO_PUBLIC_API_BASE_URL + '/api/v1/mobile/...')` with auth headers (Bearer token from secure storage).
-- **When not set:** All data comes from AsyncStorage and seed data; no backend calls.
+- **When not set:** No backend calls. Data is empty or errors; flows that need the API show an appropriate message.
 
 **Where is the API?** The **buffr-g2p** repo only has:
 
@@ -31,7 +31,7 @@ There are **no API routes** in this repo (no Express/Hono/Fastify server, no `/a
 
 1. **Ketchup SmartPay backend** (`ketchup-smartpay/backend`) – if that project exposes `/api/v1/mobile/*`, point `EXPO_PUBLIC_API_BASE_URL` at it.
 2. **A separate backend** you deploy (e.g. Vercel serverless routes) that implements the same API contract.
-3. **Demo mode** – leave `EXPO_PUBLIC_API_BASE_URL` unset and use AsyncStorage.
+3. **Offline / no backend** – leave `EXPO_PUBLIC_API_BASE_URL` unset; app shows empty states or “Backend not configured” where the API is required.
 
 ---
 
@@ -76,7 +76,7 @@ npm run migrate
 |------|--------|
 | App logic (screens, services, flows) | ✅ Implemented |
 | App calls backend when `EXPO_PUBLIC_API_BASE_URL` set | ✅ Implemented |
-| App works without backend (AsyncStorage + seed) | ✅ Implemented |
+| App works without backend (empty/error states) | ✅ Implemented |
 | API server in buffr-g2p repo | ❌ Not present (only DB client + scripts) |
 | Migrations in buffr-g2p | ✅ Added: `backend/migrations/` + run script |
 | Database used by app directly | ❌ No (app talks to API; API uses DB) |

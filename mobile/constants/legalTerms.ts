@@ -1,15 +1,9 @@
 /**
  * Standard legal disclaimers and consent text – Buffr G2P.
- * Aligned with Payment System Management Act 2003 (as amended), PSD-1, PSD-3, ETA 4 of 2019, Bank of Namibia.
- * Full documents: constants/legalDocuments.ts. Referenced in PRD §12.4.3, §12.6.
+ * PSD-1 §10.4, PSD-3 §14, ETA Ch.3/Ch.4, PSD-12. Referenced in PRD §12.4.3, §12.6.
  * Location: constants/legalTerms.ts
  */
-import { LEGAL_DOCUMENTS_VERSION_DATE } from './legalDocuments';
-
 export const LEGAL_TERMS = {
-  /** Version date for display in app */
-  versionDate: LEGAL_DOCUMENTS_VERSION_DATE,
-
   userAgreementIntro:
     'By using Buffr G2P you agree to our Terms of Service and Privacy Policy. Fees and charges apply as displayed in the app.',
 
@@ -23,7 +17,7 @@ export const LEGAL_TERMS = {
 
   /** PSD-1 §16.6–16.13 – complaints process */
   complaintsProcess:
-    'We will acknowledge every complaint upon receipt. We will provide a substantive response within 15 working days of receipt. Complaints must be lodged in writing within 90 days of the date of the incident. If you are not satisfied with our response, you may request escalation to a suitably qualified person within our organisation.',
+    'We will acknowledge every complaint upon receipt. We will provide a substantive response within 15 days of receipt. Complaints must be lodged in writing within 90 days of the date of the incident. If you are not satisfied with our response, you may request escalation to a suitably qualified person within our organisation.',
 
   /** PSD-1 §16.10 – escalation and regulator */
   complaintsEscalation:
@@ -35,5 +29,5 @@ export const LEGAL_TERMS = {
 
   /** Short notice for Contact us / Help centre */
   complaintsNotice:
-    'All complaints are acknowledged on receipt. We respond within 15 working days. Complaints must be lodged in writing within 90 days of the incident. You may request escalation if you are not satisfied. For payment system matters you may also contact the Bank of Namibia.',
+    'All complaints are acknowledged on receipt. We respond within 15 days. Complaints must be lodged within 90 days of the incident. You may request escalation if you are not satisfied.',
 } as const;

@@ -2,25 +2,57 @@
  * Notifications – Buffr G2P.
  * §3.5 / §3.6 Notification Center. List + empty state "No notifications yet."
  */
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack } from 'expo-router';
 import { designSystem } from '@/constants/designSystem';
+import { getSecureItem } from '@/services/secureStorage';
+
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 
 type NotificationItem = { id: string; title: string; body: string; time: string; read: boolean };
+
+async function fetchNotifications(): Promise<NotificationItem[]> {
+  if (!API_BASE_URL) return [];
+  
+  try {
+    const token = await getSecureItem('buffr_access_token');
+    const res = await fetch(`${API_BASE_URL}/api/v1/mobile/notifications`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return data.notifications ?? [];
+    }
+  } catch (e) {
+    console.error('Failed to fetch notifications:', e);
+  }
+  return [];
+}
 
 export default function NotificationsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
+  const loadNotifications = useCallback(async () => {
+    const data = await fetchNotifications();
+    setNotifications(data);
+  }, []);
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    // TODO: fetch from API GET /api/v1/mobile/notifications
-    setNotifications([]);
+    await loadNotifications();
     setRefreshing(false);
-  }, []);
+  }, [loadNotifications]);
+
+  useEffect(() => {
+    loadNotifications();
+  }, [loadNotifications]);
 
   return (
     <View style={styles.screen}>

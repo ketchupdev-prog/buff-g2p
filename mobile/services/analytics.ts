@@ -4,6 +4,10 @@
  * Location: services/analytics.ts
  */
 
+import { getSecureItem } from '@/services/secureStorage';
+
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
+
 export type AnalyticsEvent =
   | { name: 'onboarding_complete' }
   | { name: 'send_money'; amount: number; recipientType?: 'p2p' | 'group' }
@@ -19,13 +23,27 @@ export type AnalyticsEvent =
 const isDev = __DEV__;
 
 /**
- * Record an event. In dev, logs to console; in production, can send to backend or third-party SDK.
+ * Record an event. In dev, logs to console; in production, sends to backend.
  */
-export function recordEvent(event: AnalyticsEvent): void {
+export async function recordEvent(event: AnalyticsEvent): Promise<void> {
   if (isDev) {
     console.log('[Analytics]', event.name, event);
   }
-  // TODO: when backend or SDK is ready:
-  // await fetch('/api/v1/mobile/events', { method: 'POST', body: JSON.stringify(event) });
-  // or: analytics.track(event.name, event);
+  
+  // Send to backend when API is configured
+  if (API_BASE_URL) {
+    try {
+      const token = await getSecureItem('buffr_access_token');
+      await fetch(`${API_BASE_URL}/api/v1/mobile/events`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(event),
+      });
+    } catch (e) {
+      console.warn('Failed to send analytics event:', e);
+    }
+  }
 }

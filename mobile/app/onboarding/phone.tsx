@@ -48,7 +48,7 @@ export default function PhoneEntryScreen() {
             ...designSystem.typography.textStyles.title,
             color: designSystem.colors.neutral.text,
           },
-          headerBackButtonDisplayMode: 'minimal',
+          headerBackTitleVisible: false,
           headerTintColor: designSystem.colors.neutral.text, // Color of the back arrow
         }}
       />

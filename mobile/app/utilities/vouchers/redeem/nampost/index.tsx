@@ -19,15 +19,6 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { designSystem } from '@/constants/designSystem';
 import { getNamPostBranches, type NamPostBranch } from '@/services/vouchers';
 
-const SEED_BRANCHES: NamPostBranch[] = [
-  { id: 'np_wdh_main', name: 'Windhoek Main Post Office', address: 'Independence Ave, Windhoek', distanceKm: 1.2 },
-  { id: 'np_wdh_katutura', name: 'Katutura Post Office', address: 'Eveline Street, Katutura', distanceKm: 3.8 },
-  { id: 'np_wdh_khomasdal', name: 'Khomasdal Post Office', address: 'Theo-Ben Gurirab St, Khomasdal', distanceKm: 2.9 },
-  { id: 'np_omaruru', name: 'Omaruru Post Office', address: 'Omaruru Town Centre', distanceKm: 72.0 },
-  { id: 'np_gobabis', name: 'Gobabis Post Office', address: 'Gobabis Main Road', distanceKm: 198.0 },
-  { id: 'np_rehoboth', name: 'Rehoboth Post Office', address: 'Rehoboth Central', distanceKm: 87.0 },
-];
-
 export default function NamPostRedeemScreen() {
   const { voucherId } = useLocalSearchParams<{ voucherId: string }>();
   const [branches, setBranches] = useState<NamPostBranch[]>([]);
@@ -37,13 +28,9 @@ export default function NamPostRedeemScreen() {
   const [selected, setSelected] = useState<string | null>(null);
 
   useEffect(() => {
-    getNamPostBranches(voucherId ?? '').then(result => {
-      const list = result.length > 0 ? result : SEED_BRANCHES;
-      setBranches(list);
-      setFiltered(list);
-    }).catch(() => {
-      setBranches(SEED_BRANCHES);
-      setFiltered(SEED_BRANCHES);
+    getNamPostBranches(voucherId ?? '').then((result) => {
+      setBranches(result);
+      setFiltered(result);
     }).finally(() => setLoading(false));
   }, [voucherId]);
 

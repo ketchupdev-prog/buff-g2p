@@ -19,14 +19,6 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { designSystem } from '@/constants/designSystem';
 import { getSmartPayUnits, type SmartPayUnit } from '@/services/vouchers';
 
-const SEED_UNITS: SmartPayUnit[] = [
-  { id: 'sp_wdh_1', name: 'SmartPay Agent – Katutura Market', location: 'Katutura Open Market, Windhoek', distanceKm: 3.5 },
-  { id: 'sp_wdh_2', name: 'SmartPay Agent – Wernhil Park', location: 'Wernhil Park Shopping Centre', distanceKm: 1.8 },
-  { id: 'sp_wdh_3', name: 'SmartPay Agent – Moses //Garoëb', location: 'Moses //Garoëb Community Centre', distanceKm: 4.2 },
-  { id: 'sp_wdh_4', name: 'SmartPay Agent – Havana', location: 'Havana Informal Settlement, Windhoek', distanceKm: 5.1 },
-  { id: 'sp_wdh_5', name: 'SmartPay Agent – Rocky Crest', location: 'Rocky Crest Pharmacy Area', distanceKm: 6.3 },
-];
-
 export default function SmartPayRedeemScreen() {
   const { voucherId } = useLocalSearchParams<{ voucherId: string }>();
   const [units, setUnits] = useState<SmartPayUnit[]>([]);
@@ -36,13 +28,9 @@ export default function SmartPayRedeemScreen() {
   const [selected, setSelected] = useState<string | null>(null);
 
   useEffect(() => {
-    getSmartPayUnits(voucherId ?? '').then(result => {
-      const list = result.length > 0 ? result : SEED_UNITS;
-      setUnits(list);
-      setFiltered(list);
-    }).catch(() => {
-      setUnits(SEED_UNITS);
-      setFiltered(SEED_UNITS);
+    getSmartPayUnits(voucherId ?? '').then((result) => {
+      setUnits(result);
+      setFiltered(result);
     }).finally(() => setLoading(false));
   }, [voucherId]);
 

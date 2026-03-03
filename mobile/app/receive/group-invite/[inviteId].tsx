@@ -39,16 +39,7 @@ async function fetchInvite(inviteId: string): Promise<GroupInvite | null> {
       if (res.ok) return (await res.json()) as GroupInvite;
     } catch { /* fall through */ }
   }
-  // Seed invite for demo
-  return {
-    groupId: 'grp_' + inviteId,
-    groupName: 'Savings Circle',
-    inviterName: 'Maria Ndapewa',
-    inviterPhone: '+264 81 234 5678',
-    purpose: 'Monthly savings and emergency fund',
-    memberCount: 6,
-    createdAt: new Date().toISOString(),
-  };
+  return null;
 }
 
 async function respondToInvite(inviteId: string, accept: boolean): Promise<{ success: boolean }> {
@@ -61,7 +52,7 @@ async function respondToInvite(inviteId: string, accept: boolean): Promise<{ suc
       if (res.ok) return { success: true };
     } catch { /* fall through */ }
   }
-  return { success: true };
+  return { success: false };
 }
 
 export default function GroupInviteScreen() {
@@ -70,19 +61,39 @@ export default function GroupInviteScreen() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState<'accepted' | 'declined' | null>(null);
+  const [respondError, setRespondError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchInvite(inviteId ?? '').then(setInvite).finally(() => setLoading(false));
   }, [inviteId]);
 
   async function respond(accept: boolean) {
+    setRespondError(null);
     setSubmitting(true);
-    await respondToInvite(inviteId ?? '', accept);
+    const result = await respondToInvite(inviteId ?? '', accept);
     setSubmitting(false);
-    setDone(accept ? 'accepted' : 'declined');
+    if (result.success) setDone(accept ? 'accepted' : 'declined');
+    else setRespondError('Could not respond. Please try again.');
   }
 
   if (loading) return <View style={styles.center}><ActivityIndicator color={designSystem.colors.brand.primary} /></View>;
+
+  if (!invite) {
+    return (
+      <View style={styles.screen}>
+        <Stack.Screen options={{ headerShown: true, headerTitle: 'Group Invitation', headerTintColor: designSystem.colors.neutral.text, headerStyle: { backgroundColor: '#fff' } }} />
+        <SafeAreaView style={styles.flex} edges={['bottom']}>
+          <View style={styles.center}>
+            <Text style={styles.doneTitle}>Invitation not found</Text>
+            <Text style={styles.doneSub}>This invite may have expired or the link is invalid.</Text>
+            <TouchableOpacity style={styles.btn} onPress={() => router.replace('/(tabs)' as never)}>
+              <Text style={styles.btnText}>Back to Home</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
 
   if (done) {
     return (
@@ -142,6 +153,7 @@ export default function GroupInviteScreen() {
 
           {/* Actions */}
           <View style={styles.actions}>
+            {respondError ? <Text style={styles.errorText}>{respondError}</Text> : null}
             <TouchableOpacity style={[styles.acceptBtn, submitting && styles.btnDisabled]} onPress={() => respond(true)} disabled={submitting} activeOpacity={0.9}>
               {submitting ? <ActivityIndicator color="#fff" /> : (
                 <><Ionicons name="checkmark-outline" size={18} color="#fff" style={{ marginRight: 8 }} /><Text style={styles.acceptBtnText}>Accept Invitation</Text></>
@@ -182,6 +194,7 @@ const styles = StyleSheet.create({
   declineBtn: { height: 56, borderWidth: 1.5, borderColor: DS.colors.neutral.border, borderRadius: 9999, justifyContent: 'center', alignItems: 'center' },
   declineBtnText: { fontSize: 16, fontWeight: '600', color: DS.colors.neutral.textSecondary },
   btnDisabled: { opacity: 0.5 },
+  errorText: { fontSize: 13, color: DS.colors.semantic.error, marginBottom: 8, textAlign: 'center' },
   doneIcon: { width: 80, height: 80, borderRadius: 40, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
   doneTitle: { fontSize: 22, fontWeight: '700', color: DS.colors.neutral.text, marginBottom: 8, textAlign: 'center' },
   doneSub: { fontSize: 14, color: DS.colors.neutral.textSecondary, textAlign: 'center', marginBottom: 28 },

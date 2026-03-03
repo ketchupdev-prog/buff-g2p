@@ -52,16 +52,7 @@ async function fetchRequest(requestId: string): Promise<MoneyRequest | null> {
       if (res.ok) return (await res.json()) as MoneyRequest;
     } catch { /* fall through */ }
   }
-  // Seed for demo
-  return {
-    id: requestId,
-    requesterName: 'David Hamutenya',
-    requesterPhone: '+264 81 765 4321',
-    amount: 250,
-    note: 'Contribution for farewell party',
-    createdAt: new Date(Date.now() - 1800_000).toISOString(),
-    expiresAt: new Date(Date.now() + 86400_000).toISOString(),
-  };
+  return null;
 }
 
 async function payRequest(
@@ -82,7 +73,7 @@ async function payRequest(
       return { success: false, error: data.error ?? 'Payment failed' };
     } catch { /* fall through */ }
   }
-  return { success: true };
+  return { success: false, error: 'Backend not configured. Payment requires the API.' };
 }
 
 async function declineRequest(requestId: string): Promise<void> {
@@ -172,6 +163,23 @@ export default function MoneyRequestScreen() {
       <View style={styles.screen}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.center}><ActivityIndicator color={designSystem.colors.brand.primary} /></View>
+      </View>
+    );
+  }
+
+  if (!request) {
+    return (
+      <View style={styles.screen}>
+        <Stack.Screen options={{ headerShown: true, headerTitle: 'Money Request', headerTintColor: designSystem.colors.neutral.text, headerStyle: { backgroundColor: '#fff' } }} />
+        <SafeAreaView style={styles.flex} edges={['bottom']}>
+          <View style={styles.center}>
+            <Text style={styles.doneTitle}>Request not found</Text>
+            <Text style={styles.doneSub}>This request may have expired or the link is invalid.</Text>
+            <TouchableOpacity style={styles.homeBtn} onPress={() => router.replace('/(tabs)' as never)}>
+              <Text style={styles.homeBtnText}>Back to Home</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
       </View>
     );
   }

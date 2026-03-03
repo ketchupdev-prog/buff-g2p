@@ -18,7 +18,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
 import { getSecureItem } from '@/services/secureStorage';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 
@@ -60,17 +59,7 @@ async function getLoanData(): Promise<{ offer: LoanOffer | null; activeLoans: Ac
       }
     } catch (e) { console.error('getLoanData:', e); }
   }
-  // Fallback: AsyncStorage seed data
-  try {
-    const [offerRaw, loansRaw] = await Promise.all([
-      AsyncStorage.getItem('buffr_loan_offer'),
-      AsyncStorage.getItem('buffr_active_loans'),
-    ]);
-    return {
-      offer: offerRaw ? (JSON.parse(offerRaw) as LoanOffer) : null,
-      activeLoans: loansRaw ? (JSON.parse(loansRaw) as ActiveLoan[]) : [],
-    };
-  } catch { return { offer: null, activeLoans: [] }; }
+  return { offer: null, activeLoans: [] };
 }
 
 function formatDate(iso: string): string {

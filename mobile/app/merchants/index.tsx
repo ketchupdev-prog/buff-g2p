@@ -48,17 +48,6 @@ const CATEGORIES = [
   { id: 'transport', label: 'Transport', icon: 'bus-outline' },
 ];
 
-const SEED_MERCHANTS: Merchant[] = [
-  { id: 'm1', name: 'Pick n Pay Maerua', category: 'grocery', address: 'Maerua Mall, Windhoek', distanceKm: 1.2, isOpen: true },
-  { id: 'm2', name: 'Checkers Independence', category: 'grocery', address: 'Independence Ave, Windhoek', distanceKm: 2.5, isOpen: true },
-  { id: 'm3', name: 'NamOil Service Station', category: 'fuel', address: 'Robert Mugabe Ave, Windhoek', distanceKm: 0.8, isOpen: true },
-  { id: 'm4', name: 'Clicks Pharmacy', category: 'pharmacy', address: 'Grove Mall, Windhoek', distanceKm: 3.1, isOpen: true },
-  { id: 'm5', name: 'KFC Wernhil', category: 'food', address: 'Wernhil Park, Windhoek', distanceKm: 1.8, isOpen: true },
-  { id: 'm6', name: 'Edgars Fashion', category: 'clothing', address: 'Maerua Mall, Windhoek', distanceKm: 1.2, isOpen: false },
-  { id: 'm7', name: 'Namib Mills Shop', category: 'grocery', address: 'Northern Industrial, Windhoek', distanceKm: 4.0, isOpen: true },
-  { id: 'm8', name: 'City Hopper Taxi', category: 'transport', address: 'Windhoek CBD', distanceKm: 0.5, isOpen: true },
-];
-
 async function fetchMerchants(category?: string, search?: string): Promise<Merchant[]> {
   if (API_BASE_URL) {
     try {
@@ -75,13 +64,7 @@ async function fetchMerchants(category?: string, search?: string): Promise<Merch
       }
     } catch { /* fall through */ }
   }
-  let list = SEED_MERCHANTS;
-  if (category && category !== 'all') list = list.filter(m => m.category === category);
-  if (search) {
-    const q = search.toLowerCase();
-    list = list.filter(m => m.name.toLowerCase().includes(q) || m.address.toLowerCase().includes(q));
-  }
-  return list;
+  return [];
 }
 
 export default function MerchantsIndexScreen() {

@@ -1,22 +1,42 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, Image, TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, View, Image, TouchableOpacity, Alert } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { designSystem } from '@/constants/designSystem';
 import { useUser } from '@/contexts/UserContext';
+import { pickImageFromGallery, captureImage } from '@/services/device';
 
 export default function PhotoUploadScreen() {
   const { profile, setProfile } = useUser();
   const [image, setImage] = useState<string | null>(profile?.photoUri ?? null);
+  const [loading, setLoading] = useState(false);
 
   const pickImage = async () => {
-    alert('Choose from Gallery functionality not implemented yet.');
-    setImage('https://via.placeholder.com/150/0000FF/FFFFFF?text=Gallery'); // Placeholder image
+    setLoading(true);
+    try {
+      const uri = await pickImageFromGallery();
+      if (uri) {
+        setImage(uri);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to pick image from gallery');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const takePhoto = async () => {
-    alert('Take Photo functionality not implemented yet.');
-    setImage('https://via.placeholder.com/150/FF0000/FFFFFF?text=Camera'); // Placeholder image
+    setLoading(true);
+    try {
+      const uri = await captureImage();
+      if (uri) {
+        setImage(uri);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to capture image');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleContinue = async () => {

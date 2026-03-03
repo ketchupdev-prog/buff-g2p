@@ -1,115 +1,65 @@
 /**
  * Change PIN – Buffr G2P.
- * §3.5 Settings sub-screen. Set or change 2FA PIN; hashed client-side (pinAuth) and stored in SecureStore.
- * When backend PIN API exists, call it after local update.
+ * §3.5 Settings sub-screen. Enter current PIN, new PIN, confirm.
  * Location: app/(tabs)/profile/change-pin.tsx
  */
-import React, { useCallback, useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import React, { useState } from 'react';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
 import { designSystem } from '@/constants/designSystem';
-import {
-  hasPinSet,
-  setStoredPinHash,
-  hashPin,
-  verifyPin,
-  validatePinFormat,
-  MAX_PIN_LENGTH,
-} from '@/services/pinAuth';
-
-const PIN_LENGTH = 6;
+import { changePin } from '@/services/profile';
+import { validatePinFormat } from '@/services/pinAuth';
 
 export default function ChangePinScreen() {
-  const [isSetMode, setIsSetMode] = useState(true); // true = set new PIN (no current); false = change (require current)
   const [currentPin, setCurrentPin] = useState('');
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const set = await hasPinSet();
-      if (!cancelled) setIsSetMode(!set);
-      setLoading(false);
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
-  const handleSubmit = useCallback(async () => {
-    setError(null);
-
-    if (!isSetMode) {
-      if (!currentPin.trim()) {
-        setError('Enter your current PIN.');
-        return;
-      }
-      const ok = await verifyPin(currentPin);
-      if (!ok) {
-        setError('Current PIN is incorrect.');
-        return;
-      }
-    }
-
-    const vNew = validatePinFormat(newPin);
-    if (!vNew.valid) {
-      setError(vNew.error ?? 'Invalid new PIN.');
+  const handleChangePin = async () => {
+    // Validate current PIN
+    const currentValidation = validatePinFormat(currentPin);
+    if (!currentValidation.valid) {
+      Alert.alert('Invalid PIN', currentValidation.error);
       return;
     }
+
+    // Validate new PIN
+    const newValidation = validatePinFormat(newPin);
+    if (!newValidation.valid) {
+      Alert.alert('Invalid PIN', newValidation.error);
+      return;
+    }
+
+    // Check confirmation matches
     if (newPin !== confirmPin) {
-      setError('New PIN and confirmation do not match.');
+      Alert.alert('PINs do not match', 'Please make sure your new PIN and confirmation match.');
       return;
     }
 
-    setSubmitting(true);
+    setLoading(true);
     try {
-      const hash = await hashPin(newPin);
-      await setStoredPinHash(hash);
-      Alert.alert(
-        isSetMode ? 'PIN set' : 'PIN changed',
-        'Your PIN has been updated successfully.',
-        [{ text: 'OK', onPress: () => router.back() }]
-      );
+      const result = await changePin({ currentPin, newPin });
+      if (result.success) {
+        Alert.alert('Success', 'Your PIN has been changed successfully.', [
+          { text: 'OK', onPress: () => router.back() }
+        ]);
+      } else {
+        Alert.alert('Error', result.error ?? 'Failed to change PIN. Please try again.');
+      }
     } catch (e) {
-      console.error('ChangePin submit:', e);
-      setError('Failed to save PIN. Please try again.');
+      Alert.alert('Error', 'An unexpected error occurred.');
     } finally {
-      setSubmitting(false);
+      setLoading(false);
     }
-  }, [isSetMode, currentPin, newPin, confirmPin]);
+  };
 
-  if (loading) {
-    return (
-      <View style={styles.screen}>
-        <View style={styles.backgroundFallback} />
-        <SafeAreaView style={styles.safe} edges={['top']}>
-          <Stack.Screen options={{ headerShown: false }} />
-          <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-              <Ionicons name="arrow-back" size={22} color={designSystem.colors.neutral.text} />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Change PIN</Text>
-          </View>
-          <View style={styles.loadingWrap}>
-            <ActivityIndicator size="large" color={designSystem.colors.brand.primary} />
-          </View>
-        </SafeAreaView>
-      </View>
-    );
-  }
+  const isValid = currentPin.length >= 4 && newPin.length >= 4 && confirmPin.length >= 4;
 
   return (
     <View style={styles.screen}>
@@ -120,81 +70,110 @@ export default function ChangePinScreen() {
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} accessibilityLabel="Go back">
             <Ionicons name="arrow-back" size={22} color={designSystem.colors.neutral.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{isSetMode ? 'Set PIN' : 'Change PIN'}</Text>
+          <Text style={styles.headerTitle}>Change PIN</Text>
         </View>
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardView}
         >
-          <Text style={styles.body}>
-            {isSetMode
-              ? 'Choose a PIN (4–8 digits) to verify your identity for transactions and sensitive actions.'
-              : 'Enter your current PIN, then choose and confirm a new PIN.'}
-          </Text>
+          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            <Text style={styles.description}>
+              To change your PIN, enter your current PIN, then choose and confirm a new PIN.
+            </Text>
 
-          {!isSetMode && (
-            <View style={styles.card}>
+            <View style={styles.inputGroup}>
               <Text style={styles.label}>Current PIN</Text>
-              <TextInput
-                style={styles.input}
-                value={currentPin}
-                onChangeText={setCurrentPin}
-                placeholder="••••••"
-                placeholderTextColor={designSystem.colors.neutral.textTertiary}
-                keyboardType="number-pad"
-                secureTextEntry
-                maxLength={MAX_PIN_LENGTH}
-                editable={!submitting}
-              />
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={styles.input}
+                  value={currentPin}
+                  onChangeText={setCurrentPin}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  secureTextEntry={!showCurrent}
+                  placeholder="Enter current PIN"
+                  placeholderTextColor={designSystem.colors.neutral.textTertiary}
+                />
+                <TouchableOpacity 
+                  onPress={() => setShowCurrent(!showCurrent)} 
+                  style={styles.eyeBtn}
+                  accessibilityLabel={showCurrent ? 'Hide PIN' : 'Show PIN'}
+                >
+                  <Ionicons 
+                    name={showCurrent ? 'eye-off-outline' : 'eye-outline'} 
+                    size={20} 
+                    color={designSystem.colors.neutral.textSecondary} 
+                  />
+                </TouchableOpacity>
+              </View>
             </View>
-          )}
 
-          <View style={styles.card}>
-            <Text style={styles.label}>{isSetMode ? 'New PIN' : 'New PIN'}</Text>
-            <TextInput
-              style={styles.input}
-              value={newPin}
-              onChangeText={setNewPin}
-              placeholder="••••••"
-              placeholderTextColor={designSystem.colors.neutral.textTertiary}
-              keyboardType="number-pad"
-              secureTextEntry
-              maxLength={MAX_PIN_LENGTH}
-              editable={!submitting}
-            />
-          </View>
-          <View style={styles.card}>
-            <Text style={styles.label}>Confirm new PIN</Text>
-            <TextInput
-              style={styles.input}
-              value={confirmPin}
-              onChangeText={setConfirmPin}
-              placeholder="••••••"
-              placeholderTextColor={designSystem.colors.neutral.textTertiary}
-              keyboardType="number-pad"
-              secureTextEntry
-              maxLength={MAX_PIN_LENGTH}
-              editable={!submitting}
-            />
-          </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>New PIN</Text>
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={styles.input}
+                  value={newPin}
+                  onChangeText={setNewPin}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  secureTextEntry={!showNew}
+                  placeholder="Enter new PIN"
+                  placeholderTextColor={designSystem.colors.neutral.textTertiary}
+                />
+                <TouchableOpacity 
+                  onPress={() => setShowNew(!showNew)} 
+                  style={styles.eyeBtn}
+                  accessibilityLabel={showNew ? 'Hide PIN' : 'Show PIN'}
+                >
+                  <Ionicons 
+                    name={showNew ? 'eye-off-outline' : 'eye-outline'} 
+                    size={20} 
+                    color={designSystem.colors.neutral.textSecondary} 
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
 
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Confirm New PIN</Text>
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={styles.input}
+                  value={confirmPin}
+                  onChangeText={setConfirmPin}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  secureTextEntry={!showConfirm}
+                  placeholder="Confirm new PIN"
+                  placeholderTextColor={designSystem.colors.neutral.textTertiary}
+                />
+                <TouchableOpacity 
+                  onPress={() => setShowConfirm(!showConfirm)} 
+                  style={styles.eyeBtn}
+                  accessibilityLabel={showConfirm ? 'Hide PIN' : 'Show PIN'}
+                >
+                  <Ionicons 
+                    name={showConfirm ? 'eye-off-outline' : 'eye-outline'} 
+                    size={20} 
+                    color={designSystem.colors.neutral.textSecondary} 
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
 
-          <TouchableOpacity
-            style={[styles.submitBtn, submitting && styles.submitBtnDisabled]}
-            onPress={handleSubmit}
-            disabled={submitting}
-            accessibilityLabel={isSetMode ? 'Set PIN' : 'Change PIN'}
-          >
-            {submitting ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Text style={styles.submitBtnText}>{isSetMode ? 'Set PIN' : 'Change PIN'}</Text>
-            )}
-          </TouchableOpacity>
-        </ScrollView>
+            <TouchableOpacity 
+              style={[styles.button, !isValid && styles.buttonDisabled]} 
+              onPress={handleChangePin}
+              disabled={!isValid || loading}
+              accessibilityLabel="Change PIN"
+            >
+              <Text style={styles.buttonText}>
+                {loading ? 'Changing PIN...' : 'Change PIN'}
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
   );
@@ -202,10 +181,7 @@ export default function ChangePinScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  backgroundFallback: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: designSystem.colors.neutral.background,
-  },
+  backgroundFallback: { ...StyleSheet.absoluteFillObject, backgroundColor: designSystem.colors.neutral.background },
   safe: { flex: 1 },
   header: {
     flexDirection: 'row',
@@ -218,56 +194,52 @@ const styles = StyleSheet.create({
   },
   backBtn: { padding: 4, marginRight: 12 },
   headerTitle: { ...designSystem.typography.textStyles.title, color: designSystem.colors.neutral.text },
-  loadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  keyboardView: { flex: 1 },
   scroll: { flex: 1 },
-  scrollContent: {
-    padding: designSystem.spacing.g2p.horizontalPadding,
-    paddingTop: 16,
-    paddingBottom: 32,
-  },
-  body: {
-    ...designSystem.typography.textStyles.body,
+  scrollContent: { padding: designSystem.spacing.g2p.horizontalPadding, paddingTop: 16 },
+  description: { 
+    ...designSystem.typography.textStyles.body, 
     color: designSystem.colors.neutral.textSecondary,
-    marginBottom: 20,
+    marginBottom: 24,
   },
-  card: {
+  inputGroup: { marginBottom: 16 },
+  label: { 
+    ...designSystem.typography.textStyles.bodySm, 
+    color: designSystem.colors.neutral.textSecondary,
+    marginBottom: 8,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: designSystem.colors.neutral.surface,
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: designSystem.colors.neutral.border,
-    padding: 16,
-    marginBottom: 12,
-  },
-  label: {
-    ...designSystem.typography.textStyles.bodySm,
-    color: designSystem.colors.neutral.textSecondary,
-    marginBottom: 6,
   },
   input: {
+    flex: 1,
+    height: 48,
+    paddingHorizontal: 16,
     ...designSystem.typography.textStyles.body,
     color: designSystem.colors.neutral.text,
-    paddingVertical: 10,
-    paddingHorizontal: 0,
-    letterSpacing: 4,
   },
-  errorText: {
-    ...designSystem.typography.textStyles.bodySm,
-    color: designSystem.colors.semantic.error,
-    marginBottom: 12,
+  eyeBtn: {
+    padding: 12,
   },
-  submitBtn: {
+  button: {
+    height: 52,
     backgroundColor: designSystem.colors.brand.primary,
     borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 8,
-    minHeight: 48,
+    alignItems: 'center',
+    marginTop: 24,
   },
-  submitBtnDisabled: { opacity: 0.7 },
-  submitBtnText: {
+  buttonDisabled: {
+    backgroundColor: designSystem.colors.neutral.border,
+  },
+  buttonText: {
+    color: 'white',
     ...designSystem.typography.textStyles.body,
     fontWeight: '600',
-    color: '#fff',
   },
 });

@@ -22,18 +22,13 @@ import { designSystem } from '@/constants/designSystem';
 import { executeCashOut, getBankAccounts } from '@/services/cashout';
 import { getWallet } from '@/services/wallets';
 
-const SEED_ACCOUNTS = [
-  { id: 'bank_ned', bankName: 'Nedbank', accountNumber: '•••• 2293', accountName: 'User Account' },
-  { id: 'bank_bwh', bankName: 'Bank Windhoek', accountNumber: '•••• 4184', accountName: 'User Account' },
-];
-
 const PIN_LENGTH = 6;
 type Step = 'details' | 'pin';
 
 export default function CashOutBankScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [balance, setBalance] = useState<number | null>(null);
-  const [accounts, setAccounts] = useState<typeof SEED_ACCOUNTS>([]);
+  const [accounts, setAccounts] = useState<Array<{ id: string; bankName: string; accountNumber: string; accountName: string }>>([]);
   const [selectedAccount, setSelectedAccount] = useState<string | null>(null);
   const [amount, setAmount] = useState('');
   const [step, setStep] = useState<Step>('details');
@@ -48,9 +43,8 @@ export default function CashOutBankScreen() {
     try {
       const [w, accs] = await Promise.all([getWallet(id), getBankAccounts()]);
       setBalance(w?.balance ?? null);
-      const list = accs.length > 0 ? accs : SEED_ACCOUNTS;
-      setAccounts(list);
-      setSelectedAccount(list[0]?.id ?? null);
+      setAccounts(accs);
+      setSelectedAccount(accs[0]?.id ?? null);
     } catch { /* use defaults */ } finally { setLoading(false); }
   }, [id]);
 

@@ -16,7 +16,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { designSystem } from '@/constants/designSystem';
 import { getSecureItem } from '@/services/secureStorage';
 import { Avatar } from '@/components/ui';
@@ -38,18 +37,7 @@ async function fetchGroupInfo(id: string): Promise<GroupInfo> {
       if (res.ok) return (await res.json()) as GroupInfo;
     } catch { /* fall through */ }
   }
-  return {
-    name: 'Savings Circle',
-    memberCount: 5,
-    isAdmin: true,
-    members: [
-      { id: 'm1', name: 'Stephanie Nakale' },
-      { id: 'm2', name: 'Florence Nandago' },
-      { id: 'm3', name: 'Prudence Shapwa' },
-      { id: 'm4', name: 'Shilunga Shikongo' },
-      { id: 'm5', name: 'Eino Nashikoto' },
-    ],
-  };
+  return { name: '', memberCount: 0, isAdmin: false, members: [] };
 }
 
 async function getAuthHeader(): Promise<Record<string, string>> {
@@ -73,27 +61,7 @@ async function postGroupSend(groupId: string, amount: number, note: string, wall
       return { success: false, error: data.error };
     } catch { /* fall through */ }
   }
-  // Save transaction to group activity
-  const key = `buffr_group_txs_${groupId}`;
-  const stored = await AsyncStorage.getItem(key);
-  const existing = stored ? JSON.parse(stored) as object[] : [];
-  existing.unshift({ id: `gs_${Date.now()}`, type: 'contribution', amount, note, walletId, createdAt: new Date().toISOString() });
-  await AsyncStorage.setItem(key, JSON.stringify(existing));
-
-  // Deduct from wallet balance so home screen reflects the change
-  try {
-    const walletsRaw = await AsyncStorage.getItem('buffr_wallets');
-    if (walletsRaw) {
-      const wallets = JSON.parse(walletsRaw) as Array<{ id: string; balance: number }>;
-      const wallet = wallets.find(w => w.id === walletId);
-      if (wallet) {
-        wallet.balance = Math.max(0, wallet.balance - amount);
-        await AsyncStorage.setItem('buffr_wallets', JSON.stringify(wallets));
-      }
-    }
-  } catch { /* non-critical */ }
-
-  return { success: true };
+  return { success: false, error: 'Backend not configured. Group send requires the API.' };
 }
 
 export default function GroupSendScreen() {

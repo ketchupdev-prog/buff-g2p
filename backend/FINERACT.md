@@ -4,7 +4,82 @@ Backend connects to **Apache Fineract** at **dev.ketchup.cc** for core banking (
 
 ---
 
-## 1. Backend .env (dev.ketchup.cc)
+## Integration layer and services
+
+- **HTTP / auth:** `src/lib/fineract.ts` – `fineractCall()`, `isFineractEnabled()`, `fineractHealth()`, `getFineractConfig()`.
+- **Domain integration:** `src/integrations/fineract/` – clients (`client.ts`), savings (`savings.ts`), loans (`loans.ts`), accounting (`accounting.ts`), shared types (`types.ts`), re-exports (`index.ts`). These modules use the lib layer only; they do not duplicate auth.
+- **Orchestration:**
+  - **Wallet create:** `src/services/walletService.ts` – wallet create with optional Fineract sync (ensure client, create savings account, update `wallets.fineract_savings_account_id` and `users.fineract_client_id`).
+  - **Cash-out:** `src/services/cashoutService.ts` – all wallet debits (Till, Agent, Merchant, ATM) go through `processCashOut()` or `generateAtmCode()`; Neon debit + optional Fineract `withdraw()` + optional `postVoucherCashedOut()` JE. Wired in `server.ts` for `POST /api/v1/mobile/wallets/:id/cashout` and `POST /api/cashout/atm-code`.
+  - **Voucher redeem to wallet:** `src/services/voucherService.ts` – `redeemVoucherToWallet()` handles Neon credit + optional Fineract `deposit()` + optional `postVoucherRedeemed()` JE. Wired in `server.ts` for `POST /api/v1/mobile/vouchers/:id/redeem` (method=wallet).
+  - **Loan disbursement:** `src/services/loanService.ts` – `disburseLoanInBuffr()` performs Neon disbursement and, when Fineract is enabled, create/approve/disburse loan in Fineract and set `loans.fineract_loan_id`. Wire in the loan apply/approval endpoint when it exists (see “Loan disbursement (deferred)” below).
+- **Voucher accounting:** `src/services/voucherAccounting.ts` – optional journal entries for voucher lifecycle (issued, redeemed, cashed out) using configurable GL account IDs. See "Voucher liability vs settled" section.
+
+---
+
+## High-level flow: Buffr → Fineract
+
+- **Buffr user → Fineract client:** When a wallet is created and Fineract is enabled, the backend ensures a Fineract client exists for that user (by `externalId` = Buffr user id). If none is found, it creates one using `POST /clients` (name/phone from Buffr user). The mapping is stored in `users.fineract_client_id`.
+- **Buffr wallet → Fineract savings account:** For each new wallet (Neon row), if Fineract is enabled the backend creates a savings account in Fineract for that client (`POST /clients/{clientId}/savingsaccounts`) and stores the Fineract savings account id in `wallets.fineract_savings_account_id`. Optional env: `FINERACT_OFFICE_ID`, `FINERACT_SAVINGS_PRODUCT_ID` (default 1).
+- **Voucher redeem to wallet:** The handler calls **`voucherService.redeemVoucherToWallet()`**, which updates Neon, then (if Fineract is enabled) posts a deposit to the wallet’s Fineract savings account and optionally `postVoucherRedeemed()`. Failures are logged; the HTTP response is not failed.
+- **ATM cash-out:** The handler calls **`cashoutService.generateAtmCode()`** (or, for `POST /api/v1/mobile/wallets/:id/cashout` with `method=atm`, the same). Other cash-out methods (till, agent, merchant) use **`cashoutService.processCashOut()`**. Neon debit + optional Fineract `withdraw()` + optional `postVoucherCashedOut()` JE; failures are logged.
+- **Loan disbursement (deferred):** When a loan apply/disburse API is added, call **`loanService.disburseLoanInBuffr()`** after approval. It credits the wallet in Neon, updates loan status, and (if Fineract is enabled) create/approve/disburse in Fineract and set `loans.fineract_loan_id`. See `src/services/loanService.ts`.
+
+---
+
+## Fineract integration status (canonical)
+
+Use this section as the single source of truth for what is wired vs not wired. External status docs should align with this.
+
+| Status | Flows |
+|--------|--------|
+| **Wired** | **Wallet create:** `walletService.ts`. **Voucher redeem to wallet:** `voucherService.redeemVoucherToWallet()`. **Cash-out (all methods):** `cashoutService.processCashOut()` (till, agent, merchant) and `cashoutService.generateAtmCode()` (ATM). All wired in `server.ts`; `POST /api/v1/mobile/wallets/:id/cashout` and `POST /api/cashout/atm-code`. |
+| **Not wired** | **Loan disbursement:** When the loan apply/approval endpoint exists, call `loanService.disburseLoanInBuffr()`. **Voucher issued:** call `postVoucherIssued()` where vouchers are created. **Fee journal entries:** optional. **Bank transfer cash-out:** returns 501. |
+
+Orchestration lives in `cashoutService.ts`, `voucherService.ts`, and `loanService.ts`; `server.ts` calls these services.
+
+---
+
+## Voucher liability vs settled (accounting)
+
+For reporting and regulatory (e.g. PSD-3 e-money liability) it is useful to distinguish:
+
+| Category | Meaning | Accounting treatment |
+|----------|---------|------------------------|
+| **Vouchers due to beneficiaries** | Vouchers that have been **issued** but not yet **redeemed**, or redeemed to wallet but not yet **cashed out**. The issuer still owes the beneficiary that value. | **Liability** on the books (e.g. “Vouchers due to beneficiaries” or “Outstanding voucher liability”). |
+| **Vouchers settled / issued in advance** | Beneficiaries who have already **redeemed and cashed out** their vouchers (at one or more separate points). Value has been delivered; no outstanding obligation for those vouchers. | No liability for those amounts; voucher liability is **discharged** when they redeem and cash out. |
+
+**Implementation in accounting (Fineract):**
+
+- **Optional GL journal entries** can reflect this:
+  - **Voucher issued:** Debit programme/expense (or funding), Credit **Vouchers due to beneficiaries** (liability).
+  - **Redeem to wallet:** Debit **Vouchers due**, Credit **E-money liability** (or equivalent) for the same amount (movement from “voucher due” to “wallet balance”).
+  - **Cash-out (ATM/agent/till/etc.):** Debit **E-money liability**, Credit **Cash / Bank** (discharge of e-money liability).
+- The backend **wires** voucher accounting in `server.ts`: **redeem to wallet** and **ATM cash-out** call `postVoucherRedeemed()` and `postVoucherCashedOut()` from `services/voucherAccounting.ts` when Fineract is enabled. **Voucher issued:** call `postVoucherIssued()` from the same service wherever vouchers are created (e.g. G2P sync or admin API that inserts into `vouchers`).
+- **Reporting only:** Alternatively, “vouchers due” can be computed for reports from existing data: sum of `vouchers.amount` where `status` not in (redeemed/settled), plus any definition of “redeemed but not yet cashed” if tracked (e.g. wallet balance backed by voucher-origin transactions). That does not require Fineract journal entries.
+
+So **yes** — the distinction (vouchers due vs already redeemed/cashed out) is something to implement in **accounting** if you want the core ledger to reflect liability; the building block (`postJournalEntry`) is already in place. See the table below for what is wired and what remains.
+
+---
+
+## What else to wire to accounting (PRD alignment)
+
+Per the PRD (§2.2, §2.3, §9.4, §16–17) and current backend, the following are **not yet** wired to Fineract accounting. Wire them when the corresponding APIs or flows exist.
+
+| Flow | PRD / backend | Accounting treatment | Status |
+|------|----------------|----------------------|--------|
+| **Voucher issued** | Vouchers created by G2P engine or admin | Dr Programme/funding, Cr Vouchers due (liability) | Call `postVoucherIssued()` where vouchers are created (no voucher-creation endpoint in backend yet). |
+| **Redeem to wallet** | `POST /api/v1/mobile/vouchers/:id/redeem` (method=wallet) | Dr Vouchers due, Cr E-money liability | ✅ Wired |
+| **ATM cash-out** | `POST /api/cashout/atm-code` | Dr E-money liability, Cr Cash | ✅ Wired |
+| **Till / Agent / Merchant cash-out** | PRD §2.2: user scans payee NAMQR → wallet debited | Same as ATM: Dr E-money, Cr Cash | ✅ Wired via `POST /api/v1/mobile/wallets/:id/cashout` with `method=till|agent|merchant`; uses `cashoutService.processCashOut()`. |
+| **Bank transfer cash-out** | PRD §2.2: wallet → bank (Open Banking PIS) | Dr E-money liability, Cr Bank (or trust account) | When bank transfer endpoint exists: post journal entry (and optionally sync to Fineract/ISO 20022). |
+| **Add money to wallet** | `POST /api/v1/mobile/wallets/:id/add-money` | Dr Bank/Trust (or funding), Cr E-money liability | Optional: journal entry when user tops up (bank/card/agent); optionally Fineract deposit to savings. |
+| **Send money (P2P)** | `POST /api/v1/mobile/send` | Internal transfer: no change in total e-money liability | No journal entry needed for liability; optionally sync to Fineract savings (withdraw sender account, deposit recipient account). |
+| **Loan disbursement** | PRD §2.3; no `POST /loans/apply` in backend yet | Dr Loan receivable (or expense), Cr E-money liability; plus Fineract loan create/disburse | When loan apply/disburse API exists: create loan in Fineract, post JE, store `loans.fineract_loan_id`. |
+| **Loan repayment** (on redeem) | PRD §2.3: deduct from next voucher-to-wallet | Dr E-money liability, Cr Loan receivable (or income) | When redeem flow deducts repayment: post a separate journal entry for the repayment amount. |
+| **Bill payment** | PRD §2.2 wallet payments; no bill-pay endpoint in backend yet | Dr E-money liability, Cr Payable/Biller (or bank) | When bill payment endpoint exists: post journal entry on debit. |
+
+**Summary:** **Already wired:** voucher redeem to wallet, ATM cash-out. **Next:** voucher issued (at source of voucher creation); other cash-out methods if they use a different debit path; add money and loan/bill flows when those APIs exist.
 
 In `backend/.env`:
 
@@ -18,12 +93,26 @@ In `backend/.env`:
 | `FINERACT_API_VERSION` | `v1` | API version path segment |
 | `FINERACT_TIMEOUT_SECONDS` | `30` | Request timeout |
 | `FINERACT_USE_HTTPS` | `true` | Use HTTPS for dev.ketchup.cc |
+| `FINERACT_OFFICE_ID` | (optional) | Default office id; if unset, first office from `GET /offices` is used |
+| `FINERACT_SAVINGS_PRODUCT_ID` | `1` | Savings product id used when creating Buffr wallets in Fineract |
+| `FINERACT_LOAN_PRODUCT_ID` | `1` | Loan product id used when creating Fineract loans (for `loanService.disburseLoanInBuffr`) |
+| `FINERACT_VOUCHER_LIABILITY_ACCOUNT_ID` | `1` | GL account id for voucher liability (for journal entries) |
+| `FINERACT_VOUCHER_REVENUE_ACCOUNT_ID` | `2` | GL account id for voucher revenue (for journal entries) |
+| `FINERACT_EMONEY_LIABILITY_ACCOUNT_ID` | `3` | GL account id for e-money / wallet liability (for journal entries) |
+| `FINERACT_VOUCHER_CASH_ACCOUNT_ID` | `4` | GL account id for cash (for journal entries) |
 
 **Resolved API base:**  
 `https://dev.ketchup.cc/fineract-provider/api/v1`
 
 If Fineract is deployed under a different path on dev.ketchup.cc, set `FINERACT_BASE_URL` to the full base, e.g.  
 `https://dev.ketchup.cc/your-context/fineract-provider/api/v1`.
+
+---
+
+## Fineract API references (optional)
+
+- **Swagger / API reference:** https://demo.fineract.dev/fineract-provider/swagger-ui/index.html (or your instance’s `/fineract-provider/swagger-ui/index.html`).
+- **Integration doc:** See `ketchup-smartpay/fineract/FINERACT_BUFFR_INTEGRATION.md` (if present in the Fineract repo) for endpoint summaries and request bodies used by the Buffr integration.
 
 ---
 

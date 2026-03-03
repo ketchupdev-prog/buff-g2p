@@ -169,7 +169,6 @@ export async function executeCashOut(params: {
   }
 }
 
-// TODO: Connect to backend ATM code generation endpoint
 /** Request a one-time ATM withdrawal code from the server (S3). */
 export async function getATMCode(params: {
   walletId: string;

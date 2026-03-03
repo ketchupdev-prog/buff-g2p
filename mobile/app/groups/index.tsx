@@ -15,11 +15,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { designSystem } from '@/constants/designSystem';
 import { getSecureItem } from '@/services/secureStorage';
 import { Avatar } from '@/components/ui';
-import { SEED_GROUPS } from '@/seed-data/adapt';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 
@@ -52,7 +50,7 @@ async function fetchGroups(): Promise<GroupSummary[]> {
       }
     } catch { /* fall through */ }
   }
-  return SEED_GROUPS as GroupSummary[];
+  return [];
 }
 
 export default function GroupsListScreen() {
