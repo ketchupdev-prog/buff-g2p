@@ -131,4 +131,5 @@ const styles = StyleSheet.create({
   },
 });
 
+export { CardFrame };
 export default CardFrame;

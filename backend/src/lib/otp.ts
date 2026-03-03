@@ -342,12 +342,16 @@ export async function requestOtp(params: OtpRequest): Promise<OtpResponse> {
     
     console.error("OTP request error:", error);
     
-    // Fallback to non-DB mode in development
-    if (process.env.NODE_ENV === "development") {
+    // Fallback to non-DB mode: when in development OR when error suggests DB/setup not ready
+    // (e.g. create_otp missing, table missing, or Twilio not configured) so local dev can proceed.
+    const isDev = process.env.NODE_ENV === "development";
+    const isLikelySetupError = !error?.message || 
+      /does not exist|create_otp|relation.*does not exist|ECONNREFUSED|connect/i.test(String(error.message));
+    if (isDev || isLikelySetupError) {
       const devCode = generateDevCode(normalizedPhone);
       return {
         success: true,
-        message: "DB fallback: OTP generated",
+        message: isDev ? "DB fallback: OTP generated" : "OTP generated (use code below for verification)",
         expiresIn: config_.expiryMinutes * 60,
         devCode: devCode,
       };

@@ -13,7 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Defs, LinearGradient as SvgLinearGradient, Rect, Stop } from 'react-native-svg';
 import { useFocusEffect, router } from 'expo-router';
@@ -23,8 +23,15 @@ import { getContacts, type Contact } from '@/services/send';
 import { getTransactions, formatTransactionType, formatTransactionAmount, transactionIcon, type Transaction } from '@/services/transactions';
 import { checkApiReachable, getApiBaseUrl } from '@/services/network';
 import { designSystem } from '@/constants/designSystem';
-import CardFrame from '@/components/cards/CardFrame';
 import { AppHeader } from '@/components/layout';
+// CardFrame: require with try/catch so runtime never throws "Property 'CardFrame' doesn't exist"
+let CardFrameComponent: React.ComponentType<{ userName: string; cardNumber: string; expiryDate: string }> | null = null;
+try {
+  const mod = require('../../../components/cards/CardFrame');
+  CardFrameComponent = mod?.default ?? mod?.CardFrame ?? null;
+} catch {
+  CardFrameComponent = null;
+}
 import { WalletCarousel, RecentContactsCarousel } from '@/components/home';
 import { AddMoneyModal } from '@/components/modals';
 
@@ -201,6 +208,9 @@ export default function HomeScreen() {
   const bgColors = bg?.screenColors ?? ['#FFFFFF', '#E8FBF9', '#D6EBFE', '#93C5FD', '#C7DAFA', '#EFF6FF'];
   const bgLocations = bg?.screenLocations ?? [0, 0.25, 0.4, 0.5, 0.6, 1];
   const { width, height } = Dimensions.get('window');
+  const insets = useSafeAreaInsets();
+  const tabBarHeight = (designSystem.layout.screenZones as { tabBarTotal?: number }).tabBarTotal ?? 83;
+  const fabBottom = tabBarHeight + insets.bottom - 50;
 
   return (
     <View style={styles.screen}>
@@ -235,7 +245,7 @@ export default function HomeScreen() {
 
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: 140 }]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0029D6" />
@@ -289,8 +299,8 @@ export default function HomeScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.pillBtn}
-                onPress={() => (wallets.length ? setShowAddMoneyModal(true) : router.push('/add-wallet' as never))}
-                accessibilityLabel="Add wallet or add funds"
+                onPress={() => setShowAddMoneyModal(true)}
+                accessibilityLabel="Add funds"
               >
                 <Text style={styles.pillBtnText}>+ Add</Text>
               </TouchableOpacity>
@@ -305,11 +315,19 @@ export default function HomeScreen() {
           >
             <View style={styles.buffrCardThumbWrap}>
               <View style={styles.buffrCardThumbScale}>
-                <CardFrame
-                  userName={displayName}
-                  cardNumber={cardNumberMasked ?? ''}
-                  expiryDate="••/••"
-                />
+                {CardFrameComponent ? (
+                  <CardFrameComponent
+                    userName={displayName}
+                    cardNumber={cardNumberMasked ?? ''}
+                    expiryDate="••/••"
+                  />
+                ) : (
+                  <View style={styles.buffrCardFallback}>
+                    <Text style={styles.buffrCardFallbackBrand}>Buffr</Text>
+                    <Text style={styles.buffrCardFallbackNumber}>{cardNumberMasked ?? '•••• •••• •••• ••••'}</Text>
+                    <Text style={styles.buffrCardFallbackName}>{displayName || 'Card holder'}</Text>
+                  </View>
+                )}
               </View>
             </View>
             <View style={styles.buffrCardTextBlock}>
@@ -317,12 +335,24 @@ export default function HomeScreen() {
                 <Text style={styles.buffrCardTitle}>Buffr Account</Text>
                 <View style={styles.buffrCardActions}>
                   <TouchableOpacity
-                    onPress={(e) => { e.stopPropagation(); wallets.length ? setShowAddMoneyModal(true) : router.push('/add-wallet' as never); }}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      if (wallets.length > 0) {
+                        router.push(`/wallets/${wallets[0].id}/add-money` as never);
+                      } else {
+                        setShowAddMoneyModal(true);
+                      }
+                    }}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
-                    <Text style={styles.buffrCardAddMoney}>{wallets.length ? 'Add money' : 'Add wallet'}</Text>
+                    <Text style={styles.buffrCardLinkBank}>Link Account</Text>
                   </TouchableOpacity>
-                  <Text style={styles.buffrCardView}>View &gt;</Text>
+                  <TouchableOpacity
+                    onPress={(e) => { e.stopPropagation(); router.push('/cards' as never); }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Text style={styles.buffrCardView}>View &gt;</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
               {displayName ? <Text style={styles.buffrCardName}>{displayName}</Text> : null}
@@ -443,7 +473,7 @@ export default function HomeScreen() {
         </ScrollView>
 
         {/* ── FABs ── */}
-        <View style={styles.fabRow}>
+        <View style={[styles.fabRow, { bottom: fabBottom }]}>
           <TouchableOpacity
             style={styles.fabSend}
             onPress={() => router.push('/send-money/select-recipient' as never)}
@@ -551,11 +581,23 @@ const styles = StyleSheet.create({
     marginLeft: -132,
     marginTop: -83,
   },
+  buffrCardFallback: {
+    width: 340,
+    height: 214,
+    borderRadius: 16,
+    backgroundColor: '#1E40AF',
+    padding: 16,
+    justifyContent: 'space-between',
+  },
+  buffrCardFallbackBrand: { color: '#fff', fontSize: 18, fontWeight: '800' },
+  buffrCardFallbackNumber: { color: 'rgba(255,255,255,0.95)', fontSize: 14, fontWeight: '700', letterSpacing: 2 },
+  buffrCardFallbackName: { color: '#fff', fontSize: 12, fontWeight: '600' },
   buffrCardTextBlock: { flex: 1, minWidth: 0 },
   buffrCardTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   buffrCardTitle: { fontSize: 13, fontWeight: '500', color: '#64748B' },
   buffrCardActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   buffrCardAddMoney: { fontSize: 13, fontWeight: '600', color: '#059669' },
+  buffrCardLinkBank: { fontSize: 13, fontWeight: '600', color: '#0029D6' },
   buffrCardView: { fontSize: 13, fontWeight: '600', color: '#0029D6' },
   buffrCardName: { fontSize: 17, fontWeight: '700', color: '#111827', marginBottom: 4 },
   buffrCardNumber: { fontSize: 14, fontWeight: '500', color: '#6B7280', letterSpacing: 2 },
@@ -641,11 +683,10 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 16, fontWeight: '600', color: '#6B7280', marginTop: 12 },
   emptyDesc: { fontSize: 13, color: '#9CA3AF', marginTop: 4 },
 
-  // FABs
-  bottomSpacer: { height: 160 },
+  // FABs – positioned just above the bottom tab bar (tabBarHeight + safeArea.bottom + 6pt gap)
+  bottomSpacer: { height: 100 },
   fabRow: {
     position: 'absolute',
-    bottom: 90,
     left: 0,
     right: 0,
     flexDirection: 'row',

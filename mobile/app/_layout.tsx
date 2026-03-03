@@ -67,8 +67,14 @@ export default function RootLayout() {
         <Stack.Screen name="receive" options={{ presentation: 'card', headerShown: true }} />
         <Stack.Screen name="proof-of-life" options={{ presentation: 'card' }} />
         <Stack.Screen name="add-wallet" options={{ presentation: 'card' }} />
+        <Stack.Screen name="add-card" options={{ presentation: 'card', headerShown: true }} />
+        <Stack.Screen name="cards" options={{ presentation: 'card', headerShown: true }} />
         <Stack.Screen name="scan-qr" options={{ presentation: 'card' }} />
         <Stack.Screen name="groups" options={{ presentation: 'card' }} />
+        <Stack.Screen name="loans" options={{ presentation: 'card' }} />
+        <Stack.Screen name="agents" options={{ presentation: 'card' }} />
+        <Stack.Screen name="profile" options={{ presentation: 'card' }} />
+        <Stack.Screen name="bills" options={{ presentation: 'card' }} />
       </Stack>
       <GlobalOverlays />
     </AppProviders>

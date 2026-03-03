@@ -25,7 +25,6 @@ const PROFILE_LINKS: Array<{ section: string; items: ProfileLink[] }> = [
     items: [
       { id: 'qr', label: 'My QR Code', icon: 'qr-code', route: '/(tabs)/profile/qr-code' },
       { id: 'analytics', label: 'Analytics', icon: 'bar-chart', route: '/(tabs)/profile/analytics' },
-      { id: 'learn', label: 'Financial Literacy', icon: 'book', route: '/(tabs)/profile/learn' },
     ],
   },
   {

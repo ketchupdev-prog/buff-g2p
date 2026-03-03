@@ -3,6 +3,9 @@
 # Dependencies
 node_modules/
 
+# Python venv (Buffr AI)
+/ai/
+
 # Expo
 .expo/
 dist/

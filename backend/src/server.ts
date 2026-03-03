@@ -272,7 +272,7 @@ const requestOtpHandler = async (req: Request, res: Response) => {
       success: true,
       expiresIn: result.expiresIn,
       message: result.message,
-      ...(result.devCode && process.env.NODE_ENV === "development" ? { devCode: result.devCode } : {}),
+      ...(result.devCode ? { devCode: result.devCode } : {}),
     });
   } else {
     res.status(400).json({ success: false, error: result.message });

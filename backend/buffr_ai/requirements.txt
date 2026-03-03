@@ -1,0 +1,22 @@
+# Buffr AI Companion – Python deps. Install: pip install -r buffr_ai/requirements.txt
+# Run from backend/: PYTHONPATH=. uvicorn buffr_ai.main:app --reload
+
+pydantic-ai>=0.0.20
+langgraph>=0.2.0
+langgraph-checkpoint-postgres>=2.0.0
+langchain-core
+pydantic>=2.0
+fastapi
+uvicorn[standard]
+python-dotenv
+httpx
+asyncpg
+psycopg[binary]>=3.1
+
+# Optional ML (uncomment for full ML stack)
+# numpy
+# pandas
+# scikit-learn
+# torch
+# joblib
+# imbalanced-learn

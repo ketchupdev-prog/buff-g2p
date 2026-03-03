@@ -371,9 +371,10 @@ export async function generateBuffrIdFromPhone(phone: string): Promise<{ buffrId
     const hash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, seed + 'buffr-g2p');
     suffix = hash.slice(0, 8).replace(/\D/g, '0').padStart(8, '0').slice(-8);
   } catch {
-    const fallback = Math.abs(
-      Array.from(seed).reduce((acc, c) => ((acc << 5) - acc + c.charCodeAt(0)) | 0, 0))
-    ).toString(16).slice(-8).padStart(8, '0');
+    const n = Math.abs(
+      Array.from(seed).reduce((acc, c) => ((acc << 5) - acc + c.charCodeAt(0)) | 0, 0)
+    );
+    const fallback = n.toString(16).slice(-8).padStart(8, '0');
     suffix = fallback;
   }
   

@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { Stack, router } from 'expo-router';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRef, useState, useEffect } from 'react';
 import { designSystem } from '@/constants/designSystem';
@@ -7,7 +7,7 @@ import { useUser } from '@/contexts/UserContext';
 import { verifyOtp } from '@/services/auth';
 
 const DS = designSystem;
-const OTP_LENGTH = 5;
+const OTP_LENGTH = 6;
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -17,6 +17,7 @@ export default function OtpVerificationScreen() {
   const inputRefs = useRef<(TextInput | null)[]>([]);
   const [verifying, setVerifying] = useState(false);
   const phoneNumber = profile?.phone ?? '+264';
+  const { devCode } = useLocalSearchParams<{ devCode?: string }>();
 
   // S9: Rate-limiting state.
   const [attempts, setAttempts] = useState(0);
@@ -113,10 +114,12 @@ export default function OtpVerificationScreen() {
         <Text style={styles.instructionText}>
           We sent a code to {phoneNumber}
         </Text>
-        {__DEV__ && (
+        {(__DEV__ || devCode) && (
           <View style={styles.devHint}>
             <Text style={styles.devHintText}>
-              Development: No SMS is sent. Use any {OTP_LENGTH}-digit code (e.g. 12345).
+              {devCode
+                ? `Your verification code: ${devCode}`
+                : `Development: No SMS is sent. Use any ${OTP_LENGTH}-digit code (e.g. 123456).`}
             </Text>
           </View>
         )}

@@ -8,9 +8,13 @@ import { requestOtp } from '@/services/auth';
 
 const COUNTRY_CODE = '+264';
 
+type SendChannel = 'sms' | 'email';
+
 export default function PhoneEntryScreen() {
   const { setProfile } = useUser();
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [email, setEmail] = useState('');
+  const [channel, setChannel] = useState<SendChannel>('sms');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -20,19 +24,30 @@ export default function PhoneEntryScreen() {
       setError('Please enter a valid phone number (at least 7 digits).');
       return;
     }
+    if (channel === 'email') {
+      const trimmed = email.trim();
+      if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+        setError('Please enter a valid email address.');
+        return;
+      }
+    }
     const fullPhone = `${COUNTRY_CODE} ${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5)}`.trim();
     await setProfile({ phone: fullPhone });
     setError(null);
     setSending(true);
     try {
-      const result = await requestOtp(fullPhone);
+      const result = await requestOtp(
+        fullPhone,
+        channel === 'email' ? email.trim() : undefined,
+        channel
+      );
       if (result.success) {
-        router.push('/onboarding/otp');
+        router.push({ pathname: '/onboarding/otp', params: result.devCode ? { devCode: result.devCode } : {} });
       } else {
         setError(result.error ?? 'Could not send code. Try again.');
       }
     } catch (e) {
-      setError('Network error. Check your connection.');
+      setError('Network error. Check your connection and that the backend is running.');
     } finally {
       setSending(false);
     }
@@ -71,6 +86,39 @@ export default function PhoneEntryScreen() {
             maxLength={9}
           />
         </View>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Send code by</Text>
+          <View style={styles.channelRow}>
+            <TouchableOpacity
+              style={[styles.channelButton, channel === 'sms' && styles.channelButtonActive]}
+              onPress={() => setChannel('sms')}
+            >
+              <Text style={[styles.channelButtonText, channel === 'sms' && styles.channelButtonTextActive]}>SMS</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.channelButton, channel === 'email' && styles.channelButtonActive]}
+              onPress={() => setChannel('email')}
+            >
+              <Text style={[styles.channelButtonText, channel === 'email' && styles.channelButtonTextActive]}>Email</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {channel === 'email' && (
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Email</Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="you@example.com"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              value={email}
+              onChangeText={setEmail}
+            />
+          </View>
+        )}
 
         <TouchableOpacity style={styles.primaryButton} onPress={handleContinue} disabled={sending}>
           {sending ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Continue</Text>}
@@ -139,5 +187,30 @@ const styles = StyleSheet.create({
     color: designSystem.colors.semantic?.error ?? '#b91c1c',
     marginTop: 8,
     textAlign: 'center',
+  },
+  channelRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  channelButton: {
+    flex: 1,
+    height: designSystem.components.input.height,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: designSystem.components.input.borderRadius,
+    borderWidth: 1,
+    borderColor: designSystem.colors.neutral.border,
+  },
+  channelButtonActive: {
+    borderColor: designSystem.colors.brand.primary,
+    backgroundColor: designSystem.colors.brand.primary + '15',
+  },
+  channelButtonText: {
+    ...designSystem.typography.textStyles.body,
+    color: designSystem.colors.neutral.text,
+  },
+  channelButtonTextActive: {
+    color: designSystem.colors.brand.primary,
+    fontWeight: '600',
   },
 });

@@ -84,7 +84,20 @@ npm run migrate
 
 ---
 
-## 6. Quick setup for “connected” mode
+## 6. Connecting the app to the backend (device / simulator)
+
+The app uses **`EXPO_PUBLIC_API_BASE_URL`** for all API calls (auth, wallets, OTP, etc.).
+
+- **On iOS Simulator or a physical device**, `localhost` refers to the device itself, not your computer. So `http://localhost:3001` will **not** reach a backend running on your Mac.
+- **Fix:** Use your computer’s **LAN IP** in `.env`:
+  - Example: `EXPO_PUBLIC_API_BASE_URL=http://192.168.11.17:3001`
+  - Find your IP: **Mac** → System Settings → Network → Wi‑Fi → Details (or run `ipconfig getifaddr en0` in Terminal).
+- **Backend:** Ensure the backend is running on the same machine (`cd backend && npm run dev`, usually port 3001). The app and backend must be on the same network when using a physical device.
+- **OTP:** With the URL set correctly, “Continue” on the phone entry screen calls `POST …/auth/request-otp`; the backend sends the code via Twilio (SMS) or email if configured. If you don’t get an OTP, check backend logs and Twilio/email config in `backend/.env`.
+
+---
+
+## 7. Quick setup for “connected” mode
 
 1. **Backend:** Deploy or run a service that implements `/api/v1/mobile/*` (e.g. ketchup-smartpay backend, or your own).
 2. **Database:** Ensure that backend has `DATABASE_URL` and has run its migrations (or run `backend/scripts/run-migrations.mjs` for the PRD schema).
@@ -92,3 +105,20 @@ npm run migrate
 4. **Auth:** Backend must issue/validate tokens; app stores them via `getSecureItem('buffr_access_token')` and sends `Authorization: Bearer <token>`.
 
 After that, the app is “connected” to backend and database (via that backend).
+
+---
+
+## 8. Ketchup support contact & credentials
+
+**Support email:** `ichigo@ketchup.cc`
+
+- **Env:** `EXPO_PUBLIC_KETCHUP_SUPPORT_EMAIL` in `mobile/.env` (e.g. `ichigo@ketchup.cc`).
+- **Use in app:** `process.env.EXPO_PUBLIC_KETCHUP_SUPPORT_EMAIL` for "Contact support", help screens, or error reporting.
+- **Template:** See `mobile/.env.example` – support/contact email is optional; set it to show a support contact in the app.
+
+**Support / test account password**
+
+- **Env:** `KETCHUP_SUPPORT_PASSWORD` in `mobile/.env` only. **Do not commit** – `.env` is gitignored.
+- **Purpose:** For support or test account access (e.g. support portal, dev login). Store the value only in local `mobile/.env`.
+- **Example (local only):** `KETCHUP_SUPPORT_PASSWORD=your_password_here`
+- Do not add the real password to `.env.example` or any committed file.

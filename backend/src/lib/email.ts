@@ -1,11 +1,36 @@
 /**
  * Email Service – Buffr G2P.
- * Handles sending OTP codes and notifications via email using SMTP/SendGrid.
+ * Handles sending OTP codes and notifications via email.
+ * When EMAIL_PROVIDER=smtp (Namecheap Private Email), all mail (OTP, welcome, notifications)
+ * is sent via SMTP. Templates: OTP and in-app templates in this file; extended templates
+ * from emailTemplates.ts for transactions, vouchers, loans, groups, KYC, security.
  * Location: backend/src/lib/email.ts
  */
 
 import { config } from "dotenv";
 import { resolve } from "path";
+import nodemailer from "nodemailer";
+import {
+  getMoneyReceivedHtml,
+  getMoneySentHtml,
+  getBillPaymentHtml,
+  getTransactionFailedHtml,
+  getRefundHtml,
+  getVoucherCreatedHtml,
+  getVoucherExpiringHtml,
+  getVoucherExpiredHtml,
+  getLoanApprovedHtml,
+  getLoanRepaymentDueHtml,
+  getLoanOverdueHtml,
+  getLowBalanceHtml,
+  getGroupPaymentReceivedHtml,
+  getGroupRequestHtml,
+  getPinChangedHtml,
+  getDeviceAddedHtml,
+  getGenericSuccessHtml,
+  getGenericInfoHtml,
+  getGenericAlertHtml,
+} from "./emailTemplates.js";
 
 // Load environment
 config({ path: resolve(process.cwd(), "backend/.env") });
@@ -65,8 +90,8 @@ function getEmailConfig(): EmailConfig {
       secure: process.env.SMTP_SECURE === "true",
       user: process.env.SMTP_USER ?? "",
       pass: process.env.SMTP_PASS ?? "",
-      fromEmail: process.env.SMTP_FROM_EMAIL ?? "noreply@buffr.ai",
-      fromName: "Buffr",
+      fromEmail: process.env.SMTP_FROM_EMAIL ?? process.env.FROM_EMAIL ?? "noreply@buffr.ai",
+      fromName: process.env.FROM_NAME ?? "Buffr",
     },
     aliases: {
       noreply: process.env.EMAIL_ALIAS_NOREPLY ?? "no-reply@buffr.ai",
@@ -275,6 +300,168 @@ function getEmailTemplate(purpose: EmailPurpose, data?: Record<string, string | 
       fromName: `${appName} Security`,
       html: getLoginAlertHtml(data),
       text: `New login to your ${appName} account from ${data?.location}`,
+    },
+
+    money_received: {
+      subject: `${appName} - Money Received`,
+      from: config_.aliases.billing,
+      fromName: `${appName} Alerts`,
+      html: getMoneyReceivedHtml(data),
+      text: `You received ${data?.currency || "N$"} ${data?.amount || "0"} from ${data?.sender || "someone"}. Ref: ${data?.reference || "N/A"}`,
+    },
+    money_sent: {
+      subject: `${appName} - Money Sent`,
+      from: config_.aliases.billing,
+      fromName: `${appName} Alerts`,
+      html: getMoneySentHtml(data),
+      text: `You sent ${data?.currency || "N$"} ${data?.amount || "0"} to ${data?.recipient || "someone"}. Ref: ${data?.reference || "N/A"}`,
+    },
+    bill_payment: {
+      subject: `${appName} - Bill Payment Confirmed`,
+      from: config_.aliases.billing,
+      fromName: `${appName} Alerts`,
+      html: getBillPaymentHtml(data),
+      text: `Bill payment ${data?.currency || "N$"} ${data?.amount || "0"} to ${data?.biller || "biller"}. Ref: ${data?.reference || "N/A"}`,
+    },
+    transaction_failed: {
+      subject: `${appName} - Transaction Failed`,
+      from: config_.aliases.billing,
+      fromName: `${appName} Alerts`,
+      html: getTransactionFailedHtml(data),
+      text: `Transaction of ${data?.currency || "N$"} ${data?.amount || "0"} could not be completed. ${data?.reason || "Please try again or contact support."}`,
+    },
+    refund_processed: {
+      subject: `${appName} - Refund Processed`,
+      from: config_.aliases.billing,
+      fromName: `${appName} Alerts`,
+      html: getRefundHtml(data),
+      text: `Refund of ${data?.currency || "N$"} ${data?.amount || "0"} has been processed. Ref: ${data?.reference || "N/A"}`,
+    },
+    voucher_created: {
+      subject: `${appName} - Voucher Created`,
+      from: config_.aliases.noreply,
+      fromName: appName,
+      html: getVoucherCreatedHtml(data),
+      text: `Your voucher ${data?.currency || "N$"} ${data?.amount || "0"} - Code: ${data?.voucherCode || "XXXXXX"}, Expires: ${data?.expiryDate || "30 days"}`,
+    },
+    voucher_expiring: {
+      subject: `${appName} - Voucher Expiring Soon`,
+      from: config_.aliases.noreply,
+      fromName: appName,
+      html: getVoucherExpiringHtml(data),
+      text: `Your voucher ${data?.currency || "N$"} ${data?.amount || "0"} (${data?.voucherCode || "XXXXXX"}) expires ${data?.expiryDate || "soon"}.`,
+    },
+    voucher_expired: {
+      subject: `${appName} - Voucher Expired`,
+      from: config_.aliases.noreply,
+      fromName: appName,
+      html: getVoucherExpiredHtml(data),
+      text: `Your voucher of ${data?.currency || "N$"} ${data?.amount || "0"} has expired.`,
+    },
+    loan_approved: {
+      subject: `${appName} - Loan Approved`,
+      from: config_.aliases.billing,
+      fromName: `${appName} Alerts`,
+      html: getLoanApprovedHtml(data),
+      text: `Your loan of ${data?.currency || "N$"} ${data?.amount || "0"} has been approved. Loan ID: ${data?.loanId || "N/A"}`,
+    },
+    loan_repayment_due: {
+      subject: `${appName} - Repayment Due`,
+      from: config_.aliases.billing,
+      fromName: `${appName} Alerts`,
+      html: getLoanRepaymentDueHtml(data),
+      text: `Loan repayment ${data?.currency || "N$"} ${data?.amount || "0"} is due ${data?.dueDate || "soon"}. Loan ID: ${data?.loanId || "N/A"}`,
+    },
+    loan_repayment_overdue: {
+      subject: `${appName} - Repayment Overdue`,
+      from: config_.aliases.billing,
+      fromName: `${appName} Alerts`,
+      html: getLoanOverdueHtml(data),
+      text: `Loan repayment ${data?.currency || "N$"} ${data?.amount || "0"} is ${data?.daysOverdue || "1"} day(s) overdue. Loan ID: ${data?.loanId || "N/A"}`,
+    },
+    wallet_low_balance: {
+      subject: `${appName} - Low Balance Alert`,
+      from: config_.aliases.billing,
+      fromName: `${appName} Alerts`,
+      html: getLowBalanceHtml(data),
+      text: `Your wallet balance is ${data?.currency || "N$"} ${data?.balance || "0"} (below ${data?.threshold || "100"}).`,
+    },
+    group_payment_received: {
+      subject: `${appName} - Group Payment Received`,
+      from: config_.aliases.billing,
+      fromName: `${appName} Alerts`,
+      html: getGroupPaymentReceivedHtml(data),
+      text: `You received ${data?.currency || "N$"} ${data?.amount || "0"} in ${data?.groupName || "a group"} from ${data?.payer || "someone"}.`,
+    },
+    group_request_received: {
+      subject: `${appName} - Payment Request`,
+      from: config_.aliases.billing,
+      fromName: `${appName} Alerts`,
+      html: getGroupRequestHtml(data),
+      text: `${data?.requester || "Someone"} requested ${data?.currency || "N$"} ${data?.amount || "0"} in ${data?.groupName || "a group"}.`,
+    },
+    pin_changed: {
+      subject: `${appName} - PIN Changed`,
+      from: config_.aliases.security,
+      fromName: `${appName} Security`,
+      html: getPinChangedHtml(data),
+      text: `Your Buffr PIN was changed. Time: ${data?.timestamp || new Date().toLocaleString()}. If this wasn't you, contact support.`,
+    },
+    device_added: {
+      subject: `${appName} - New Device Added`,
+      from: config_.aliases.security,
+      fromName: `${appName} Security`,
+      html: getDeviceAddedHtml(data),
+      text: `New device added to your account: ${data?.device || "Unknown"}, ${data?.location || "Unknown"}. Time: ${data?.timestamp || new Date().toLocaleString()}.`,
+    },
+    phone_verified: {
+      subject: `${appName} - Phone Verified`,
+      from: config_.aliases.noreply,
+      fromName: appName,
+      html: getGenericSuccessHtml("Phone Verified", "Your phone number has been verified successfully.", data),
+      text: "Your Buffr phone number has been verified successfully.",
+    },
+    email_verified: {
+      subject: `${appName} - Email Verified`,
+      from: config_.aliases.noreply,
+      fromName: appName,
+      html: getGenericSuccessHtml("Email Verified", "Your email has been verified successfully.", data),
+      text: "Your Buffr email has been verified successfully.",
+    },
+    kyc_document_uploaded: {
+      subject: `${appName} - KYC Document Received`,
+      from: config_.aliases.support,
+      fromName: appName,
+      html: getGenericInfoHtml("Document Received", "We have received your KYC document.", "We will review it and notify you shortly.", data),
+      text: "We have received your KYC document and will review it shortly.",
+    },
+    kyc_approved: {
+      subject: `${appName} - KYC Approved`,
+      from: config_.aliases.support,
+      fromName: appName,
+      html: getGenericSuccessHtml("KYC Approved", "Your identity has been verified. You now have full access to all Buffr features.", data),
+      text: "Your KYC has been approved. You now have full access to all Buffr features!",
+    },
+    kyc_rejected: {
+      subject: `${appName} - KYC Update`,
+      from: config_.aliases.support,
+      fromName: appName,
+      html: getGenericAlertHtml("KYC Update", "We could not verify your documents.", data?.reason as string || "Please ensure your documents are clear and not expired.", data),
+      text: `KYC update: ${data?.reason || "Please ensure your documents are clear and not expired."}`,
+    },
+    account_suspended: {
+      subject: `${appName} - Account Suspended`,
+      from: config_.aliases.security,
+      fromName: `${appName} Security`,
+      html: getGenericAlertHtml("Account Suspended", "Your account has been temporarily suspended.", data?.reason as string || "For your protection, we've temporarily restricted your account. Contact support.", data),
+      text: `Your account has been suspended. ${data?.reason || "Contact support."}`,
+    },
+    account_reactivated: {
+      subject: `${appName} - Account Reactivated`,
+      from: config_.aliases.support,
+      fromName: appName,
+      html: getGenericSuccessHtml("Account Reactivated", "Your Buffr account has been reactivated. You can sign in again.", data),
+      text: "Your Buffr account has been reactivated. You can sign in again.",
     },
   };
   
@@ -626,20 +813,29 @@ async function sendWithResend(to: string, template: EmailTemplate): Promise<bool
 }
 
 /**
- * Send email via SMTP (using nodemailer-like approach).
+ * Send email via SMTP using nodemailer.
  */
 async function sendWithSmtp(to: string, template: EmailTemplate): Promise<boolean> {
-  // For SMTP, we'd use nodemailer. For now, log and return success in dev.
-  console.log(`[SMTP] Would send email to ${to}: ${template.subject}`);
-  
-  if (process.env.NODE_ENV === "development") {
+  try {
+    const { host, port, secure, user, pass, fromEmail, fromName } = config_.smtp;
+    const transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure,
+      auth: user && pass ? { user, pass } : undefined,
+    });
+    await transporter.sendMail({
+      from: fromName ? `"${fromName}" <${fromEmail}>` : fromEmail,
+      to,
+      subject: template.subject,
+      text: template.text,
+      html: template.html,
+    });
     return true;
+  } catch (error) {
+    console.error("SMTP send error:", error);
+    return false;
   }
-  
-  // In production, you'd use nodemailer:
-  // const transporter = nodemailer.createTransport({ ... });
-  // await transporter.sendMail({ ... });
-  return false;
 }
 
 // ============================================================================
