@@ -26,6 +26,8 @@ CREATE TABLE IF NOT EXISTS proof_of_life_events (
   ip_address        INET,
   user_agent        TEXT
 );
+-- Ensure column exists for index (repair if table existed from older schema)
+ALTER TABLE proof_of_life_events ADD COLUMN IF NOT EXISTS performed_at TIMESTAMPTZ NOT NULL DEFAULT now();
 CREATE INDEX IF NOT EXISTS idx_proof_of_life_user ON proof_of_life_events(user_id, performed_at DESC);
 
 -- Vouchers (issued by G2P engine; synced to app)
@@ -40,6 +42,9 @@ CREATE TABLE IF NOT EXISTS vouchers (
   external_id       VARCHAR(100),
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- Repair: ensure columns exist for index (if table from older schema)
+ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS user_id UUID;
+ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'available';
 CREATE INDEX IF NOT EXISTS idx_vouchers_user_status ON vouchers(user_id, status);
 
 -- Voucher redemptions (audit; used for loan eligibility)

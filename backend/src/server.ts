@@ -2790,6 +2790,48 @@ app.get('/api/v1/mobile/open-banking/accounts/:accountId/transactions', async (r
   }
 });
 
+// --- Buffr AI Companion Proxy ---
+// Proxies requests to Python FastAPI server (port 8000)
+
+const BUFFR_AI_URL = process.env.BUFFR_AI_URL ?? "http://localhost:8000";
+
+// Health check proxy for AI server
+app.get("/api/v1/mobile/ai-health", async (_req: Request, res: Response) => {
+  try {
+    const response = await fetch(`${BUFFR_AI_URL}/health`);
+    const data = await response.json();
+    res.json({ ...data, proxy: "node" });
+  } catch (error) {
+    res.status(503).json({ status: "unavailable", proxy: "node" });
+  }
+});
+
+app.post("/api/v1/mobile/ai-chat", async (req: Request, res: Response, _next: NextFunction) => {
+  try {
+    const response = await fetch(`${BUFFR_AI_URL}/api/buffr-companion/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req.body),
+    });
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (error) {
+    console.error("Buffr AI proxy error:", error);
+    res.status(503).json({ error: "AI companion service temporarily unavailable" });
+  }
+});
+
+// ML endpoints proxy
+app.get("/api/v1/mobile/ml/models", async (_req: Request, res: Response) => {
+  try {
+    const response = await fetch(`${BUFFR_AI_URL}/api/ml/models`);
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    res.status(503).json({ error: "ML service unavailable" });
+  }
+});
+
 // --- Global error handler ---
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

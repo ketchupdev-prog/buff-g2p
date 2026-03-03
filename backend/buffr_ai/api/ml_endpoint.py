@@ -5,7 +5,7 @@ Location: backend/buffr_ai/api/ml_endpoint.py
 Purpose: Expose ML models via REST API endpoints for real-time predictions.
 """
 
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
 from fastapi import APIRouter, HTTPException
 

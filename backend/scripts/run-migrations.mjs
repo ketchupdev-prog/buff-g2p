@@ -30,12 +30,25 @@ function splitStatements(content) {
   const statements = [];
   let current = "";
   const lines = content.split("\n");
+  let inDollarQuote = false;
   for (const line of lines) {
     const trimmed = line.trim();
-    if (trimmed.startsWith("--") || trimmed === "") {
+    if (!inDollarQuote && (trimmed.startsWith("--") || trimmed === "")) {
       continue;
     }
     current += line + "\n";
+    if (inDollarQuote) {
+      if (trimmed.endsWith("$$;")) {
+        inDollarQuote = false;
+        statements.push(current.trim());
+        current = "";
+      }
+      continue;
+    }
+    if (trimmed.includes("$$") && !trimmed.endsWith("$$;")) {
+      inDollarQuote = true;
+      continue;
+    }
     if (trimmed.endsWith(";")) {
       statements.push(current.trim());
       current = "";
@@ -75,6 +88,8 @@ async function main() {
         } catch (err) {
           if (err.code === "42P07") {
             console.log(`  (table/index already exists in ${file}, skipping)`);
+          } else if (err.code === "42703") {
+            console.log(`  (column missing for index in ${file}, skipping: ${err.message})`);
           } else {
             console.error(`  Failed at statement ${i + 1}:`, err.message);
             throw err;

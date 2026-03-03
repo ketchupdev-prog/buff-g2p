@@ -94,7 +94,7 @@ function getEmailConfig(): EmailConfig {
       fromName: process.env.FROM_NAME ?? "Buffr",
     },
     aliases: {
-      noreply: process.env.EMAIL_ALIAS_NOREPLY ?? "no-reply@buffr.ai",
+      noreply: process.env.EMAIL_ALIAS_NOREPLY ?? process.env.SMTP_FROM_EMAIL ?? "noreply@buffr.ai",
       support: process.env.EMAIL_ALIAS_SUPPORT ?? "support@buffr.ai",
       security: process.env.EMAIL_ALIAS_SECURITY ?? "security@buffr.ai",
       billing: process.env.EMAIL_ALIAS_BILLING ?? "billing@buffr.ai",
@@ -728,6 +728,9 @@ function getLoginAlertHtml(data?: Record<string, string | number>): string {
 export async function sendEmail(data: EmailData): Promise<boolean> {
   const template = getEmailTemplate(data.purpose, data.data);
   
+  // Debug: Log which provider is configured
+  console.log(`[Email] Provider: ${config_.provider}, to: ${data.to}, purpose: ${data.purpose}`);
+  
   // Try SendGrid
   if (config_.provider === "sendgrid" && config_.sendgrid.apiKey) {
     return sendWithSendGrid(data.to, template);
@@ -752,7 +755,7 @@ export async function sendEmail(data: EmailData): Promise<boolean> {
     return true;
   }
   
-  console.error("No email provider configured");
+  console.error("[Email] No email provider configured");
   return false;
 }
 
@@ -818,22 +821,39 @@ async function sendWithResend(to: string, template: EmailTemplate): Promise<bool
 async function sendWithSmtp(to: string, template: EmailTemplate): Promise<boolean> {
   try {
     const { host, port, secure, user, pass, fromEmail, fromName } = config_.smtp;
+    
+    // Debug: Log SMTP configuration being used
+    console.log("[Email] Attempting SMTP send:", {
+      host,
+      port,
+      secure,
+      hasUser: !!user,
+      hasPass: !!pass,
+      fromEmail,
+      fromName,
+      to,
+      subject: template.subject
+    });
+    
     const transporter = nodemailer.createTransport({
       host,
       port,
       secure,
       auth: user && pass ? { user, pass } : undefined,
     });
-    await transporter.sendMail({
+    
+    const result = await transporter.sendMail({
       from: fromName ? `"${fromName}" <${fromEmail}>` : fromEmail,
       to,
       subject: template.subject,
       text: template.text,
       html: template.html,
     });
+    
+    console.log("[Email] SMTP send success:", result.messageId);
     return true;
   } catch (error) {
-    console.error("SMTP send error:", error);
+    console.error("[Email] SMTP send error:", error);
     return false;
   }
 }

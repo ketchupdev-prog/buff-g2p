@@ -43,9 +43,20 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="ai"
+        options={{
+          title: 'AI',
+          tabBarIcon: ({ color, focused }) => (
+            <TabBarIcon name={focused ? 'chatbubble-ellipses' : 'chatbubble-ellipses-outline'} color={color} />
+          ),
+        }}
+      />
+      {/* Vouchers: hidden from tab bar; reachable from Home → Vouchers tile at /(tabs)/vouchers */}
+      <Tabs.Screen
         name="vouchers"
         options={{
           title: 'Vouchers',
+          href: null,
           tabBarIcon: ({ color, focused }) => (
             <TabBarIcon name={focused ? 'ticket' : 'ticket-outline'} color={color} />
           ),

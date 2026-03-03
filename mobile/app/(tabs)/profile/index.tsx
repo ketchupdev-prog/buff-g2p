@@ -33,7 +33,7 @@ const PROFILE_LINKS: Array<{ section: string; items: ProfileLink[] }> = [
       { id: 'proof', label: 'Proof of Life', icon: 'shield-checkmark', route: '/proof-of-life/verify' },
       { id: 'notifications', label: 'Notifications', icon: 'notifications', route: '/(tabs)/profile/notifications' },
       { id: 'location', label: 'Find Agents & ATMs', icon: 'location', route: '/(tabs)/profile/location' },
-      { id: 'aichat', label: 'AI Assistant', icon: 'chatbubble-ellipses', route: '/(tabs)/profile/ai-chat' },
+      { id: 'aichat', label: 'AI Assistant', icon: 'chatbubble-ellipses', route: '/(tabs)/ai' },
     ],
   },
   {

@@ -6,7 +6,7 @@
 
 ## 1. Namecheap Private Email (current setup)
 
-We use **Namecheap Private Email** for `ichigo@ketchup.cc`.
+We use **Namecheap Private Email** for **ichigo@ketchup.cc**. The password is set only in `backend/.env` as `SMTP_PASS` (never commit it).
 
 **SMTP settings:**
 

@@ -521,7 +521,7 @@ Single source of truth for **all** screens, sub-screens/modals, and **every flow
 | 41 | My QR Code | `/qr-code` | Screen | §3.6 |
 | 41b | QR Code Scanner | `/scan-qr` | Screen | §3.6 |
 | 42 | Notification Center | `/notifications` | Screen/Modal | §3.6 |
-| 43 | AI Chat | `/ai-chat` | Screen | §3.6 |
+| 43 | AI Chat (Buffr AI Companion) | `/(tabs)/ai` (tab) or `/profile/ai-chat` | Screen | §3.6. Primary entry: AI tab in tab bar; also from Profile → AI Assistant. Uses Buffr Companion API when `EXPO_PUBLIC_BUFFR_AI_URL` set. |
 | 44 | Gamification *(effects only)* | — | **Effects only (not a screen)** | §3.6, §19 |
 | 45 | Financial Literacy | `/learn` | Screen | §3.6 |
 | 46 | Agent Network | `/agents` or `/agents/nearby` | Screen | §3.6 |
@@ -734,7 +734,7 @@ Each row is one step; sequence order is by flow then step number. **Screen ID** 
 |------|----------------|----------------|--------|
 | App entry | If onboarding complete → Home; else → Onboarding | `app/index.tsx`: Redirect to `/(tabs)/home` or `/onboarding` from AsyncStorage `buffr_onboarding_complete` | ✅ Correct |
 | Root Stack | index, onboarding, (tabs), utilities, wallets, send-money, merchants, receive, proof-of-life, add-wallet, scan-qr, groups | `_layout.tsx`: All listed as Stack.Screen; add-card, cards, bills, loans, agents are file-based (discovered by Expo Router) | ✅ Correct |
-| Tabs | Home, Transactions, Vouchers; Profile hidden (href: null) | `(tabs)/_layout.tsx`: Home, Transactions, Vouchers, profile (href: null), two (href: null) | ✅ Correct |
+| Tabs | Home, Transactions, AI; Profile and Vouchers hidden (href: null) | `(tabs)/_layout.tsx`: Home, Transactions, AI (visible); vouchers, profile (href: null), two (href: null). AI tab links to Buffr AI Companion. Vouchers list at `/(tabs)/vouchers` reached from Home → Vouchers tile. | ✅ Correct |
 
 #### 3.15.2 Home → downstream flows
 
@@ -805,7 +805,7 @@ Each row is one step; sequence order is by flow then step number. **Screen ID** 
 
 | From | Action | Route | Status |
 |------|--------|--------|--------|
-| Vouchers tab / utilities | Voucher detail | `/utilities/vouchers/[id]` with params `{ id: item.id }` | ✅ |
+| Home Vouchers tile / utilities | Voucher detail | `/utilities/vouchers/[id]` with params `{ id: item.id }` | ✅ |
 | Voucher detail | Redeem Wallet / NamPost / SmartPay | redeem/wallet/success, redeem/nampost, redeem/smartpay | ✅ |
 | NamPost/SmartPay code | Done | `/(tabs)` or `/(tabs)/vouchers` | ✅ |
 
@@ -1020,7 +1020,7 @@ Reusable UI building blocks to implement once and use across screens.
 |-----------|---------|---------|
 | **ScreenContainer** | Safe area + padding; max width 393 | All screens |
 | **StackScreen** | Header (back, title, optional right action) + children | All stack screens |
-| **TabBar** | Bottom tabs (Home, Transactions, Vouchers?, Profile?) | Tab layout |
+| **TabBar** | Bottom tabs (Home, Transactions, AI; Profile and Vouchers hidden) | Tab layout |
 | **ModalContainer** | Full-screen or bottom-sheet modal wrapper | Add Money, 2FA, Code display |
 
 ### 4.2 Inputs & buttons
@@ -1188,7 +1188,7 @@ Implement these so the app matches the UX audit in `BUFFR_G2P_FIGMA_DESIGN_SPEC.
 - **Wallet carousel row:** WalletCard(s) (icon circle 999px + name + “Show”/“Add”) + “Add Wallet +” card; card borderRadius 16px; effect_E7Q5GM shadow.  
 - **Services grid:** 2×N **ServiceCard** (icon + label); borderRadius 12px.  
 - **Recent transaction list:** Repeated “Recent transaction” rows (or transaction item row: icon, title, amount, date).  
-- **Tab bar (glass):** Home, Transactions, Vouchers?, Profile/Me; fill_DUFEPX rgba(255,255,255,0.7); effect_2HVBI9 (shadow + blur 32px); borderRadius 24px top.  
+- **Tab bar (glass):** Home, Transactions, AI; Profile/Me and Vouchers not in tab bar (href: null). Fill_DUFEPX rgba(255,255,255,0.7); effect_2HVBI9 (shadow + blur 32px); borderRadius 24px top.  
 - **OTP row:** 5 or 6 single-character boxes; stroke border; borderRadius 16px.  
 - **2FA modal:** Title “Verify identity”, PIN input or biometric, “Cancel” / “Verify” buttons.  
 - **QR display block:** Unique Buffr UPI address + QR code asset; for receive / collection code.  
@@ -1206,7 +1206,7 @@ Implement these so the app matches the UX audit in `BUFFR_G2P_FIGMA_DESIGN_SPEC.
   - **Contact chips:** Avatar circle + name; 999px; fill + stroke + shadow (effect_WHEBAW).  
   - **Header pills:** Profile, Bell; 999px.  
   - **Wallet card pills:** “Show”, “Add”; 999px.  
-  - **Tab labels:** Home, Transactions, Vouchers, Me; SF Pro 17px/590; not visual pill but tap target.  
+  - **Tab labels:** Home, Transactions, AI (visible); Me and Vouchers not in tab bar; SF Pro 17px/590; not visual pill but tap target.  
 - **Avatars**  
   - **Contact chip avatar:** Circle; photo or initials; size from Figma (e.g. 40px); used in Send-to row and Selected contact.  
   - **Profile avatar:** Header right; circle; photo or placeholder.  
@@ -1558,7 +1558,7 @@ app/
     face-id.tsx
     complete.tsx
   (tabs)/
-    _layout.tsx        # Tab bar: Home, Transactions, Vouchers,
+    _layout.tsx        # Tab bar: Home, Transactions, AI (visible); vouchers and profile hidden
     index.tsx          # Home
     transactions.tsx
     vouchers.tsx       # optional tab
@@ -1588,13 +1588,14 @@ app/
 |-----|--------|--------|------|
 | Home | Home | `/(tabs)/index` | home |
 | Transactions | Transactions | `/(tabs)/transactions` | list/rectangle-stack |
-| (optional) Vouchers | Vouchers | `/(tabs)/vouchers` | ticket |
+| (optional) AI | AI (Buffr AI Companion) | `/(tabs)/ai` | chatbubble-ellipses |
+| (hidden) Vouchers | Vouchers list | `/(tabs)/vouchers` (from Home tile only) | ticket |
 
 
 ### 6.3 Stack groupings
 
 - **Onboarding:** one stack; no tabs until completion.
-- **Main:** tabs for Home, Transactions, Profile , Vouchers.
+- **Main:** tabs for Home, Transactions, AI (Buffr AI Companion). Profile and Vouchers are hidden from tab bar; Vouchers list is reached from Home → Vouchers tile.
 - **Vouchers:** stack for list → detail → redeem (NamPost, SmartPay, wallet).
 - **Wallets:** stack for wallet detail → cash-out → method flows.
 - **Send money:** stack for select recipient → amount → confirm → success.
@@ -1625,7 +1626,7 @@ app/
 | Stack with ScreenHeader / StandardScreenLayout | Left arrow → back or replace to (tabs) when no history |
 | Add Bank / Add Wallet / Wallet sub-screens | Custom back arrow → `router.back()` |
 | State-flow | Custom back → `onNavigate('home')` or previous state |
-| Tab (Home, Transactions, Vouchers; no Profile tab) | No back; tab bar only; profile via header avatar (§6.4.2) |
+| Tab (Home, Transactions, AI; no Profile tab; Vouchers from Home tile) | No back; tab bar only; profile via header avatar (§6.4.2) |
 | Success / terminal | No back; use "Done" / "View receipt" / "Back to group" |
 
 **Implementation note:** In `buffr` (reference app), `ScreenHeader` is in `components/common/ScreenHeader.tsx`; `StandardScreenLayout` in `components/layouts/StandardScreenLayout.tsx`. When building `buffr_g2p`, reuse or port these so every stack screen has a consistent header and back behaviour. See also §4 (StackScreen: "Header (back, title, optional right action)").
@@ -1647,7 +1648,7 @@ app/
 |--------|--------|---------------------|
 | Home | `/(tabs)/home` or `/(tabs)` | "Search anything…" |
 | Transactions | `/(tabs)/transactions` | "Search transactions…" |
-| Vouchers | `/(tabs)/vouchers` | "Search vouchers…" |
+| Vouchers (from Home tile) | `/(tabs)/vouchers` | "Search vouchers…" |
 | Pay Bills | `/(tabs)/home/bills` | "Search billers…" |
 | Agent Network | `/(tabs)/home/agents` | "Search area or agent…" |
 | Find Agents & ATMs | `/(tabs)/profile/location` (or equivalent) | "Search area or address…" |
@@ -1656,7 +1657,7 @@ app/
 
 ### 6.4.2 No profile tab on home; profile in header
 
-**Requirement:** There is **no Profile (or "Me") tab** in the bottom tab bar on the home flow. Profile is reached via the **header avatar** (next to the notification bell). The tab bar shows only: **Home**, **Transactions**, **Vouchers**. The profile route (`/(tabs)/profile`) remains available for deep links and for navigation from the header avatar; it is hidden from the tab bar using `href: null` in the tabs layout.
+**Requirement:** There is **no Profile (or "Me") tab** in the bottom tab bar on the home flow. Profile is reached via the **header avatar** (next to the notification bell). The tab bar shows only: **Home**, **Transactions**, **AI** (Buffr AI Companion). The **Vouchers** list remains at `/(tabs)/vouchers` and is reached from the **Home services grid** (Vouchers tile), not from the tab bar. The profile route (`/(tabs)/profile`) remains available for deep links and for navigation from the header avatar; it is hidden from the tab bar using `href: null` in the tabs layout. The vouchers route is also hidden from the tab bar (`href: null`).
 
 **Rationale:** The design places the user avatar in the header on every screen with the app header; a separate profile tab is redundant and clutters the tab bar.
 
@@ -2393,7 +2394,7 @@ buffr_g2p/
       face-id.tsx
       complete.tsx
     (tabs)/
-      _layout.tsx              # 4-tab bar: Home, Transactions, Vouchers, Me
+      _layout.tsx              # 3 visible tabs: Home, Transactions, AI; vouchers and profile (Me) hidden
       index.tsx                # Redirect → /(tabs)/home
       two.tsx                  # Placeholder (unused)
       home/
@@ -2863,8 +2864,9 @@ export default function TabLayout() {
     >
       <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: ({ color }) => <Ionicons name="home" size={24} color={color} /> }} />
       <Tabs.Screen name="transactions" options={{ title: 'Transactions', tabBarIcon: ({ color }) => <Ionicons name="list" size={24} color={color} /> }} />
-      <Tabs.Screen name="vouchers" options={{ title: 'Vouchers', tabBarIcon: ({ color }) => <Ionicons name="ticket" size={24} color={color} /> }} />
-      <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: ({ color }) => <Ionicons name="person" size={24} color={color} /> }} />
+      <Tabs.Screen name="ai" options={{ title: 'AI', tabBarIcon: ({ color }) => <Ionicons name="chatbubble-ellipses" size={24} color={color} /> }} />
+      <Tabs.Screen name="vouchers" options={{ title: 'Vouchers', href: null, tabBarIcon: ({ color }) => <Ionicons name="ticket" size={24} color={color} /> }} />
+      <Tabs.Screen name="profile" options={{ title: 'Profile', href: null, tabBarIcon: ({ color }) => <Ionicons name="person" size={24} color={color} /> }} />
     </Tabs>
   );
 }
@@ -5121,14 +5123,14 @@ const styles = StyleSheet.create({
 
 ```tsx
 /**
- * Vouchers tab – Buffr G2P. Placeholder; replace with vouchers list from GET /vouchers.
- * Location: app/(tabs)/vouchers.tsx. Per §11.4.23.
+ * Vouchers screen – Buffr G2P. List of vouchers; reached from Home → Vouchers tile (route /(tabs)/vouchers). Not a tab. AI tab is at app/(tabs)/ai/index.tsx (Buffr AI Companion).
+ * Location: app/(tabs)/vouchers/index.tsx. Per §3.2 screen 8.
  */
 import { View, Text, StyleSheet } from 'react-native';
 import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { COLORS } from '@/constants/Theme';
 
-export default function VouchersTab() {
+export default function VouchersScreen() {
   return (
     <ScreenContainer>
       <View style={styles.centered}>
@@ -7238,7 +7240,7 @@ Use the root layout from **§11.4.1**: `app/_layout.tsx` with Stack, providers, 
 
 #### 11.11.5 Tab bar
 
-Use **§11.4.4** for `app/(tabs)/_layout.tsx`: Tabs with Home, Transactions, Vouchers, Profile; set `tabBarActiveTintColor` from `Theme.ts` and tab icons (e.g. Ionicons).
+Use **§11.4.4** for `app/(tabs)/_layout.tsx`: Tabs with Home, Transactions, AI (visible); Profile and Vouchers hidden (href: null). Set `tabBarActiveTintColor` from `Theme.ts` and tab icons (e.g. Ionicons). AI tab links to Buffr AI Companion.
 
 #### 11.11.6 Entry point (index)
 
@@ -7871,7 +7873,7 @@ The **authoritative design source** for implementation is `buffr_g2p/docs/BUFFR_
 | 44:537, 60:62 | Available bank accounts | /onboarding/bank-accounts | Bank list, OAuth entry |
 | 171:574, 172:630 | Request money (receiver POV) | Request money | (receive flow) |
 
-**Components (design system in spec):** Input/Large (1417:42922) – SearchBar, height 56, borderRadius 999; Tabbar (1417:44518) – Home, Transactions, Vouchers, Me; Status Bar (83:7), Home Indicator (639:3876), Noise & Texture (447:4412); Primary CTA – height 56, borderRadius 16, fill #0029D6; Secondary/outline; SearchBar (placeholder "Search anything…" / "Search phone, UPI, UID"); BalanceCard (borderRadius 12, height 120); WalletCard (borderRadius 16, iconCircle 999); ServiceCard (borderRadius 12); ContactChip (borderRadius 999, effect_WHEBAW); TwoFAModal ("Verify identity"); NAMQRScanner (fullScreen); NAMQRDisplay (minSize 200, borderRadius 12). All map to PRD §4.7 and §5.1.
+**Components (design system in spec):** Input/Large (1417:42922) – SearchBar, height 56, borderRadius 999; Tabbar (1417:44518) – Home, Transactions, AI (visible); Me and Vouchers hidden; Status Bar (83:7), Home Indicator (639:3876), Noise & Texture (447:4412); Primary CTA – height 56, borderRadius 16, fill #0029D6; Secondary/outline; SearchBar (placeholder "Search anything…" / "Search phone, UPI, UID"); BalanceCard (borderRadius 12, height 120); WalletCard (borderRadius 16, iconCircle 999); ServiceCard (borderRadius 12); ContactChip (borderRadius 999, effect_WHEBAW); TwoFAModal ("Verify identity"); NAMQRScanner (fullScreen); NAMQRDisplay (minSize 200, borderRadius 12). All map to PRD §4.7 and §5.1.
 
 **Flows (design spec):** Onboarding (Welcome → phone → verify → name → photo → face-id → complete); Voucher redemption – Wallet (detail → 2FA → success); NamPost (detail → branch list → collection code NAMQR → scan → 2FA → success); SmartPay (detail → units → code NAMQR → scan → 2FA → success); Cash-out – Till/Agent/Merchant/ATM (hub → instruction → scan QR → 2FA → success), Bank (hub → bank selection → OAuth → 2FA → success); Send money (select recipient → amount → confirm → 2FA → success); Pay merchant (merchant/scan → amount → 2FA → success); Create group (name, members, Create → group view); Bank linking (optional) (bank list → OAuth → redirect). Alternate paths and error handling per flow are in the JSON (e.g. 4xx Toast, invalid QR retry).
 
@@ -8278,7 +8280,7 @@ Use this alongside the PRD (§3, §7, §11) and the actual codebase to ensure ev
 ### 18.3 Core Navigation Principles
 
 - **Every non‑tab screen** has a back button. If `router.canGoBack()` is false (e.g., deep link), back goes to `/(tabs)` (Home). *Implemented in `HeaderBackButton` and Agent screen (§6.4).*
-- **Tab screens** (Home, Transactions, Vouchers, Profile) have no back; tab bar is always present.
+- **Tab screens** (Home, Transactions, AI; Profile and Vouchers hidden) have no back; tab bar is always present.
 - **Success / terminal screens** have no back; they offer a primary CTA (“Done”, “View receipt”, “Back to group”) that leads to a safe destination (usually `/(tabs)` or the relevant detail screen).
 - **Modals** (2FA, Add Money, Proof‑of‑life reminder) are dismissed with Cancel or after successful action. **Add Money** is implemented as a **bottom sheet modal** opened from Home “+ Add” and Wallet Detail “Add money”; **TwoFAModal** is shared for send money, voucher redeem, group send, group request.
 - **Deep links** (e.g., `buffr://receive/123`) are handled by `expo-linking` and routed to the appropriate screen, with fallback to Home if the link is invalid.

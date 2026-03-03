@@ -278,6 +278,13 @@ export async function requestOtp(params: OtpRequest): Promise<OtpResponse> {
       // Map purpose to email purpose
       const emailPurpose = mapPurposeToEmailPurpose(purpose);
       emailSent = await sendOtpEmail(normalizedEmail, emailPurpose, code, expiresInSeconds);
+      
+      // Debug logging
+      if (!emailSent) {
+        console.error(`[OTP] Email send failed to ${normalizedEmail}, purpose: ${emailPurpose}`);
+      } else {
+        console.log(`[OTP] Email sent successfully to ${normalizedEmail}`);
+      }
     }
     
     // If both requested but one fails, still allow if at least one succeeds

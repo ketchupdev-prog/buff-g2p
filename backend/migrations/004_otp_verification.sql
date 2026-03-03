@@ -131,7 +131,7 @@ BEGIN
     WHERE phone = p_phone 
       AND purpose = p_purpose
       AND verified_at IS NULL
-      AND expires_at > NOW();
+      AND otp_codes.expires_at > NOW();
     
     -- Generate new OTP
     v_code := generate_otp();

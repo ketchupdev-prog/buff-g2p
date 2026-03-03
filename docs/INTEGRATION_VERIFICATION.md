@@ -158,7 +158,10 @@ Base path: `/api/v1/` (and a few `/api/` routes).
 | **Open Banking** | `GET /api/v1/mobile/open-banking/banks`, `POST consent`, `POST token-exchange`, `GET accounts`, `GET accounts/:id/balance`, `GET accounts/:id/transactions` |
 | **Cashout** | `POST /api/cashout/atm-code` |
 | **Fineract** | `GET /api/v1/mobile/fineract/health`, `GET /api/v1/fineract/offices` |
-| **Health** | `GET /healthz` |
+| **Health** | `GET /healthz` |  
+| **AI Chat** | `POST /api/v1/mobile/ai-chat` | Proxies to Python Buffr AI
+| **AI Health** | `GET /api/v1/mobile/ai-health` | Proxies to Python Buffr AI
+| **ML Models** | `GET /api/v1/mobile/ml/models` | Proxies to Python ML service |
 
 ### 3.2 Buffr AI FastAPI (`buffr_ai/main.py`)
 

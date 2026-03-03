@@ -1,6 +1,8 @@
 /**
- * Tabs index – redirect to home tab so "/(tabs)" always lands on home.
- * Fixes "This screen doesn't exist" when navigating to "/(tabs)".
+ * Tabs index – redirect only (not a visible tab).
+ * When the app or a link navigates to "/(tabs)", this route redirects to "/(tabs)/home".
+ * Do not remove: without it, "/(tabs)" would show a blank or missing screen.
+ * The visible tab bar is defined in (tabs)/_layout.tsx (Home, Transactions, AI).
  */
 import { Redirect } from 'expo-router';
 
