@@ -18,6 +18,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
 import { getSecureItem } from '@/services/secureStorage';
+import { designSystem } from '@/constants/designSystem';
+import { ErrorState, LoadingState } from '@/components/ui';
+import { usePullToRefresh } from '@/hooks';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 
@@ -77,7 +80,6 @@ export default function LoansScreen() {
   const [offer, setOffer] = useState<LoanOffer | null>(null);
   const [activeLoans, setActiveLoans] = useState<ActiveLoan[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -90,9 +92,12 @@ export default function LoansScreen() {
       setError('Could not load loan information. Tap to retry.');
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   }, []);
+
+  const { refreshing, onRefresh } = usePullToRefresh({
+    onRefresh: load,
+  });
 
   useEffect(() => { load(); }, [load]);
 
@@ -126,17 +131,20 @@ export default function LoansScreen() {
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={() => { setRefreshing(true); load(); }}
-              tintColor="#0029D6"
+              onRefresh={onRefresh}
+              tintColor={designSystem.colors.brand.primary}
             />
           }
         >
           {loading ? (
-            <ActivityIndicator color="#0029D6" style={{ marginTop: 60 }} />
+            <LoadingState message="Loading loan offers..." />
           ) : error ? (
-            <TouchableOpacity onPress={load} style={styles.errorBox}>
-              <Text style={styles.errorText}>{error}</Text>
-            </TouchableOpacity>
+            <ErrorState
+              variant="network"
+              message={error}
+              onRetry={load}
+              style={{ marginTop: 60 }}
+            />
           ) : (
             <>
               {/* Summary card */}
@@ -204,23 +212,24 @@ export default function LoansScreen() {
                   </TouchableOpacity>
                 ))
               ) : (
-                <View style={styles.noOffer}>
-                  <Ionicons name="trending-up-outline" size={48} color="#D1D5DB" />
-                  <Text style={styles.noOfferTitle}>No offer available</Text>
-                  <Text style={styles.noOfferText}>
-                    Loan offers are based on your previous voucher history. Redeem a voucher first to become eligible.
-                  </Text>
-                </View>
+                <ErrorState
+                  variant="empty"
+                  title="No offer available"
+                  message="Loan offers are based on your previous voucher history. Redeem a voucher first to become eligible."
+                  action={{ label: 'View Vouchers', onPress: () => router.push('/(tabs)/vouchers' as never) }}
+                  style={{ marginTop: 20 }}
+                />
               )}
 
               {/* Active Loans */}
               <Text style={[styles.sectionTitle, { marginTop: 28 }]}>Active Loans</Text>
               {activeLoans.length === 0 ? (
-                <View style={styles.emptyState}>
-                  <Ionicons name="folder-open-outline" size={40} color="#D1D5DB" />
-                  <Text style={styles.emptyTitle}>No active loans</Text>
-                  <Text style={styles.emptyDesc}>Apply using your voucher value above.</Text>
-                </View>
+                <ErrorState
+                  variant="empty"
+                  title="No active loans"
+                  message="Apply using your voucher value above."
+                  style={{ marginTop: 20 }}
+                />
               ) : (
                 activeLoans.map((loan) => (
                   <TouchableOpacity
@@ -260,8 +269,6 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   scroll: { flex: 1 },
   scrollContent: { padding: 24, paddingBottom: 60 },
-  errorBox: { padding: 14, backgroundColor: '#FEE2E2', borderRadius: 12, marginTop: 40 },
-  errorText: { fontSize: 13, color: '#DC2626', textAlign: 'center' },
   // Summary card (solid brand blue, was gradient)
   summaryCard: { borderRadius: 24, padding: 24, marginBottom: 16, backgroundColor: '#0029D6' },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },

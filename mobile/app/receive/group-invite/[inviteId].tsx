@@ -10,7 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { getSecureItem } from '@/services/secureStorage';
 import { designSystem } from '@/constants/designSystem';
-import { Avatar } from '@/components/ui';
+import { Avatar, ErrorState } from '@/components/ui';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 
@@ -83,13 +83,13 @@ export default function GroupInviteScreen() {
       <View style={styles.screen}>
         <Stack.Screen options={{ headerShown: true, headerTitle: 'Group Invitation', headerTintColor: designSystem.colors.neutral.text, headerStyle: { backgroundColor: '#fff' } }} />
         <SafeAreaView style={styles.flex} edges={['bottom']}>
-          <View style={styles.center}>
-            <Text style={styles.doneTitle}>Invitation not found</Text>
-            <Text style={styles.doneSub}>This invite may have expired or the link is invalid.</Text>
-            <TouchableOpacity style={styles.btn} onPress={() => router.replace('/(tabs)' as never)}>
-              <Text style={styles.btnText}>Back to Home</Text>
-            </TouchableOpacity>
-          </View>
+          <ErrorState
+            variant="notFound"
+            title="Invitation not found"
+            message="This invite may have expired or the link is invalid."
+            action={{ label: 'Back to Home', onPress: () => router.replace('/(tabs)' as never) }}
+            style={{ marginTop: 100 }}
+          />
         </SafeAreaView>
       </View>
     );

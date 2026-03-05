@@ -1,5 +1,7 @@
 /**
- * Proof of Life – Success – Buffr G2P. §3.6 screen 60.
+ * Proof of Life – Step 3: Success – Buffr G2P.
+ * Confirmation screen after successful biometric verification.
+ * Part of 3-step proof-of-life wizard with ProgressIndicator.
  */
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -7,11 +9,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
 import { designSystem } from '@/constants/designSystem';
+import { ProgressIndicator } from '@/components/ui';
 
 export default function ProofOfLifeSuccessScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <Stack.Screen options={{ headerShown: false }} />
+      <ProgressIndicator currentStep={3} totalSteps={3} stepLabels={['Introduction', 'Verify', 'Complete']} />
       <View style={styles.container}>
         <Ionicons name="checkmark-circle" size={90} color={designSystem.colors.semantic.success} />
         <Text style={styles.title}>Verification Complete</Text>

@@ -22,7 +22,7 @@ const SECTIONS: Array<{ title: string; items: SettingItem[] }> = [
   {
     title: 'Security',
     items: [
-      { id: 'proof', label: 'Proof of life', icon: 'shield-checkmark-outline', route: '/proof-of-life/verify' },
+      { id: 'proof', label: 'Proof of life', icon: 'shield-checkmark-outline', route: '/proof-of-life/intro' },
       { id: 'pin', label: 'Change PIN', icon: 'key-outline' },
     ],
   },

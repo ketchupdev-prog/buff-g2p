@@ -35,9 +35,9 @@ class PendingAction(BaseModel):
 
 
 class CompanionResponse(BaseModel):
-    """Orchestrator agent output: message and optional pending action."""
+    """Orchestrator agent output: message and optional pending action. Message is always populated for display."""
 
-    message: Optional[str] = None
+    message: Optional[str] = Field(default="I'm sorry, I couldn't complete that. Please try again or rephrase.")
     pending_action: Optional[PendingAction] = None
 
 

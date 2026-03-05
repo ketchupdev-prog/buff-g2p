@@ -19,6 +19,7 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { designSystem } from '@/constants/designSystem';
 import { useUser } from '@/contexts/UserContext';
 import { getWallet, type Wallet } from '@/services/wallets';
+import { ErrorState } from '@/components/ui';
 import {
   getTransactions,
   formatTransactionType,
@@ -115,13 +116,12 @@ export default function WalletHistoryScreen() {
             <ActivityIndicator color={designSystem.colors.brand.primary} />
           </View>
         ) : list.length === 0 ? (
-          <View style={styles.empty}>
-            <Ionicons name={tab === 'earnings' ? 'arrow-down-circle-outline' : 'add-circle-outline'} size={48} color="#CBD5E1" />
-            <Text style={styles.emptyTitle}>{tab === 'earnings' ? 'No earnings yet' : 'No added funds yet'}</Text>
-            <Text style={styles.emptySub}>
-              {tab === 'earnings' ? 'Money received into this wallet will appear here.' : 'Money added from Buffr Account or bank will appear here.'}
-            </Text>
-          </View>
+          <ErrorState
+            variant="empty"
+            title={tab === 'earnings' ? 'No earnings yet' : 'No added funds yet'}
+            message={tab === 'earnings' ? 'Money received into this wallet will appear here.' : 'Money added from Buffr Account or bank will appear here.'}
+            style={{ marginTop: 80 }}
+          />
         ) : (
           <ScrollView
             style={styles.scroll}

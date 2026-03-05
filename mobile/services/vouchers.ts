@@ -1,6 +1,6 @@
 /**
  * Vouchers service – Buffr G2P.
- * Manages G2P vouchers from API only.
+ * Backend and database only. Manages G2P vouchers from API.
  */
 import { getSecureItem } from '@/services/secureStorage';
 

@@ -2,8 +2,9 @@
  * Merchants – Buffr G2P. §3.4.
  * List of merchants that accept Buffr QR payments.
  */
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -17,6 +18,11 @@ import { router, Stack } from 'expo-router';
 import { designSystem } from '@/constants/designSystem';
 import { AppHeader } from '@/components/layout';
 import { useUser } from '@/contexts/UserContext';
+import * as Location from 'expo-location';
+import { ErrorState, LoadingState } from '@/components/ui';
+import { usePullToRefresh } from '@/hooks';
+
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 
 type MerchantCategory = 'grocery' | 'pharmacy' | 'transport' | 'food' | 'hardware' | 'fuel';
 
@@ -26,8 +32,10 @@ interface Merchant {
   category: MerchantCategory;
   address: string;
   open: boolean;
-  minTx: number;   // minimum transaction N$
+  minTx: number;
   verified: boolean;
+  distance?: number;
+  services?: string[];
 }
 
 const CAT_CONFIG: Record<MerchantCategory, { label: string; icon: string; color: string; bg: string }> = {
@@ -48,30 +56,70 @@ const CAT_FILTERS: Array<{ key: MerchantCategory | 'all'; label: string }> = [
   { key: 'fuel', label: 'Fuel' },
 ];
 
-const MERCHANTS: Merchant[] = [
-  { id: 'm1', name: 'Checkers Windhoek',          category: 'grocery',   address: 'Wernhil Park, Independence Ave', open: true,  minTx: 10,  verified: true  },
-  { id: 'm2', name: 'Shoprite Katutura',           category: 'grocery',   address: 'Soweto Market, Katutura',        open: true,  minTx: 10,  verified: true  },
-  { id: 'm3', name: 'Medicare Pharmacy',           category: 'pharmacy',  address: 'Robert Mugabe Ave',             open: true,  minTx: 20,  verified: true  },
-  { id: 'm4', name: 'City Chicken Takeaways',      category: 'food',      address: 'Hochland Road, Windhoek',       open: true,  minTx: 15,  verified: false },
-  { id: 'm5', name: 'Intercape Bus Terminal',      category: 'transport', address: 'Fidel Castro St, Windhoek',     open: true,  minTx: 50,  verified: true  },
-  { id: 'm6', name: 'Puma Energy Filling Station', category: 'fuel',      address: 'Mandume Ndemufayo Ave',         open: true,  minTx: 50,  verified: true  },
-  { id: 'm7', name: 'Woermann Brock & Co',         category: 'grocery',   address: 'Southern Industrial, Windhoek', open: false, minTx: 10,  verified: true  },
-  { id: 'm8', name: 'Cymot Hardware',              category: 'hardware',  address: 'Hosea Kutako Drive',            open: true,  minTx: 30,  verified: false },
-  { id: 'm9', name: 'Namibia Bus & Taxi',          category: 'transport', address: 'Epangelo St, Katutura',         open: true,  minTx: 20,  verified: true  },
-];
+async function fetchMerchants(category?: string, latitude?: number, longitude?: number): Promise<Merchant[]> {
+  if (!API_BASE_URL) return [];
+  
+  try {
+    let url = `${API_BASE_URL}/api/v1/mobile/merchants/nearby`;
+    const params = new URLSearchParams();
+    if (category && category !== 'all') params.append('category', category);
+    if (latitude && longitude) {
+      params.append('lat', latitude.toString());
+      params.append('lng', longitude.toString());
+      params.append('radius', '20000');
+    }
+    if (params.toString()) url += `?${params.toString()}`;
+    
+    const res = await fetch(url);
+    if (res.ok) {
+      const data = await res.json();
+      return data.merchants || [];
+    }
+  } catch (e) {
+    console.error('fetchMerchants error:', e);
+  }
+  return [];
+}
 
 export default function MerchantsScreen() {
   const { profile } = useUser();
   const [catFilter, setCatFilter] = useState<MerchantCategory | 'all'>('all');
   const [search, setSearch] = useState('');
-  const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [merchants, setMerchants] = useState<Merchant[]>([]);
+  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
 
-  const filtered = MERCHANTS.filter((m) => {
-    const matchCat = catFilter === 'all' || m.category === catFilter;
-    const q = search.toLowerCase();
-    const matchSearch = !q || m.name.toLowerCase().includes(q) || m.address.toLowerCase().includes(q);
-    return matchCat && matchSearch;
+  const loadMerchants = useCallback(async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        const loc = await Location.getCurrentPositionAsync({});
+        setUserLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
+        const data = await fetchMerchants(catFilter !== 'all' ? catFilter : undefined, loc.coords.latitude, loc.coords.longitude);
+        setMerchants(data);
+      } else {
+        const data = await fetchMerchants(catFilter !== 'all' ? catFilter : undefined);
+        setMerchants(data);
+      }
+    } catch (e) {
+      console.error('loadMerchants error:', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [catFilter]);
+
+  const { refreshing, onRefresh } = usePullToRefresh({
+    onRefresh: loadMerchants,
   });
+
+  useEffect(() => { loadMerchants(); }, [loadMerchants]);
+
+  const filtered = search.trim()
+    ? merchants.filter(m =>
+        m.name.toLowerCase().includes(search.toLowerCase()) ||
+        m.address.toLowerCase().includes(search.toLowerCase())
+      )
+    : merchants;
 
   return (
     <View style={styles.screen}>
@@ -116,20 +164,23 @@ export default function MerchantsScreen() {
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => setRefreshing(false)} tintColor="#0029D6" />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={designSystem.colors.brand.primary} />}
         >
           {/* Info banner */}
           <View style={styles.infoBanner}>
-            <Ionicons name="qr-code-outline" size={20} color="#0029D6" />
+            <Ionicons name="qr-code-outline" size={20} color={designSystem.colors.brand.primary} />
             <Text style={styles.infoText}>Scan the merchant's QR code at checkout to pay with Buffr.</Text>
           </View>
 
-          {filtered.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Ionicons name="storefront-outline" size={48} color="#D1D5DB" />
-              <Text style={styles.emptyTitle}>No merchants found</Text>
-              <Text style={styles.emptyDesc}>Try a different category or search term</Text>
-            </View>
+          {loading ? (
+            <LoadingState message="Loading merchants..." />
+          ) : filtered.length === 0 ? (
+            <ErrorState
+              variant="empty"
+              title="No merchants found"
+              message={search.trim() ? 'Try a different search term' : 'Try a different category'}
+              style={{ marginTop: 40 }}
+            />
           ) : (
             filtered.map((m) => {
               const cfg = CAT_CONFIG[m.category];

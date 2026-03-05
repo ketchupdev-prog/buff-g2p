@@ -21,6 +21,8 @@ import { designSystem } from '@/constants/designSystem';
 import { AppHeader } from '@/components/layout';
 import { getVouchers, type Voucher, type VoucherStatus } from '@/services/vouchers';
 import { CARD_FRAME_FILL } from '@/constants/CardDesign';
+import { ErrorState } from '@/components/ui';
+import { usePullToRefresh } from '@/hooks';
 
 // Each programme type maps to a card design frame for visual consistency.
 // Frame colors used as the accent bar + icon tint – matches WalletCard pattern.
@@ -85,7 +87,6 @@ export default function VouchersScreen() {
   const [statusFilter, setStatusFilter] = useState<VoucherStatus | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -97,9 +98,12 @@ export default function VouchersScreen() {
       setError('Could not load vouchers. Tap to retry.');
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   }, []);
+
+  const { refreshing, onRefresh } = usePullToRefresh({
+    onRefresh: load,
+  });
 
   useEffect(() => { load(); }, [load]);
 
@@ -171,7 +175,7 @@ export default function VouchersScreen() {
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={() => { setRefreshing(true); load(); }}
+              onRefresh={onRefresh}
               tintColor="#0029D6"
             />
           }
@@ -179,15 +183,19 @@ export default function VouchersScreen() {
           {loading ? (
             <ActivityIndicator color="#0029D6" style={{ marginTop: 48 }} />
           ) : error ? (
-            <TouchableOpacity onPress={load} style={styles.errorBox}>
-              <Text style={styles.errorText}>{error}</Text>
-            </TouchableOpacity>
+            <ErrorState
+              variant="network"
+              message={error}
+              onRetry={load}
+              style={{ marginTop: 40 }}
+            />
           ) : filtered.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Ionicons name="filter-outline" size={48} color="#D1D5DB" />
-              <Text style={styles.emptyTitle}>No vouchers found</Text>
-              <Text style={styles.emptyDesc}>Try adjusting your filters</Text>
-            </View>
+            <ErrorState
+              variant="empty"
+              title={searchQuery.trim() || typeFilter !== 'all' || statusFilter !== 'all' ? 'No vouchers found' : 'No vouchers yet'}
+              message={searchQuery.trim() || typeFilter !== 'all' || statusFilter !== 'all' ? 'Try adjusting your filters' : 'Your vouchers will appear here when issued'}
+              style={{ marginTop: 40 }}
+            />
           ) : (
             filtered.map((v) => {
               const vType = guessType(v.programme);

@@ -63,9 +63,25 @@ export async function hasLocationPermission(): Promise<boolean> {
 export async function pickImageFromGallery(): Promise<string | null> {
   try {
     const ImagePicker = await import('expo-image-picker');
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const requestPerms =
+      typeof ImagePicker.requestMediaLibraryPermissionsAsync === 'function'
+        ? ImagePicker.requestMediaLibraryPermissionsAsync
+        : null;
+    if (!requestPerms) {
+      console.warn('pickImageFromGallery: requestMediaLibraryPermissionsAsync not available (native module may be missing)');
+      return null;
+    }
+    const { status } = await requestPerms();
     if (status !== 'granted') return null;
-    const result = await ImagePicker.launchImageLibraryAsync({
+    const launchLibrary =
+      typeof ImagePicker.launchImageLibraryAsync === 'function'
+        ? ImagePicker.launchImageLibraryAsync
+        : null;
+    if (!launchLibrary) {
+      console.warn('pickImageFromGallery: launchImageLibraryAsync not available');
+      return null;
+    }
+    const result = await launchLibrary({
       mediaTypes: 'images',
       allowsEditing: true,
       aspect: [1, 1],
@@ -83,9 +99,25 @@ export async function pickImageFromGallery(): Promise<string | null> {
 export async function captureImage(): Promise<string | null> {
   try {
     const ImagePicker = await import('expo-image-picker');
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    const requestCamera =
+      typeof ImagePicker.requestCameraPermissionsAsync === 'function'
+        ? ImagePicker.requestCameraPermissionsAsync
+        : null;
+    if (!requestCamera) {
+      console.warn('captureImage: requestCameraPermissionsAsync not available (native module may be missing)');
+      return null;
+    }
+    const { status } = await requestCamera();
     if (status !== 'granted') return null;
-    const result = await ImagePicker.launchCameraAsync({
+    const launchCamera =
+      typeof ImagePicker.launchCameraAsync === 'function'
+        ? ImagePicker.launchCameraAsync
+        : null;
+    if (!launchCamera) {
+      console.warn('captureImage: launchCameraAsync not available');
+      return null;
+    }
+    const result = await launchCamera({
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,

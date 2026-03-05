@@ -1,14 +1,14 @@
 /**
  * Create Group – Buffr G2P.
- * Multi-step group creation: Name + Purpose → Member Settings → Invite Members.
- * §6.1 group creation flow.
+ * Single-screen contact picker per Buffr app design: header with count, selected members strip
+ * (5 slots: dotted Add placeholders + avatars with name and remove X), search contact,
+ * contacts list with diamond selector, Create Group button (disabled when 0 selected).
+ * §3.6 group creation; §47c-vi Add Members flow.
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
+  FlatList,
   StyleSheet,
   Text,
   TextInput,
@@ -18,14 +18,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { designSystem } from '@/constants/designSystem';
 import { getSecureItem } from '@/services/secureStorage';
+import { getContacts, type Contact } from '@/services/send';
+import { Avatar } from '@/components/ui/Avatar';
+import { ErrorState } from '@/components/ui';
 
+const DS = designSystem;
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
-
-type Step = 'details' | 'settings' | 'invite';
-
+const MAX_VISIBLE_SLOTS = 5;
 
 async function getAuthHeader(): Promise<Record<string, string>> {
   try {
@@ -57,53 +58,58 @@ async function createGroup(params: {
   return { success: true, groupId: 'grp_' + Date.now() };
 }
 
-export default function GroupsCreateScreen() {
-  const [step, setStep] = useState<Step>('details');
-  const [name, setName] = useState('');
-  const [purpose, setPurpose] = useState('');
-  const [type] = useState('custom'); // Users name their group; no predetermined types (Buffr design).
-  const [maxMembers, setMaxMembers] = useState('20');
-  const [inviteInput, setInviteInput] = useState('');
-  const [invites, setInvites] = useState<string[]>([]);
+function firstName(name: string): string {
+  return name.trim().split(/\s+/)[0] ?? name;
+}
+
+export default function CreateGroupScreen() {
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState('');
+  const [selected, setSelected] = useState<Contact[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<string | null>(null); // groupId on success
+  const [done, setDone] = useState<string | null>(null);
 
-  const totalSteps = 3;
-  const stepIndex = step === 'details' ? 1 : step === 'settings' ? 2 : 3;
+  useEffect(() => {
+    getContacts().then((c) => {
+      setContacts(c);
+      setLoading(false);
+    });
+  }, []);
 
-  function nextStep() {
-    if (step === 'details') {
-      if (!name.trim()) { setError('Group name is required.'); return; }
-      setError(null);
-      setStep('settings');
-    } else if (step === 'settings') {
-      setError(null);
-      setStep('invite');
-    }
-  }
+  const filtered = query.trim()
+    ? contacts.filter(
+        (c) =>
+          c.name.toLowerCase().includes(query.toLowerCase()) ||
+          c.phone.includes(query)
+      )
+    : contacts;
 
-  function addInvite() {
-    const phone = inviteInput.trim();
-    if (!phone) return;
-    if (invites.includes(phone)) { setInviteInput(''); return; }
-    setInvites(prev => [...prev, phone]);
-    setInviteInput('');
-  }
+  const toggleContact = (c: Contact) => {
+    setSelected((prev) =>
+      prev.some((x) => x.id === c.id)
+        ? prev.filter((x) => x.id !== c.id)
+        : [...prev, c]
+    );
+  };
 
-  function removeInvite(phone: string) {
-    setInvites(prev => prev.filter(p => p !== phone));
-  }
+  const removeSelected = (c: Contact) => {
+    setSelected((prev) => prev.filter((x) => x.id !== c.id));
+  };
+
+  const isSelected = (c: Contact) => selected.some((x) => x.id === c.id);
 
   async function handleCreate() {
+    if (selected.length === 0) return;
     setSubmitting(true);
     setError(null);
     const result = await createGroup({
-      name: name.trim(),
-      purpose: purpose.trim(),
-      type,
-      maxMembers: parseInt(maxMembers, 10) || 20,
-      invitePhones: invites,
+      name: 'New Group',
+      purpose: '',
+      type: 'custom',
+      maxMembers: 20,
+      invitePhones: selected.map((c) => c.phone.replace(/\s/g, '')),
     });
     setSubmitting(false);
     if (result.success) {
@@ -120,15 +126,13 @@ export default function GroupsCreateScreen() {
         <SafeAreaView style={styles.flex} edges={['top', 'bottom']}>
           <View style={styles.center}>
             <View style={styles.successIcon}>
-              <Ionicons name="people-circle-outline" size={44} color={designSystem.colors.brand.primary} />
+              <Ionicons name="people-circle-outline" size={44} color={DS.colors.brand.primary} />
             </View>
             <Text style={styles.successTitle}>Group Created!</Text>
-            <Text style={styles.successSub}>
-              "{name}" is ready.{invites.length > 0 ? ` Invites sent to ${invites.length} member${invites.length !== 1 ? 's' : ''}.` : ''}
-            </Text>
+            <Text style={styles.successSub}>You can add a name and more members in group settings.</Text>
             <TouchableOpacity
               style={styles.viewBtn}
-              onPress={() => router.replace({ pathname: '/groups/[id]' as never, params: { id: done } })}
+              onPress={() => router.replace({ pathname: '/groups/[id]', params: { id: done } } as never)}
             >
               <Text style={styles.viewBtnText}>View Group</Text>
             </TouchableOpacity>
@@ -143,217 +147,312 @@ export default function GroupsCreateScreen() {
 
   return (
     <View style={styles.screen}>
-      <Stack.Screen options={{ headerShown: true, headerTitle: 'Create Group', headerTintColor: designSystem.colors.neutral.text, headerStyle: { backgroundColor: '#fff' } }} />
-      <SafeAreaView style={styles.flex} edges={['bottom']}>
-        <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          {/* Progress */}
-          <View style={styles.progressWrap}>
-            {Array.from({ length: totalSteps }, (_, i) => (
-              <View
-                key={i}
-                style={[styles.progressDot, i + 1 <= stepIndex && styles.progressDotActive]}
-              />
-            ))}
-          </View>
-          <Text style={styles.stepLabel}>Step {stepIndex} of {totalSteps}</Text>
-
-          <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-            {step === 'details' && (
-              <>
-                <Text style={styles.stepTitle}>Group Details</Text>
-                <Text style={styles.stepSub}>Give your group a name and tell members what it's for.</Text>
-
-                <Text style={styles.fieldLabel}>Group Name *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g. Windhoek Savings Circle"
-                  placeholderTextColor={designSystem.colors.neutral.textTertiary}
-                  value={name}
-                  onChangeText={t => { setName(t); setError(null); }}
-                  maxLength={60}
-                  autoFocus
-                />
-
-                <Text style={styles.fieldLabel}>Purpose (optional)</Text>
-                <TextInput
-                  style={[styles.input, styles.textArea]}
-                  placeholder="What is this group for?"
-                  placeholderTextColor={designSystem.colors.neutral.textTertiary}
-                  value={purpose}
-                  onChangeText={setPurpose}
-                  multiline
-                  numberOfLines={3}
-                  maxLength={200}
-                />
-
-              </>
-            )}
-
-            {step === 'settings' && (
-              <>
-                <Text style={styles.stepTitle}>Group Settings</Text>
-                <Text style={styles.stepSub}>Configure membership limits and permissions.</Text>
-
-                <Text style={styles.fieldLabel}>Maximum Members</Text>
-                <View style={styles.maxMembersRow}>
-                  {['10', '20', '50', '100'].map(v => (
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          headerTitle: 'Create Group',
+          headerTitleStyle: { fontSize: 18, fontWeight: '700', color: DS.colors.neutral.text },
+          headerBackButtonDisplayMode: 'minimal',
+          headerTintColor: DS.colors.neutral.text,
+          headerStyle: { backgroundColor: DS.colors.neutral.surface },
+          headerRight: () => (
+            <View style={styles.headerCount}>
+              <Text style={styles.headerCountText}>{selected.length}</Text>
+            </View>
+          ),
+        }}
+      />
+      <SafeAreaView style={styles.safe} edges={['bottom']}>
+        {/* Selected members strip: 5 slots */}
+        <View style={styles.selectedStrip}>
+          {Array.from({ length: MAX_VISIBLE_SLOTS }).map((_, i) => {
+            const contact = selected[i];
+            if (contact) {
+              return (
+                <View key={contact.id} style={styles.slot}>
+                  <View style={styles.avatarWrap}>
+                    <Avatar name={contact.name} size={56} />
                     <TouchableOpacity
-                      key={v}
-                      style={[styles.chip, maxMembers === v && styles.chipActive]}
-                      onPress={() => setMaxMembers(v)}
+                      style={styles.removeBtn}
+                      onPress={() => removeSelected(contact)}
+                      hitSlop={8}
+                      accessibilityLabel={`Remove ${contact.name}`}
                     >
-                      <Text style={[styles.chipText, maxMembers === v && styles.chipTextActive]}>{v}</Text>
+                      <Ionicons name="close" size={14} color="#fff" />
                     </TouchableOpacity>
-                  ))}
-                </View>
-
-                <View style={styles.summaryCard}>
-                  <Text style={styles.summaryTitle}>Group Summary</Text>
-                  {[
-                    { label: 'Name', value: name },
-                    ...(purpose ? [{ label: 'Purpose', value: purpose }] : []),
-                    { label: 'Max Members', value: maxMembers },
-                  ].map((row, i, arr) => (
-                    <View key={row.label} style={[styles.summaryRow, i === arr.length - 1 && { borderBottomWidth: 0 }]}>
-                      <Text style={styles.summaryLabel}>{row.label}</Text>
-                      <Text style={styles.summaryValue}>{row.value}</Text>
-                    </View>
-                  ))}
-                </View>
-              </>
-            )}
-
-            {step === 'invite' && (
-              <>
-                <Text style={styles.stepTitle}>Invite Members</Text>
-                <Text style={styles.stepSub}>Add phone numbers to invite. You can also do this later.</Text>
-
-                <View style={styles.inviteRow}>
-                  <TextInput
-                    style={styles.inviteInput}
-                    placeholder="+264 81 xxx xxxx"
-                    placeholderTextColor={designSystem.colors.neutral.textTertiary}
-                    value={inviteInput}
-                    onChangeText={setInviteInput}
-                    keyboardType="phone-pad"
-                    onSubmitEditing={addInvite}
-                    returnKeyType="done"
-                  />
-                  <TouchableOpacity style={styles.addBtn} onPress={addInvite}>
-                    <Ionicons name="add" size={20} color="#fff" />
-                  </TouchableOpacity>
-                </View>
-
-                {invites.length > 0 && (
-                  <View style={styles.inviteList}>
-                    {invites.map(phone => (
-                      <View key={phone} style={styles.inviteChip}>
-                        <Ionicons name="person-outline" size={14} color={designSystem.colors.brand.primary} />
-                        <Text style={styles.inviteChipText}>{phone}</Text>
-                        <TouchableOpacity onPress={() => removeInvite(phone)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                          <Ionicons name="close" size={14} color={designSystem.colors.neutral.textSecondary} />
-                        </TouchableOpacity>
-                      </View>
-                    ))}
                   </View>
-                )}
+                  <Text style={styles.slotName} numberOfLines={1}>{firstName(contact.name)}</Text>
+                </View>
+              );
+            }
+            return (
+              <View key={`empty-${i}`} style={styles.slot}>
+                <View style={styles.emptySlot}>
+                  <Text style={styles.addLabel}>Add</Text>
+                </View>
+              </View>
+            );
+          })}
+        </View>
 
-                {invites.length === 0 && (
-                  <View style={styles.skipBanner}>
-                    <Ionicons name="information-circle-outline" size={16} color="#1D4ED8" />
-                    <Text style={styles.skipText}>You can invite members after the group is created from the group settings page.</Text>
+        {/* Search contact */}
+        <View style={styles.searchWrap}>
+          <Ionicons name="search" size={18} color={DS.colors.neutral.textTertiary} style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search contact"
+            placeholderTextColor={DS.colors.neutral.textTertiary}
+            value={query}
+            onChangeText={setQuery}
+            returnKeyType="search"
+            accessibilityLabel="Search contact"
+          />
+        </View>
+
+        {/* Contacts section */}
+        <Text style={styles.sectionTitle}>Contacts</Text>
+
+        {loading ? (
+          <ActivityIndicator color={DS.colors.brand.primary} style={styles.loader} />
+        ) : (
+          <FlatList
+            data={filtered}
+            keyExtractor={(c) => c.id}
+            style={styles.list}
+            contentContainerStyle={styles.listContent}
+            keyboardShouldPersistTaps="handled"
+            renderItem={({ item }) => {
+              const sel = isSelected(item);
+              return (
+                <TouchableOpacity
+                  style={styles.contactRow}
+                  onPress={() => toggleContact(item)}
+                  activeOpacity={0.7}
+                  accessibilityLabel={sel ? `Deselect ${item.name}` : `Select ${item.name}`}
+                  accessibilityState={{ selected: sel }}
+                >
+                  <Avatar name={item.name} size={44} />
+                  <Text style={styles.contactName} numberOfLines={1}>{item.name}</Text>
+                  <View style={[styles.diamond, sel && styles.diamondSelected]}>
+                    {sel ? (
+                      <Ionicons name="add" size={16} color="#fff" />
+                    ) : null}
                   </View>
-                )}
-              </>
-            )}
+                </TouchableOpacity>
+              );
+            }}
+            ListEmptyComponent={
+              <Text style={styles.emptyText}>
+                {query.trim() ? 'No contacts match your search' : 'No contacts yet'}
+              </Text>
+            }
+          />
+        )}
 
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
-          </ScrollView>
+        {error ? (
+          <ErrorState
+            variant="default"
+            message={error}
+            onRetry={handleCreate}
+            style={styles.errorWrap}
+          />
+        ) : null}
 
-          <View style={styles.footer}>
-            {step !== 'details' && (
-              <TouchableOpacity
-                style={styles.backBtn}
-                onPress={() => setStep(step === 'settings' ? 'details' : 'settings')}
-              >
-                <Ionicons name="chevron-back" size={18} color={designSystem.colors.neutral.textSecondary} />
-                <Text style={styles.backBtnText}>Back</Text>
-              </TouchableOpacity>
-            )}
-            {step !== 'invite' ? (
-              <TouchableOpacity style={styles.nextBtn} onPress={nextStep}>
-                <Text style={styles.nextBtnText}>Continue</Text>
-                <Ionicons name="chevron-forward" size={18} color="#fff" />
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={[styles.createBtn, submitting && styles.btnDisabled]}
-                onPress={handleCreate}
-                disabled={submitting}
-              >
-                {submitting
-                  ? <ActivityIndicator color="#fff" />
-                  : <Text style={styles.createBtnText}>Create Group</Text>}
-              </TouchableOpacity>
-            )}
-          </View>
-        </KeyboardAvoidingView>
+        {/* Create Group button */}
+        <TouchableOpacity
+          style={[
+            styles.createBtn,
+            selected.length === 0 && styles.createBtnDisabled,
+            submitting && styles.createBtnDisabled,
+          ]}
+          onPress={handleCreate}
+          disabled={selected.length === 0 || submitting}
+          activeOpacity={0.9}
+        >
+          {submitting ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={[styles.createBtnText, selected.length === 0 && styles.createBtnTextDisabled]}>
+              Create Group
+            </Text>
+          )}
+        </TouchableOpacity>
       </SafeAreaView>
     </View>
   );
 }
 
-const DS = designSystem;
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: DS.colors.neutral.background },
+  safe: { flex: 1 },
   flex: { flex: 1 },
+
+  headerCount: {
+    minWidth: 28,
+    alignItems: 'flex-end',
+  },
+  headerCountText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: DS.colors.neutral.text,
+  },
+
+  selectedStrip: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    gap: 16,
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    backgroundColor: DS.colors.neutral.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: DS.colors.neutral.border,
+  },
+  slot: { alignItems: 'center', width: 64 },
+  avatarWrap: { position: 'relative', marginBottom: 6 },
+  removeBtn: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: DS.colors.semantic.error,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptySlot: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: DS.colors.neutral.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: DS.colors.neutral.textTertiary,
+  },
+  slotName: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: DS.colors.neutral.text,
+    maxWidth: 64,
+    textAlign: 'center',
+  },
+
+  searchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 24,
+    marginTop: 16,
+    marginBottom: 12,
+    height: 44,
+    backgroundColor: DS.colors.neutral.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: DS.colors.neutral.border,
+    paddingHorizontal: 12,
+  },
+  searchIcon: { marginRight: 8 },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: DS.colors.neutral.text,
+    paddingVertical: 0,
+  },
+
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: DS.colors.neutral.textSecondary,
+    marginHorizontal: 24,
+    marginBottom: 8,
+  },
+
+  list: { flex: 1 },
+  listContent: { paddingHorizontal: 24, paddingBottom: 24 },
+  loader: { marginTop: 48 },
+  contactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: DS.colors.neutral.border,
+    gap: 12,
+  },
+  contactName: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '500',
+    color: DS.colors.neutral.text,
+    minWidth: 0,
+  },
+  diamond: {
+    width: 24,
+    height: 24,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: DS.colors.neutral.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  diamondSelected: {
+    backgroundColor: DS.colors.neutral.text,
+    borderColor: DS.colors.neutral.text,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: DS.colors.neutral.textTertiary,
+    textAlign: 'center',
+    marginTop: 24,
+  },
+  errorWrap: { marginHorizontal: 24, marginBottom: 12 },
+
+  createBtn: {
+    height: 56,
+    marginHorizontal: 24,
+    marginBottom: 32,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: DS.colors.neutral.text,
+  },
+  createBtnDisabled: {
+    backgroundColor: DS.colors.neutral.border,
+  },
+  createBtnText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  createBtnTextDisabled: {
+    color: DS.colors.neutral.textTertiary,
+  },
+
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
-  progressWrap: { flexDirection: 'row', gap: 8, justifyContent: 'center', paddingTop: 16 },
-  progressDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: DS.colors.neutral.border },
-  progressDotActive: { backgroundColor: DS.colors.brand.primary, width: 24 },
-  stepLabel: { textAlign: 'center', fontSize: 12, color: DS.colors.neutral.textSecondary, marginTop: 8, marginBottom: 4 },
-  content: { padding: 24, paddingBottom: 16 },
-  stepTitle: { fontSize: 22, fontWeight: '800', color: DS.colors.neutral.text, marginBottom: 6 },
-  stepSub: { fontSize: 14, color: DS.colors.neutral.textSecondary, marginBottom: 24, lineHeight: 20 },
-  fieldLabel: { fontSize: 13, fontWeight: '600', color: DS.colors.neutral.textSecondary, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.4 },
-  input: { height: 56, backgroundColor: '#fff', borderRadius: 16, borderWidth: 1.5, borderColor: DS.colors.neutral.border, paddingHorizontal: 16, fontSize: 16, color: DS.colors.neutral.text, marginBottom: 20 },
-  textArea: { height: 88, paddingTop: 14, textAlignVertical: 'top' },
-  typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 8 },
-  typeCard: { width: '47%', backgroundColor: '#fff', borderRadius: 16, padding: 14, borderWidth: 1.5, borderColor: DS.colors.neutral.border, gap: 6 },
-  typeCardActive: { borderColor: DS.colors.brand.primary, backgroundColor: '#EFF6FF' },
-  typeLabel: { fontSize: 14, fontWeight: '700', color: DS.colors.neutral.text },
-  typeDesc: { fontSize: 11, color: DS.colors.neutral.textSecondary, lineHeight: 15 },
-  maxMembersRow: { flexDirection: 'row', gap: 10, marginBottom: 24 },
-  chip: { flex: 1, height: 44, borderRadius: 9999, borderWidth: 1.5, borderColor: DS.colors.neutral.border, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' },
-  chipActive: { backgroundColor: DS.colors.brand.primary, borderColor: DS.colors.brand.primary },
-  chipText: { fontSize: 14, fontWeight: '600', color: DS.colors.neutral.textSecondary },
-  chipTextActive: { color: '#fff' },
-  summaryCard: { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: DS.colors.neutral.border, overflow: 'hidden' },
-  summaryTitle: { fontSize: 13, fontWeight: '700', color: DS.colors.neutral.text, padding: 16, borderBottomWidth: 1, borderBottomColor: DS.colors.neutral.border },
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: DS.colors.neutral.border },
-  summaryLabel: { fontSize: 13, color: DS.colors.neutral.textSecondary },
-  summaryValue: { fontSize: 13, fontWeight: '600', color: DS.colors.neutral.text, maxWidth: '55%', textAlign: 'right' },
-  inviteRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
-  inviteInput: { flex: 1, height: 50, backgroundColor: '#fff', borderRadius: 9999, borderWidth: 1.5, borderColor: DS.colors.neutral.border, paddingHorizontal: 16, fontSize: 15, color: DS.colors.neutral.text },
-  addBtn: { width: 50, height: 50, borderRadius: 25, backgroundColor: DS.colors.brand.primary, justifyContent: 'center', alignItems: 'center' },
-  inviteList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
-  inviteChip: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#EFF6FF', borderRadius: 9999, paddingHorizontal: 12, paddingVertical: 8 },
-  inviteChipText: { fontSize: 13, color: DS.colors.brand.primary, fontWeight: '500' },
-  skipBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: '#DBEAFE', borderRadius: 12, padding: 14 },
-  skipText: { flex: 1, fontSize: 13, color: '#1D4ED8', lineHeight: 18 },
-  errorText: { fontSize: 13, color: DS.colors.semantic.error, marginTop: 8 },
-  footer: { flexDirection: 'row', gap: 12, padding: 24, paddingBottom: 32, alignItems: 'center' },
-  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 4 },
-  backBtnText: { fontSize: 15, color: DS.colors.neutral.textSecondary, fontWeight: '600' },
-  nextBtn: { flex: 1, height: 56, backgroundColor: DS.colors.brand.primary, borderRadius: 9999, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 },
-  nextBtnText: { fontSize: 16, fontWeight: '700', color: '#fff' },
-  createBtn: { flex: 1, height: 56, backgroundColor: '#22C55E', borderRadius: 9999, justifyContent: 'center', alignItems: 'center' },
-  createBtnText: { fontSize: 16, fontWeight: '700', color: '#fff' },
-  btnDisabled: { opacity: 0.5 },
-  successIcon: { width: 88, height: 88, borderRadius: 44, backgroundColor: DS.colors.brand.primaryMuted, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  successIcon: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: DS.colors.brand.primaryMuted,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
   successTitle: { fontSize: 24, fontWeight: '800', color: DS.colors.neutral.text, marginBottom: 8 },
   successSub: { fontSize: 14, color: DS.colors.neutral.textSecondary, textAlign: 'center', marginBottom: 32 },
-  viewBtn: { height: 56, backgroundColor: DS.colors.brand.primary, borderRadius: 9999, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 48, marginBottom: 12 },
+  viewBtn: {
+    height: 56,
+    backgroundColor: DS.colors.brand.primary,
+    borderRadius: 9999,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 48,
+    marginBottom: 12,
+  },
   viewBtnText: { fontSize: 16, fontWeight: '700', color: '#fff' },
   homeLink: { paddingVertical: 8 },
   homeLinkText: { fontSize: 15, color: DS.colors.brand.primary, fontWeight: '600' },

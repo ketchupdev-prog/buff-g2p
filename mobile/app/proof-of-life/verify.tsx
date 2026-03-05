@@ -1,6 +1,14 @@
 /**
  * Proof of Life – Verify – Buffr G2P.
  * §3.6 screen 59 / §2.4. Device biometric + API submission.
+ * 
+ * ⚠️ DEPRECATED - This single-screen flow has been replaced by a 3-step wizard:
+ * - /proof-of-life/intro.tsx (Step 1: Introduction)
+ * - /proof-of-life/scan.tsx (Step 2: Biometric Scan)
+ * - /proof-of-life/success.tsx (Step 3: Success Confirmation)
+ * 
+ * This file is kept for reference only. Navigation updated in (tabs)/profile/index.tsx
+ * to use the new multi-step flow with ProgressIndicator.
  */
 import React, { useState } from 'react';
 import {
@@ -17,6 +25,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSecureItem } from '@/services/secureStorage';
 import { designSystem } from '@/constants/designSystem';
+import { ErrorState } from '@/components/ui';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 
@@ -132,10 +141,12 @@ export default function ProofOfLifeVerifyScreen() {
         </View>
 
         {error ? (
-          <View style={styles.errorBox}>
-            <Ionicons name="warning" size={16} color={designSystem.colors.semantic.error} style={{ marginRight: 8 }} />
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
+          <ErrorState
+            variant="auth"
+            message={error}
+            onRetry={handleVerify}
+            style={{ marginBottom: 20 }}
+          />
         ) : null}
 
         <View style={styles.footer}>
@@ -228,16 +239,6 @@ const styles = StyleSheet.create({
   },
   stepNumText: { ...designSystem.typography.textStyles.caption, color: designSystem.colors.brand.primary, fontWeight: '700' },
   stepText: { ...designSystem.typography.textStyles.bodySm, color: designSystem.colors.neutral.text, flex: 1, lineHeight: 20 },
-  errorBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: designSystem.colors.feedback.red100,
-    borderRadius: designSystem.radius.md,
-    padding: designSystem.spacing.scale.md,
-    width: '100%',
-    marginBottom: 20,
-  },
-  errorText: { ...designSystem.typography.textStyles.bodySm, color: designSystem.colors.semantic.error, flex: 1 },
   footer: { position: 'absolute', bottom: designSystem.spacing.g2p.sectionSpacing, left: designSystem.spacing.g2p.horizontalPadding, right: designSystem.spacing.g2p.horizontalPadding },
   verifyButton: {
     height: designSystem.components.button.height,

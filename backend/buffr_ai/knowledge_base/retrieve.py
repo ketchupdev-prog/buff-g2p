@@ -5,12 +5,27 @@ Location: backend/buffr_ai/knowledge_base/retrieve.py
 Purpose: Used by companion tool search_knowledge_base; filters by scope (global) or (user + user_id).
 """
 
+import json
 import logging
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from buffr_ai.db_utils import get_db_pool
 
 logger = logging.getLogger(__name__)
+
+
+def _normalize_metadata(raw: Any) -> dict:
+    """Return a dict from JSONB (asyncpg may return dict or str)."""
+    if raw is None:
+        return {}
+    if isinstance(raw, dict):
+        return dict(raw)
+    if isinstance(raw, str):
+        try:
+            return json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+    return {}
 
 
 async def retrieve(
@@ -48,7 +63,7 @@ async def retrieve(
             "title": r["title"],
             "source": r["source"],
             "snippet": r["snippet"] or (r["content"][:300] + "…") if r["content"] else "",
-            "metadata": dict(r["metadata"]) if r["metadata"] else {},
+            "metadata": _normalize_metadata(r["metadata"]),
         }
         for r in rows
     ]

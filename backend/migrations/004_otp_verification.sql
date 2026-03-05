@@ -186,8 +186,9 @@ BEGIN
         RETURN;
     END IF;
     
-    -- Verify code
-    IF v_otp.code = p_code THEN
+    -- Verify code (explicit VARCHAR cast to prevent numeric conversion that strips leading zeros)
+    -- Bug fix: Codes like '085015' were being compared as numbers, causing '0' digits to fail
+    IF v_otp.code::VARCHAR = p_code::VARCHAR THEN
         -- Mark as verified
         UPDATE otp_codes
         SET verified_at = NOW(), updated_at = NOW()

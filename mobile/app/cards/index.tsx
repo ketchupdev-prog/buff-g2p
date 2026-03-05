@@ -1,18 +1,32 @@
 /**
  * Cards View – Buffr G2P. §3.4 screen 34b.
- * Buffr (NamPost) main card + linked bank cards loaded from primary wallet.
+ * Figma-aligned: single-card view with horizontal swipe between Buffr Card and linked bank cards.
+ * Header: back, "Card" title, + (add card). Each slide: card name, card visual, CVV row, Remove/Change/Edit.
+ * Pagination dots + "Swipe right to see other Cards" when multiple cards.
  */
-import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Dimensions,
+  FlatList,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { router, Stack } from 'expo-router';
+import { router, Stack, useFocusEffect } from 'expo-router';
 import { useUser } from '@/contexts/UserContext';
 import { designSystem } from '@/constants/designSystem';
 import CardFrame from '@/components/cards/CardFrame';
+import { LinkedCardView } from '@/components/cards/LinkedCardView';
 import { getWallets } from '@/services/wallets';
+import { deleteCard } from '@/services/cards';
+import { usePullToRefresh } from '@/hooks';
 
 const DS = designSystem;
+const CARD_BUTTON_HEIGHT = 52;
+const CARD_BORDER_RADIUS = 16;
 
 interface LinkedCard {
   id: string;
@@ -21,26 +35,29 @@ interface LinkedCard {
   brand: string;
 }
 
-const BRAND_ICON: Record<string, string> = {
-  Visa: 'card-outline',
-  Mastercard: 'card-outline',
-  default: 'card-outline',
-};
+type CardItem =
+  | { type: 'buffr'; id: string; userName: string; cardNumber: string; expiryDate: string }
+  | { type: 'linked'; linked: LinkedCard; userName: string };
 
 export default function CardsScreen() {
-  const { profile, cardNumberMasked } = useUser();
+  const { profile, cardNumberMasked, expiryDate } = useUser();
   const [linkedCards, setLinkedCards] = useState<LinkedCard[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [cvvVisible, setCvvVisible] = useState<Record<string, boolean>>({});
+  const [removingId, setRemovingId] = useState<string | null>(null);
+  const flatListRef = useRef<FlatList<CardItem>>(null);
+  const { width: screenWidth } = Dimensions.get('window');
+
   const displayName = [profile?.firstName, profile?.lastName].filter(Boolean).join(' ') || 'Buffr User';
 
   const load = useCallback(async () => {
     try {
       const wallets = await getWallets();
-      // Collect linked cards from all wallets (primarily the main wallet)
       const cards: LinkedCard[] = [];
-      wallets.forEach(w => {
-        w.linkedCards?.forEach(lc => {
-          if (!cards.find(c => c.id === lc.id)) {
+      wallets.forEach((w) => {
+        w.linkedCards?.forEach((lc) => {
+          if (!cards.find((c) => c.id === lc.id)) {
             cards.push({ id: lc.id, label: lc.label, last4: lc.last4, brand: lc.brand });
           }
         });
@@ -53,100 +70,383 @@ export default function CardsScreen() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  const { refreshing, onRefresh } = usePullToRefresh({ onRefresh: load });
+  useEffect(() => {
+    load();
+  }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
+
+  const data: CardItem[] = [
+    {
+      type: 'buffr',
+      id: 'buffr',
+      userName: displayName,
+      cardNumber: cardNumberMasked ?? '•••• •••• •••• ••••',
+      expiryDate: expiryDate ?? '••/••',
+    },
+    ...linkedCards.map((linked) => ({
+      type: 'linked' as const,
+      linked,
+      userName: displayName,
+    })),
+  ];
+
+  const onMomentumScrollEnd = (e: { nativeEvent: { contentOffset: { x: number } } }) => {
+    const index = Math.round(e.nativeEvent.contentOffset.x / screenWidth);
+    setCurrentIndex(Math.min(index, data.length - 1));
+  };
+
+  const toggleCvv = (cardId: string) => {
+    setCvvVisible((prev) => ({ ...prev, [cardId]: !prev[cardId] }));
+  };
+
+  const handleRemove = async () => {
+    if (!currentCard || currentCard.type === 'buffr') return;
+    const id = currentCard.linked.id;
+    setRemovingId(id);
+    const result = await deleteCard(id);
+    setRemovingId(null);
+    if (result.success) {
+      await load();
+      if (currentIndex >= data.length - 1 && currentIndex > 0) {
+        setCurrentIndex(currentIndex - 1);
+      }
+    } else {
+      alert(result.error ?? 'Could not remove card');
+    }
+  };
+
+  const handleChange = () => {
+    router.push('/add-card' as never);
+  };
+
+  const currentCard = data[currentIndex];
+  const isBuffr = currentCard?.type === 'buffr';
+  const currentId = currentCard?.type === 'buffr' ? currentCard.id : currentCard?.linked?.id;
+  const isRemoving = currentId != null && removingId === currentId;
 
   return (
     <View style={styles.screen}>
-      <Stack.Screen options={{ title: 'Cards', headerShown: true, headerTintColor: DS.colors.neutral.text, headerStyle: { backgroundColor: '#fff' } }} />
-      <SafeAreaView style={styles.flex} edges={['bottom']}>
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          {/* Buffr account card */}
-          <Text style={styles.sectionLabel}>Buffr Account</Text>
-          <TouchableOpacity style={styles.cardWrap} activeOpacity={0.9}>
-            <CardFrame
-              userName={displayName}
-              cardNumber={cardNumberMasked ?? '•••• •••• •••• ••••'}
-              expiryDate="••/••"
-            />
+      <Stack.Screen options={{ headerShown: false }} />
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        {/* Header: back, Card, + */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.headerBtn}
+            accessibilityLabel="Go back"
+          >
+            <Ionicons name="chevron-back" size={24} color={DS.colors.neutral.text} />
           </TouchableOpacity>
+          <Text style={styles.headerTitle}>Card</Text>
+          <TouchableOpacity
+            onPress={() => router.push('/add-card' as never)}
+            style={styles.headerBtn}
+            accessibilityLabel="Add card"
+          >
+            <Ionicons name="add" size={24} color={DS.colors.neutral.text} />
+          </TouchableOpacity>
+        </View>
 
-          {/* Linked bank cards */}
-          <View style={styles.sectionRow}>
-            <Text style={styles.sectionLabel}>Linked bank cards</Text>
-            <TouchableOpacity onPress={() => router.push('/add-card' as never)}>
-              <Text style={styles.addLink}>+ Add card</Text>
+        {loading && data.length <= 1 ? (
+          <View style={styles.centered}>
+            <Text style={styles.hint}>Loading cards...</Text>
+          </View>
+        ) : data.length === 0 ? (
+          <View style={styles.centered}>
+            <Text style={styles.hint}>No cards yet</Text>
+            <TouchableOpacity
+              style={styles.addCardCta}
+              onPress={() => router.push('/add-card' as never)}
+            >
+              <Text style={styles.addCardCtaText}>+ Add card</Text>
             </TouchableOpacity>
           </View>
+        ) : (
+          <>
+            {/* Card title for current slide */}
+            <Text style={styles.cardTitle}>
+              {currentCard?.type === 'buffr' ? 'Buffr Card' : currentCard?.linked.label}
+            </Text>
 
-          {loading ? (
-            <ActivityIndicator color={DS.colors.brand.primary} style={{ marginTop: 16 }} />
-          ) : linkedCards.length === 0 ? (
-            <View style={styles.empty}>
-              <View style={styles.emptyIcon}>
-                <Ionicons name="card-outline" size={32} color={DS.colors.neutral.textTertiary} />
+            <FlatList
+              ref={flatListRef}
+              data={data}
+              keyExtractor={(item) => (item.type === 'buffr' ? item.id : item.linked.id)}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onMomentumScrollEnd={onMomentumScrollEnd}
+              snapToInterval={screenWidth}
+              snapToAlignment="center"
+              decelerationRate="fast"
+              contentContainerStyle={styles.carouselContent}
+              renderItem={({ item }) => (
+                <View style={[styles.slide, { width: screenWidth }]}>
+                  {item.type === 'buffr' ? (
+                    <CardFrame
+                      userName={item.userName}
+                      cardNumber={item.cardNumber}
+                      expiryDate={item.expiryDate}
+                    />
+                  ) : (
+                    <LinkedCardView
+                      label={item.linked.label}
+                      userName={item.userName}
+                      last4={item.linked.last4}
+                      brand={item.linked.brand}
+                    />
+                  )}
+                </View>
+              )}
+            />
+
+            {/* CVV row – Buffr card has no CVV; linked cards show masked (backend may expose reveal later). */}
+            <View style={styles.cvvRow}>
+              <View style={styles.cvvField}>
+                <Text style={styles.cvvText}>
+                  {isBuffr ? '—' : (currentId && cvvVisible[currentId] ? '•••' : 'CVV •••')}
+                </Text>
               </View>
-              <Text style={styles.emptyTitle}>No linked cards</Text>
-              <Text style={styles.emptyDesc}>Link a bank card to easily top up your Buffr wallet or pay merchants.</Text>
-              <TouchableOpacity style={styles.addBtn} onPress={() => router.push('/add-card' as never)}>
-                <Ionicons name="add" size={16} color="#fff" />
-                <Text style={styles.addBtnText}>Link a card</Text>
+              {!isBuffr && (
+                <TouchableOpacity
+                  style={styles.showBtn}
+                  onPress={() => currentId && toggleCvv(currentId)}
+                >
+                  <Text style={styles.showBtnText}>
+                    {currentId && cvvVisible[currentId] ? 'Hide' : 'Show'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Remove (linked only), Change, Edit */}
+            <View style={styles.actionsRow}>
+              {!isBuffr && currentCard?.type === 'linked' && (
+                <TouchableOpacity
+                  style={[styles.removeBtn, isRemoving && styles.btnDisabled]}
+                  onPress={handleRemove}
+                  disabled={isRemoving}
+                >
+                  <Text style={styles.removeBtnText}>{isRemoving ? 'Removing…' : 'Remove'}</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={styles.changeBtn} onPress={handleChange}>
+                <Text style={styles.changeBtnText}>Change</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.editBtn}
+                onPress={() => {
+                  if (isBuffr) return;
+                  alert('Edit card label is not available yet.');
+                }}
+              >
+                <Text style={styles.editBtnText}>Edit</Text>
               </TouchableOpacity>
             </View>
-          ) : (
-            linkedCards.map((c) => (
-              <View key={c.id} style={styles.linkedRow}>
-                <View style={styles.linkedIconWrap}>
-                  <Ionicons name={(BRAND_ICON[c.brand] ?? BRAND_ICON.default) as never} size={22} color={DS.colors.brand.primary} />
+
+            {/* Pagination + swipe hint when multiple cards */}
+            {data.length > 1 && (
+              <View style={styles.pagination}>
+                <View style={styles.dots}>
+                  {data.map((_, i) => (
+                    <View
+                      key={i}
+                      style={[
+                        styles.dot,
+                        i === currentIndex ? styles.dotActive : styles.dotInactive,
+                      ]}
+                    />
+                  ))}
                 </View>
-                <View style={styles.linkedInfo}>
-                  <Text style={styles.linkedName}>{c.label}</Text>
-                  <Text style={styles.linkedLast4}>{c.brand} •••• {c.last4}</Text>
-                </View>
-                <TouchableOpacity style={styles.unlinkBtn}>
-                  <Ionicons name="trash-outline" size={16} color={DS.colors.semantic.error} />
-                </TouchableOpacity>
+                <Text style={styles.swipeHint}>Swipe right to see other Cards</Text>
               </View>
-            ))
-          )}
-
-          {/* Add another card CTA when cards exist */}
-          {!loading && linkedCards.length > 0 && (
-            <TouchableOpacity style={styles.addMoreBtn} onPress={() => router.push('/add-card' as never)}>
-              <Ionicons name="add-circle-outline" size={18} color={DS.colors.brand.primary} />
-              <Text style={styles.addMoreText}>Link another card</Text>
-            </TouchableOpacity>
-          )}
-
-          <View style={{ height: 40 }} />
-        </ScrollView>
+            )}
+          </>
+        )}
       </SafeAreaView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: DS.colors.neutral.background },
-  flex: { flex: 1 },
-  content: { padding: 20 },
-  sectionLabel: { fontSize: 12, fontWeight: '700', color: DS.colors.neutral.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 },
-  sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 28, marginBottom: 12 },
-  addLink: { fontSize: 14, fontWeight: '600', color: DS.colors.brand.primary },
-  cardWrap: { marginBottom: 8 },
-
-  empty: { alignItems: 'center', paddingVertical: 32 },
-  emptyIcon: { width: 64, height: 64, borderRadius: 32, backgroundColor: DS.colors.neutral.border, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
-  emptyTitle: { fontSize: 16, fontWeight: '600', color: DS.colors.neutral.text, marginBottom: 8 },
-  emptyDesc: { fontSize: 13, color: DS.colors.neutral.textSecondary, textAlign: 'center', marginBottom: 20, paddingHorizontal: 16, lineHeight: 18 },
-  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 44, paddingHorizontal: 24, backgroundColor: DS.colors.brand.primary, borderRadius: 9999, justifyContent: 'center' },
-  addBtnText: { fontSize: 14, fontWeight: '700', color: '#fff' },
-
-  linkedRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: DS.colors.neutral.border, gap: 12 },
-  linkedIconWrap: { width: 44, height: 44, borderRadius: 22, backgroundColor: DS.colors.brand.primaryMuted, justifyContent: 'center', alignItems: 'center' },
-  linkedInfo: { flex: 1 },
-  linkedName: { fontSize: 15, fontWeight: '600', color: DS.colors.neutral.text },
-  linkedLast4: { fontSize: 12, color: DS.colors.neutral.textSecondary, marginTop: 2 },
-  unlinkBtn: { padding: 8 },
-
-  addMoreBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'center', marginTop: 8, paddingVertical: 14, backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: DS.colors.neutral.border },
-  addMoreText: { fontSize: 14, fontWeight: '600', color: DS.colors.brand.primary },
+  screen: {
+    flex: 1,
+    backgroundColor: DS.colors.neutral.background,
+  },
+  safe: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: DS.colors.neutral.border,
+    backgroundColor: DS.colors.neutral.surface,
+  },
+  headerBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: DS.colors.neutral.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    ...DS.typography.textStyles.title,
+    color: DS.colors.neutral.text,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  hint: {
+    ...DS.typography.textStyles.body,
+    color: DS.colors.neutral.textSecondary,
+    marginBottom: 16,
+  },
+  addCardCta: {
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    backgroundColor: DS.colors.brand.primary,
+    borderRadius: CARD_BORDER_RADIUS,
+  },
+  addCardCtaText: {
+    ...DS.typography.textStyles.body,
+    fontWeight: '600',
+    color: DS.colors.neutral.surface,
+  },
+  cardTitle: {
+    ...DS.typography.textStyles.titleLg,
+    color: DS.colors.neutral.text,
+    marginTop: 20,
+    marginBottom: 16,
+    marginHorizontal: 20,
+  },
+  carouselContent: {
+    paddingHorizontal: 0,
+  },
+  slide: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 26,
+  },
+  cvvRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 20,
+    marginTop: 24,
+    gap: 12,
+  },
+  cvvField: {
+    flex: 1,
+    height: 52,
+    borderRadius: CARD_BORDER_RADIUS,
+    backgroundColor: DS.colors.neutral.border,
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  cvvText: {
+    ...DS.typography.textStyles.body,
+    color: DS.colors.neutral.textSecondary,
+  },
+  showBtn: {
+    height: 52,
+    paddingHorizontal: 20,
+    borderRadius: CARD_BORDER_RADIUS,
+    backgroundColor: DS.colors.neutral.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  showBtnText: {
+    ...DS.typography.textStyles.body,
+    fontWeight: '600',
+    color: DS.colors.neutral.text,
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    marginHorizontal: 20,
+    marginTop: 16,
+    gap: 12,
+  },
+  removeBtn: {
+    flex: 1,
+    height: CARD_BUTTON_HEIGHT,
+    borderRadius: CARD_BORDER_RADIUS,
+    backgroundColor: DS.colors.feedback?.red100 ?? '#FEE2E2',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  btnDisabled: {
+    opacity: 0.6,
+  },
+  removeBtnText: {
+    ...DS.typography.textStyles.body,
+    fontWeight: '600',
+    color: DS.colors.semantic.error,
+  },
+  changeBtn: {
+    flex: 1,
+    height: CARD_BUTTON_HEIGHT,
+    borderRadius: CARD_BORDER_RADIUS,
+    backgroundColor: DS.colors.neutral.surface,
+    borderWidth: 1,
+    borderColor: DS.colors.neutral.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  changeBtnText: {
+    ...DS.typography.textStyles.body,
+    fontWeight: '600',
+    color: DS.colors.neutral.text,
+  },
+  editBtn: {
+    flex: 1,
+    height: CARD_BUTTON_HEIGHT,
+    borderRadius: CARD_BORDER_RADIUS,
+    backgroundColor: DS.colors.neutral.text,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  editBtnText: {
+    ...DS.typography.textStyles.body,
+    fontWeight: '600',
+    color: DS.colors.neutral.surface,
+  },
+  pagination: {
+    marginTop: 28,
+    alignItems: 'center',
+  },
+  dots: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  dotActive: {
+    width: 24,
+    backgroundColor: DS.colors.neutral.text,
+  },
+  dotInactive: {
+    backgroundColor: DS.colors.neutral.border,
+  },
+  swipeHint: {
+    ...DS.typography.textStyles.caption,
+    color: DS.colors.neutral.textSecondary,
+  },
 });

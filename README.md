@@ -9,6 +9,17 @@ Buffr G2P (Government-to-Person) — backend and mobile app (vouchers, wallets, 
 | **backend/** | Backend API and services |
 | **mobile/**  | Buffr Expo (React Native) app — all app code, native projects, and config |
 
+## ⚠️ Known Limitations
+
+**Important:** This codebase has stub implementations, mocks, and incomplete features.
+
+See **[KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md)** for complete audit including:
+- 🚨 **Critical Gaps:** Location API stubs, Compliance API stubs, Open Banking mock tokens
+- ⚠️ **Incomplete Features:** Face ID integration, Analytics charts, USSD menu
+- 📋 **Optional/Unclear Scope:** Country selection, Bank linking, Gamification
+
+**Do not deploy to production** without addressing critical gaps listed in KNOWN_LIMITATIONS.md.
+
 ## Implemented Features
 
 ### Backend API Endpoints
@@ -38,6 +49,9 @@ Run migrations to add new tables:
 cd backend
 npm run migrate
 ```
+
+Or from repo root: `npm run migrate`. To verify DB and migration state: `npm run db:check`.  
+Full details: **[MIGRATIONS.md](MIGRATIONS.md)**; schema reference: **backend/docs/DB_STRUCTURE.md** (see also mobile PRD §16).
 
 ## Mobile
 

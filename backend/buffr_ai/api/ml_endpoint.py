@@ -181,7 +181,7 @@ async def detect_fraud(req: FraudDetectionRequest):
     """Detect fraud for a transaction."""
     service = get_ml_service()
     try:
-        result = service.predict(MLModelType.FRAUD_DETECT, req.dict())
+        result = service.predict(MLModelType.FRAUD_DETECTION, req.dict())
         return MLPredictionResponse(
             success=True,
             model=result.model,

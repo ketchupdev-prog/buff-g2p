@@ -36,11 +36,20 @@ from sklearn.metrics import (
     classification_report
 )
 
-# PyTorch for Neural Network
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import DataLoader, TensorDataset
+# PyTorch for Neural Network (optional - graceful degradation per ML_INTEGRATION_GUIDE §15.2)
+try:
+    import torch
+    import torch.nn as nn
+    import torch.optim as optim
+    from torch.utils.data import DataLoader, TensorDataset
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
+    # Define dummy classes for graceful degradation
+    class nn:
+        class Module:
+            pass
+    torch = None
 
 logger = logging.getLogger(__name__)
 
@@ -143,39 +152,47 @@ class FraudFeatures:
         ])
 
 
-class FraudDetectionNN(nn.Module):
-    """
-    Neural Network for fraud detection
+# Neural Network class (only available if torch is installed)
+if TORCH_AVAILABLE:
+    class FraudDetectionNN(nn.Module):
+        """
+        Neural Network for fraud detection
 
-    Architecture:
-    - Input: 29 features (20 original + 9 agent network features)
-    - Hidden1: 64 neurons, ReLU, Dropout(0.3)
-    - Hidden2: 32 neurons, ReLU, Dropout(0.2)
-    - Hidden3: 16 neurons, ReLU
-    - Output: 1 neuron, Sigmoid
-    """
+        Architecture:
+        - Input: 29 features (20 original + 9 agent network features)
+        - Hidden1: 64 neurons, ReLU, Dropout(0.3)
+        - Hidden2: 32 neurons, ReLU, Dropout(0.2)
+        - Hidden3: 16 neurons, ReLU
+        - Output: 1 neuron, Sigmoid
+        """
 
-    def __init__(self, input_dim: int = 29):
-        super(FraudDetectionNN, self).__init__()
+        def __init__(self, input_dim: int = 29):
+            super(FraudDetectionNN, self).__init__()
 
-        self.network = nn.Sequential(
-            nn.Linear(input_dim, 64),
-            nn.ReLU(),
-            nn.Dropout(0.3),
+            self.network = nn.Sequential(
+                nn.Linear(input_dim, 64),
+                nn.ReLU(),
+                nn.Dropout(0.3),
 
-            nn.Linear(64, 32),
-            nn.ReLU(),
-            nn.Dropout(0.2),
+                nn.Linear(64, 32),
+                nn.ReLU(),
+                nn.Dropout(0.2),
 
-            nn.Linear(32, 16),
-            nn.ReLU(),
+                nn.Linear(32, 16),
+                nn.ReLU(),
 
-            nn.Linear(16, 1),
-            nn.Sigmoid()
-        )
+                nn.Linear(16, 1),
+                nn.Sigmoid()
+            )
 
-    def forward(self, x):
-        return self.network(x)
+        def forward(self, x):
+            return self.network(x)
+else:
+    # Dummy class when torch not available
+    class FraudDetectionNN:
+        def __init__(self, *args, **kwargs):
+            logger.warning("PyTorch not available - Neural Network model disabled")
+            pass
 
 
 class FraudDetectionEnsemble:
@@ -194,12 +211,22 @@ class FraudDetectionEnsemble:
         self.scaler = StandardScaler()
 
         # Ensemble weights (tuned on validation set)
-        self.ensemble_weights = {
-            'logistic': 0.25,
-            'neural_network': 0.35,
-            'random_forest': 0.30,
-            'gmm': 0.10
-        }
+        # Adjust weights if torch not available (redistribute NN weight to RF and Logistic)
+        if TORCH_AVAILABLE:
+            self.ensemble_weights = {
+                'logistic': 0.25,
+                'neural_network': 0.35,
+                'random_forest': 0.30,
+                'gmm': 0.10
+            }
+        else:
+            logger.warning("PyTorch not available - using 3-model ensemble (Logistic, RF, GMM)")
+            self.ensemble_weights = {
+                'logistic': 0.40,
+                'neural_network': 0.0,
+                'random_forest': 0.50,
+                'gmm': 0.10
+            }
 
         # Model metadata
         self.is_trained = False
@@ -266,18 +293,21 @@ class FraudDetectionEnsemble:
         )
         self.logistic_model.fit(X_train_scaled, y_train)
 
-        # 2. Train Neural Network
-        logger.info("Training Neural Network...")
-        self.nn_model = FraudDetectionNN(input_dim=X_train.shape[1])
-        self._train_neural_network(
-            X_train_scaled, y_train,
-            X_val_scaled if X_val is not None else None,
-            y_val,
-            epochs=epochs,
-            batch_size=batch_size,
-            early_stopping=early_stopping,
-            patience=patience
-        )
+        # 2. Train Neural Network (only if torch available)
+        if TORCH_AVAILABLE:
+            logger.info("Training Neural Network...")
+            self.nn_model = FraudDetectionNN(input_dim=X_train.shape[1])
+            self._train_neural_network(
+                X_train_scaled, y_train,
+                X_val_scaled if X_val is not None else None,
+                y_val,
+                epochs=epochs,
+                batch_size=batch_size,
+                early_stopping=early_stopping,
+                patience=patience
+            )
+        else:
+            logger.info("Skipping Neural Network training (PyTorch not available)")
 
         # 3. Train Random Forest
         logger.info("Training Random Forest...")
@@ -462,11 +492,15 @@ class FraudDetectionEnsemble:
         # Get predictions from each model
         p_logistic = self.logistic_model.predict_proba(features_scaled)[:, 1]
 
-        # Neural network prediction
-        self.nn_model.eval()
-        with torch.no_grad():
-            features_tensor = torch.FloatTensor(features_scaled)
-            p_nn = self.nn_model(features_tensor).numpy().flatten()
+        # Neural network prediction (only if torch available)
+        if TORCH_AVAILABLE and self.nn_model is not None:
+            self.nn_model.eval()
+            with torch.no_grad():
+                features_tensor = torch.FloatTensor(features_scaled)
+                p_nn = self.nn_model(features_tensor).numpy().flatten()
+        else:
+            # Fallback to zero contribution when NN unavailable (weights will redistribute)
+            p_nn = np.zeros_like(p_logistic)
 
         p_rf = self.rf_model.predict_proba(features_scaled)[:, 1]
 

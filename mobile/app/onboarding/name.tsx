@@ -1,9 +1,9 @@
 import { StyleSheet, Text, View, TextInput, TouchableOpacity } from 'react-native';
-import { Stack, router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { designSystem } from '@/constants/designSystem';
 import { useUser } from '@/contexts/UserContext';
+import { OnboardingLayout } from '@/components/layout';
 
 export default function NameEntryScreen() {
   const { profile, setProfile } = useUser();
@@ -27,25 +27,18 @@ export default function NameEntryScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <Stack.Screen
-        options={{
-          headerShown: true,
-          headerTitle: "Add user's details",
-          headerTitleStyle: {
-            ...designSystem.typography.textStyles.title,
-            color: designSystem.colors.neutral.text,
-          },
-          headerBackButtonDisplayMode: 'minimal',
-          headerTintColor: designSystem.colors.neutral.text,
-        }}
-      />
+    <OnboardingLayout
+      screenTitle="Add user's details"
+      screenSubtitle="Please enter your legal name as it appears on your ID document."
+      scrollable={false}
+    >
       <View style={styles.container}>
         <View style={styles.inputGroup}>
           <Text style={styles.label}>First Name</Text>
           <TextInput
             style={styles.textInput}
-            placeholder="Enter first name"
+            placeholder="First Name"
+            placeholderTextColor={designSystem.colors.neutral.textTertiary}
             value={firstName}
             onChangeText={setFirstName}
           />
@@ -55,7 +48,8 @@ export default function NameEntryScreen() {
           <Text style={styles.label}>Last Name</Text>
           <TextInput
             style={styles.textInput}
-            placeholder="Enter last name"
+            placeholder="Last Name"
+            placeholderTextColor={designSystem.colors.neutral.textTertiary}
             value={lastName}
             onChangeText={setLastName}
           />
@@ -65,19 +59,13 @@ export default function NameEntryScreen() {
           <Text style={styles.primaryButtonText}>Continue</Text>
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </OnboardingLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: 'white',
-  },
   container: {
-    flex: 1,
-    paddingHorizontal: designSystem.spacing.g2p.horizontalPadding,
-    paddingTop: designSystem.spacing.g2p.sectionSpacing,
+    flexGrow: 0,
   },
   inputGroup: {
     marginBottom: designSystem.spacing.g2p.sectionSpacing,
@@ -88,26 +76,26 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   textInput: {
-    height: designSystem.components.input.height,
+    height: 52,
     borderWidth: 1,
     borderColor: designSystem.colors.neutral.border,
-    borderRadius: designSystem.components.input.borderRadius,
-    paddingHorizontal: 15,
+    borderRadius: 12,
+    paddingHorizontal: 16,
     ...designSystem.typography.textStyles.body,
     color: designSystem.colors.neutral.text,
   },
   primaryButton: {
-    height: designSystem.components.button.height,
-    backgroundColor: designSystem.colors.brand.primary,
-    borderRadius: designSystem.components.button.borderRadius,
+    height: 52,
+    backgroundColor: '#18181B',
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 'auto',
+    marginTop: 24,
     marginBottom: designSystem.spacing.g2p.sectionSpacing,
   },
   primaryButtonText: {
-    color: 'white',
-    ...designSystem.typography.textStyles.body,
-    fontWeight: 'bold',
+    color: '#F4F4F5',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

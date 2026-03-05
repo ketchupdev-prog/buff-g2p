@@ -1,6 +1,6 @@
 /**
  * Transactions service – Buffr G2P.
- * Fetches transaction history and details from API only.
+ * Backend and database only. Fetches transaction history and details from API.
  */
 import { getSecureItem } from '@/services/secureStorage';
 

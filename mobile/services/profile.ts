@@ -1,6 +1,6 @@
 /**
  * Profile service – Buffr G2P.
- * Handles profile updates and PIN changes.
+ * Backend and database only. Handles profile updates and PIN changes via API.
  */
 import { getSecureItem } from '@/services/secureStorage';
 

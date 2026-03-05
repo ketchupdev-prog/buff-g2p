@@ -42,12 +42,16 @@ interface OtpConfig {
 }
 
 function getOtpConfig(): OtpConfig {
+  const isDevelopment = process.env.NODE_ENV === "development";
+  
   return {
     enabled: process.env.OTP_ENABLED !== "false",
     codeLength: parseInt(process.env.OTP_CODE_LENGTH ?? "6", 10),
-    expiryMinutes: parseInt(process.env.OTP_EXPIRY_MINUTES ?? "5", 10),
-    maxAttempts: parseInt(process.env.OTP_MAX_ATTEMPTS ?? "3", 10),
-    dailyLimit: parseInt(process.env.OTP_DAILY_LIMIT ?? "10", 10),
+    expiryMinutes: parseInt(process.env.OTP_EXPIRY_MINUTES ?? (isDevelopment ? "10" : "5"), 10),
+    maxAttempts: parseInt(process.env.OTP_MAX_ATTEMPTS ?? (isDevelopment ? "10" : "3"), 10),
+    // FIXED: Increased from 10 to 100 (fintech industry standard)
+    // Development: 1000 (effectively unlimited for testing)
+    dailyLimit: parseInt(process.env.OTP_DAILY_LIMIT ?? (isDevelopment ? "1000" : "100"), 10),
     rateLimitMinutes: parseInt(process.env.OTP_RATE_LIMIT_MINUTES ?? "1", 10),
     twilio: {
       accountSid: process.env.TWILIO_ACCOUNT_SID ?? "",
@@ -384,7 +388,14 @@ export async function verifyOtp(params: OtpVerify): Promise<OtpResponse> {
     return { success: false, message: "Invalid phone number" };
   }
   
-  if (!code || code.length !== config_.codeLength) {
+  const digitsOnly = String(code).replace(/\D/g, "");
+  if (!code || digitsOnly.length < 5 || digitsOnly.length > 6) {
+    return { success: false, message: "Invalid code format" };
+  }
+
+  // Normalize to 6-digit string so leading zeros are preserved (e.g. 085015 or 85015 -> 085015)
+  const codeNormalized = digitsOnly.padStart(config_.codeLength, "0").slice(-config_.codeLength);
+  if (codeNormalized.length !== config_.codeLength) {
     return { success: false, message: "Invalid code format" };
   }
 
@@ -392,7 +403,7 @@ export async function verifyOtp(params: OtpVerify): Promise<OtpResponse> {
   if (!config_.enabled) {
     // Accept any 6-digit code in demo mode
     const devCode = generateDevCode(normalizedPhone);
-    if (code === devCode || code.length >= 4) {
+    if (codeNormalized === devCode || code.length >= 4) {
       return { success: true, message: "Demo mode: verification successful" };
     }
     return { success: false, message: "Invalid code" };
@@ -403,7 +414,7 @@ export async function verifyOtp(params: OtpVerify): Promise<OtpResponse> {
     const { sql } = await import("./db.js");
     
     const result = await sql`
-      SELECT * FROM verify_otp(${normalizedPhone}, ${code}, ${purpose});
+      SELECT * FROM verify_otp(${normalizedPhone}, ${codeNormalized}, ${purpose});
     `;
     
     const verifyResult = result[0] as { success: boolean; message: string; attempts_remaining: number };
@@ -419,7 +430,7 @@ export async function verifyOtp(params: OtpVerify): Promise<OtpResponse> {
     // Fallback to non-DB verification in development
     if (process.env.NODE_ENV === "development") {
       const devCode = generateDevCode(normalizedPhone);
-      if (code === devCode || code.length >= 4) {
+      if (codeNormalized === devCode || code.length >= 4) {
         return { success: true, message: "Demo mode: verification successful" };
       }
       return { success: false, message: "Invalid code (demo fallback)" };

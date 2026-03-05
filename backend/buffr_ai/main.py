@@ -10,6 +10,9 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+# Disable Pydantic logfire plugin to avoid ReadableLogRecord import error with current opentelemetry
+os.environ.setdefault("PYDANTIC_DISABLE_PLUGINS", "logfire-plugin")
+
 from dotenv import load_dotenv
 
 from fastapi import FastAPI
@@ -29,8 +32,14 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup: DB pool and compiled graph with Postgres checkpointer. Shutdown: close pool."""
+    """Startup: DB pool, ML service init, and compiled graph with Postgres checkpointer. Shutdown: close pool."""
     await get_db_pool()
+    # Optional: initialize ML service on startup so /api/ml/health and first prediction are fast (per ML_INTEGRATION_GUIDE)
+    try:
+        from buffr_ai.ml_service import get_ml_service
+        get_ml_service().initialize()
+    except Exception as e:
+        logger.warning("ML service init skipped or failed: %s", e)
     postgres_uri = os.getenv("DATABASE_URL") or os.getenv("BUFFR_CHECKPOINT_DATABASE_URL")
     try:
         if postgres_uri:
@@ -54,4 +63,10 @@ app.include_router(ml_router)
 @app.get("/health")
 async def health():
     """Health check for load balancer and mobile app."""
-    return {"status": "ok", "ml_available": True}
+    ml_available = False
+    try:
+        from buffr_ai.ml import ML_AVAILABLE
+        ml_available = ML_AVAILABLE
+    except Exception:
+        pass
+    return {"status": "ok", "ml_available": ml_available}

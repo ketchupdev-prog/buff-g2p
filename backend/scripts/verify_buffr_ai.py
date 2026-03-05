@@ -25,12 +25,21 @@ from buffr_ai.graph.nodes import companion_node, guardian_check_node, human_appr
 from buffr_ai.graph.workflow import build_buffr_graph, get_compiled_graph
 from buffr_ai.api.companion_endpoint import router
 from buffr_ai.main import app
+from buffr_ai.user_profile import format_user_context, format_user_info_response
 
 def main():
     print("All buffr_ai imports OK")
     g = build_buffr_graph()
     print("Graph:", type(g).__name__)
     print("FastAPI app:", app.title)
+    # Validate user context formatters (used by companion_node and get_user_info)
+    ctx = format_user_context({"name": "Test", "phone": "+1"})
+    assert "[Current user:" in ctx and "Test" in ctx, "format_user_context failed"
+    info = format_user_info_response({"name": "Test"})
+    assert "Name: Test" in info, "format_user_info_response failed"
+    info_none = format_user_info_response(None)
+    assert "don't have access" in info_none.lower(), "format_user_info_response(None) failed"
+    print("User profile formatters OK")
     print("Done.")
 
 if __name__ == "__main__":

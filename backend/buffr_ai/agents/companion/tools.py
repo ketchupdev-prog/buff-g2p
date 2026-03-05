@@ -43,14 +43,159 @@ async def route_to_guardian(query: str, context: Optional[Dict[str, Any]] = None
 
 
 async def route_to_transaction_analyst(query: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """Route spending/transaction analysis to the Transaction Analyst agent."""
+    """Route spending/transaction analysis to the Transaction Analyst agent.
+    
+    When context contains 'transactions', uses ML models for:
+    - spending_analysis: Spending pattern analysis and segmentation
+    - transaction_classification: Auto-categorize transactions
+    
+    Falls back to stub response when ML is unavailable or fails (graceful degradation).
+    """
     logger.info("Transaction Analyst called with query: %s", query)
+    context = context or {}
+    transactions = context.get("transactions") or []
+
+    try:
+        from buffr_ai.ml import ML_AVAILABLE
+        if ML_AVAILABLE and transactions:
+            from buffr_ai.ml_service import analyze_spending, get_ml_service, MLModelType
+            
+            # Build minimal features dict from transaction list (DRY: single place for mapping)
+            total = sum(float(t.get("amount", 0)) for t in transactions)
+            count = len(transactions)
+            
+            # Extract category distribution (for spending analysis)
+            categories = {}
+            for t in transactions:
+                cat = t.get("category", "other")
+                categories[cat] = categories.get(cat, 0) + 1
+            category_distribution = {k: v/count for k, v in categories.items()} if count else {}
+            
+            features = {
+                "monthly_spending": total,
+                "transaction_count": count,
+                "avg_transaction_amount": total / count if count else 0,
+                "spending_variance": 0.0,
+                "merchant_diversity": len({t.get("merchant_id") or t.get("merchant") for t in transactions}),
+                "category_distribution": category_distribution,
+                "time_of_day_distribution": {},
+            }
+            
+            # Get spending analysis
+            ml_result = analyze_spending(features)
+            
+            # Classify uncategorized transactions (optional enhancement)
+            classified_transactions = []
+            service = get_ml_service()
+            for t in transactions[:10]:  # Limit to 10 for performance
+                if not t.get("category") or t.get("category") == "other":
+                    try:
+                        classification_features = {
+                            "amount": float(t.get("amount", 0)),
+                            "merchant_category": t.get("merchant_category", 5999),
+                            "hour_of_day": t.get("hour_of_day", 12),
+                            "day_of_week": t.get("day_of_week", 3),
+                            "device_type": 1,  # Mobile default
+                            "location_type": 0,  # Unknown
+                            "account_age_days": 120,  # Default
+                        }
+                        classification = service.predict(MLModelType.TRANSACTION_CLASSIFICATION, classification_features)
+                        classified_transactions.append({
+                            "transaction_id": t.get("id"),
+                            "predicted_category": classification.prediction,
+                            "confidence": classification.confidence,
+                        })
+                    except Exception as e:
+                        logger.debug(f"Classification failed for transaction {t.get('id')}: {e}")
+                        continue
+            
+            return {
+                "agent": "transaction_analyst",
+                "response": f"Spending analysis for: {query}",
+                "spending_pattern": getattr(ml_result, "risk_level", None) or ml_result.metadata.get("spending_pattern") if ml_result.metadata else None,
+                "segment": getattr(ml_result, "prediction", None),
+                "confidence": getattr(ml_result, "confidence", 0),
+                "recommendations": getattr(ml_result, "recommendations", None) or [],
+                "classified_transactions": classified_transactions if classified_transactions else None,
+            }
+    except Exception as e:
+        logger.debug("Transaction Analyst ML unavailable or failed: %s", e)
+
     return {"agent": "transaction_analyst", "response": f"Spending analysis for: {query}"}
 
 
 async def route_to_voucher_analyst(query: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """Route voucher/redemption queries to the Voucher Analyst agent."""
+    """Route voucher/redemption queries to the Voucher Analyst agent.
+    
+    When context contains voucher data, uses ML models for:
+    - voucher_forecast: Predict redemption likelihood
+    - expiry_risk: Alert on vouchers at risk of expiring
+    
+    Falls back to stub response when ML is unavailable or fails (graceful degradation).
+    """
     logger.info("Voucher Analyst called with query: %s", query)
+    context = context or {}
+    vouchers = context.get("vouchers") or []
+
+    try:
+        from buffr_ai.ml import ML_AVAILABLE
+        if ML_AVAILABLE and vouchers:
+            from buffr_ai.ml_service import get_ml_service, MLModelType
+            
+            service = get_ml_service()
+            ml_insights = []
+            
+            # Analyze each voucher for redemption forecast and expiry risk
+            for voucher in vouchers[:5]:  # Limit to 5 for performance
+                voucher_age_days = (voucher.get("created_at", 0) if isinstance(voucher.get("created_at"), int) else 0)
+                initial_amount = float(voucher.get("initial_amount", 0))
+                remaining_amount = float(voucher.get("remaining_amount", 0))
+                
+                # Voucher forecast features
+                forecast_features = {
+                    "voucher_age_days": voucher_age_days,
+                    "initial_amount": initial_amount,
+                    "remaining_amount": remaining_amount,
+                    "beneficiary_count": voucher.get("beneficiary_count", 1),
+                    "prior_redemption_rate": voucher.get("redemption_rate", 0.85),
+                    "merchant_availability_score": 0.8,  # Default
+                }
+                
+                # Expiry risk features
+                days_until_expiry = voucher.get("days_until_expiry", 30)
+                expiry_features = {
+                    "days_until_expiry": days_until_expiry,
+                    "voucher_value": remaining_amount,
+                    "redemption_history_rate": voucher.get("redemption_rate", 0.85),
+                    "beneficiary_engagement": voucher.get("engagement_score", 0.7),
+                    "notification_responsiveness": 0.6,  # Default
+                }
+                
+                # Get ML predictions
+                try:
+                    forecast = service.predict(MLModelType.VOUCHER_FORECAST, forecast_features)
+                    expiry = service.predict(MLModelType.EXPIRY_RISK, expiry_features)
+                    
+                    ml_insights.append({
+                        "voucher_id": voucher.get("id"),
+                        "redemption_likelihood": forecast.prediction,
+                        "expiry_risk": expiry.prediction,
+                        "recommendations": (forecast.recommendations or []) + (expiry.recommendations or []),
+                    })
+                except Exception as e:
+                    logger.debug(f"ML prediction failed for voucher {voucher.get('id')}: {e}")
+                    continue
+            
+            if ml_insights:
+                return {
+                    "agent": "voucher_analyst",
+                    "response": f"Voucher analysis for: {query}",
+                    "ml_insights": ml_insights,
+                    "vouchers_analyzed": len(ml_insights),
+                }
+    except Exception as e:
+        logger.debug("Voucher Analyst ML unavailable or failed: %s", e)
+
     return {"agent": "voucher_analyst", "response": f"Voucher analysis for: {query}"}
 
 

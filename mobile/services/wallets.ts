@@ -1,6 +1,6 @@
 /**
  * Wallets service – Buffr G2P.
- * Fetches and manages user wallets from backend/API only.
+ * Backend and database only. Fetches and manages user wallets from API.
  */
 import { PRIMARY_WALLET_CARD_FRAME_ID } from '@/constants/CardDesign';
 import { getSecureItem } from '@/services/secureStorage';

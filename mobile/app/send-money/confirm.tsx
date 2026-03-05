@@ -14,12 +14,17 @@ import { useNetwork } from '@/contexts/NetworkContext';
 import { sendMoney } from '@/services/send';
 import { TwoFAModal } from '@/components/modals';
 import { LEGAL_TERMS } from '@/constants/legalTerms';
+import { ProgressIndicator, LoadingState } from '@/components/ui';
+import { useNetworkStatus } from '@/hooks';
+import { OfflineBanner } from '@/components/common';
+import { recordTransaction, updateTransactionStatus } from '@/services/transactionRecorder';
 
 export default function ConfirmSendScreen() {
   const { walletStatus } = useUser();
   const { isOnline: isOnlineState } = useNetwork();
+  const { isConnected } = useNetworkStatus();
   const isFrozen = walletStatus === 'frozen';
-  const isOffline = !isOnlineState;
+  const isOffline = !isOnlineState || !isConnected;
   const disableSend = isFrozen || isOffline;
   const { recipientPhone, recipientName, amount, note, walletId } = useLocalSearchParams<{
     recipientPhone: string;
@@ -30,27 +35,65 @@ export default function ConfirmSendScreen() {
   }>();
 
   const [show2FA, setShow2FA] = useState(false);
+  const [processing, setProcessing] = useState(false);
 
   async function handleVerify(pin: string) {
-    const result = await sendMoney({
-      recipientPhone: recipientPhone ?? '',
+    setProcessing(true);
+
+    // Record transaction locally
+    const txRecord = await recordTransaction({
+      type: 'send',
       amount: parseFloat(amount ?? '0'),
-      note: note ?? undefined,
-      walletId: walletId ?? undefined,
-      pin,
+      currency: 'NAD',
+      fromWalletId: walletId || 'default',
+      counterparty: recipientName ?? recipientPhone ?? 'Unknown',
+      reference: note,
+      status: 'pending',
     });
-    if (result.success) {
-      router.replace({
-        pathname: '/send-money/success',
-        params: {
-          recipientName,
-          amount,
-          transactionId: result.transactionId ?? '',
-        },
-      } as never);
-      return { success: true };
+
+    try {
+      const result = await sendMoney({
+        recipientPhone: recipientPhone ?? '',
+        amount: parseFloat(amount ?? '0'),
+        note: note ?? undefined,
+        walletId: walletId ?? undefined,
+        pin,
+      });
+
+      if (result.success) {
+        // Update transaction to completed
+        await updateTransactionStatus(txRecord.id, 'success', {
+          backendId: result.transactionId,
+          completedAt: new Date().toISOString(),
+        });
+
+        router.replace({
+          pathname: '/send-money/success',
+          params: {
+            recipientName,
+            amount,
+            transactionId: result.transactionId ?? '',
+          },
+        } as never);
+        return { success: true };
+      }
+
+      // Update transaction to failed
+      await updateTransactionStatus(txRecord.id, 'failed', {
+        error: result.error || 'Send money failed',
+      });
+
+      return { success: false, error: result.error };
+    } catch (error: any) {
+      // Update transaction to failed
+      await updateTransactionStatus(txRecord.id, 'failed', {
+        error: error.message || 'Unknown error',
+      });
+
+      return { success: false, error: error.message };
+    } finally {
+      setProcessing(false);
     }
-    return { success: false, error: result.error };
   }
 
   return (
@@ -60,10 +103,19 @@ export default function ConfirmSendScreen() {
           headerShown: true,
           headerTitle: 'Transfer',
           headerTitleStyle: { ...designSystem.typography.textStyles.title, color: designSystem.colors.neutral.text },
-          headerBackTitleVisible: false,
           headerTintColor: designSystem.colors.neutral.text,
         }}
       />
+      <ProgressIndicator
+        currentStep={3}
+        totalSteps={4}
+        stepLabels={['Recipient', 'Amount', 'Review', 'Confirm']}
+      />
+      
+      {!isConnected && <OfflineBanner />}
+
+      {processing && <LoadingState variant="overlay" message="Sending money..." />}
+
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.container}>
           <View style={styles.summaryCard}>

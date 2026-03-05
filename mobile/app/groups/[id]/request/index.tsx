@@ -18,7 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { designSystem } from '@/constants/designSystem';
 import { getSecureItem } from '@/services/secureStorage';
-import { Avatar } from '@/components/ui';
+import { Avatar, ErrorState } from '@/components/ui';
 import { TwoFAModal } from '@/components/modals';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
@@ -139,11 +139,13 @@ export default function GroupRequestScreen() {
       {/* Form pinned to bottom */}
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <SafeAreaView style={styles.formArea} edges={['bottom']}>
-          {error ? (
-            <View style={styles.errorBox}>
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          ) : null}
+          {error && (
+            <ErrorState
+              variant="default"
+              message={error}
+              style={{ marginBottom: 12 }}
+            />
+          )}
 
           {/* Note */}
           <View style={[styles.pill, styles.notePill]}>

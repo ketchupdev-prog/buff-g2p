@@ -8,6 +8,7 @@ Usage: cd backend && PYTHONPATH=. python scripts/ingest_knowledge_base.py
 """
 
 import asyncio
+import json
 import os
 import sys
 from pathlib import Path
@@ -46,14 +47,14 @@ async def main() -> None:
         await pool.execute(
             """
             INSERT INTO knowledge_base_documents (scope, user_id, title, source, content, metadata)
-            VALUES ('global', NULL, $1, $2, $3, $4)
+            VALUES ('global', NULL, $1, $2, $3, $4::jsonb)
             ON CONFLICT (source) WHERE scope = 'global' AND user_id IS NULL
             DO UPDATE SET title = EXCLUDED.title, content = EXCLUDED.content, metadata = EXCLUDED.metadata
             """,
             title,
             relative_path,
             content,
-            metadata,
+            json.dumps(metadata),
         )
         print(f"Ingested: {relative_path}")
         ingested += 1

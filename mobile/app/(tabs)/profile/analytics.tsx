@@ -1,15 +1,18 @@
 /**
  * Analytics – Buffr G2P.
- * Spending, vouchers, transactions overview. §3.6.
+ * Spending, vouchers, transactions overview with visual charts. §3.6.
  * Reads from transactions AsyncStorage to compute real monthly totals.
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
+import { LineChart, BarChart, PieChart } from 'react-native-chart-kit';
 import { designSystem } from '@/constants/designSystem';
 import { getTransactions, type Transaction } from '@/services/transactions';
+
+const screenWidth = Dimensions.get('window').width;
 
 type Period = 'this_month' | 'last_month' | 'all_time';
 
@@ -202,6 +205,105 @@ export default function ProfileAnalyticsScreen() {
                 </View>
               </View>
 
+              {/* Transaction Distribution Pie Chart */}
+              {stats && stats.txCount > 0 && (
+                <>
+                  <Text style={[styles.sectionLabel, { marginTop: 24 }]}>Transaction Distribution</Text>
+                  <View style={styles.chartCard}>
+                    <PieChart
+                      data={[
+                        {
+                          name: 'Received',
+                          population: stats.totalReceived,
+                          color: designSystem.colors.semantic.success,
+                          legendFontColor: designSystem.colors.neutral.text,
+                          legendFontSize: 12
+                        },
+                        {
+                          name: 'Sent/Paid',
+                          population: stats.totalSent,
+                          color: designSystem.colors.semantic.error,
+                          legendFontColor: designSystem.colors.neutral.text,
+                          legendFontSize: 12
+                        },
+                        {
+                          name: 'Bills',
+                          population: stats.billsTotal,
+                          color: designSystem.colors.brand.primary,
+                          legendFontColor: designSystem.colors.neutral.text,
+                          legendFontSize: 12
+                        },
+                        {
+                          name: 'Cash Out',
+                          population: stats.cashOutTotal,
+                          color: '#10b981',
+                          legendFontColor: designSystem.colors.neutral.text,
+                          legendFontSize: 12
+                        }
+                      ].filter(d => d.population > 0)}
+                      width={screenWidth - 60}
+                      height={200}
+                      chartConfig={{
+                        color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+                      }}
+                      accessor="population"
+                      backgroundColor="transparent"
+                      paddingLeft="15"
+                      absolute
+                    />
+                  </View>
+                </>
+              )}
+
+              {/* Transaction Type Bar Chart */}
+              {stats && stats.txCount > 0 && (
+                <>
+                  <Text style={[styles.sectionLabel, { marginTop: 24 }]}>Transaction Activity</Text>
+                  <View style={styles.chartCard}>
+                    <BarChart
+                      data={{
+                        labels: ['Vouchers', 'Bills', 'Cash Outs', 'Sends'],
+                        datasets: [{
+                          data: [
+                            stats.vouchersRedeemed || 0.1,
+                            stats.billsPaid || 0.1,
+                            stats.cashOuts || 0.1,
+                            Math.max(stats.txCount - stats.vouchersRedeemed - stats.billsPaid - stats.cashOuts, 0) || 0.1
+                          ]
+                        }]
+                      }}
+                      width={screenWidth - 60}
+                      height={220}
+                      yAxisLabel=""
+                      yAxisSuffix=""
+                      chartConfig={{
+                        backgroundColor: '#ffffff',
+                        backgroundGradientFrom: '#ffffff',
+                        backgroundGradientTo: '#ffffff',
+                        decimalPlaces: 0,
+                        color: (opacity = 1) => `rgba(59, 130, 246, ${opacity})`,
+                        labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+                        style: {
+                          borderRadius: 16
+                        },
+                        propsForLabels: {
+                          fontSize: 11
+                        },
+                        propsForBackgroundLines: {
+                          strokeDasharray: ''
+                        }
+                      }}
+                      style={{
+                        marginVertical: 8,
+                        borderRadius: 16
+                      }}
+                      fromZero
+                      showValuesOnTopOfBars
+                    />
+                  </View>
+                </>
+              )}
+
               <Text style={styles.footnote}>
                 Pull to refresh · Analytics are computed from your local transaction history.
               </Text>
@@ -292,6 +394,16 @@ const styles = StyleSheet.create({
   cardSub: { ...designSystem.typography.textStyles.caption, color: designSystem.colors.neutral.textSecondary, marginTop: 2 },
   cardCount: { fontSize: 22, fontWeight: '800', color: designSystem.colors.brand.primary },
   cardAmount: { fontSize: 16, fontWeight: '700', color: designSystem.colors.neutral.text },
+
+  chartCard: {
+    backgroundColor: designSystem.colors.neutral.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: designSystem.colors.neutral.border,
+    padding: 16,
+    marginBottom: 12,
+    alignItems: 'center'
+  },
 
   footnote: {
     ...designSystem.typography.textStyles.caption,

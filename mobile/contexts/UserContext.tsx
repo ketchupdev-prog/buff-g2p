@@ -13,9 +13,12 @@ const STORAGE_KEY_POF_DUE = 'buffr_proof_of_life_due';
 const STORAGE_KEY_WALLET_STATUS = 'buffr_wallet_status';
 
 export interface UserProfile {
+  id?: string; // optional; from backend when available
   firstName: string;
   lastName: string;
+  fullName?: string; // optional; display name, or derived from firstName + lastName
   phone: string; // E.164 or display, e.g. +264811234567
+  email?: string; // optional; used for OTP delivery and account recovery
   photoUri: string | null;
 }
 

@@ -98,7 +98,7 @@ export default function BillsIndexScreen() {
 
   function handleBillerPress(billerId: string, billerName: string, acctLabel: string) {
     router.push({
-      pathname: '/bills/pay' as never,
+      pathname: '/bills/details' as never,
       params: { billerId, billerName, category: selectedCategory ?? 'other', acctLabel },
     });
   }

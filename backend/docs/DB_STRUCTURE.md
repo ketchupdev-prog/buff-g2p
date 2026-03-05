@@ -1,7 +1,8 @@
 # Buffr G2P – Database structure (Neon PostgreSQL)
 
 Full schema as defined by `backend/migrations/*.sql`. Same database as Ketchup Portal (`DATABASE_URL`).  
-**DB check:** `node backend/scripts/check-db.mjs` or `npm run db:check` (from backend).
+**Check migrations:** `cd backend && npm run db:check` — **Run migrations:** `cd backend && npm run migrate`  
+See **[MIGRATIONS.md](../../MIGRATIONS.md)** for full migration and check script documentation.
 
 ---
 

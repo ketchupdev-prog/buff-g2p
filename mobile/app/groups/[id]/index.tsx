@@ -7,6 +7,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -18,8 +19,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { getSecureItem } from '@/services/secureStorage';
 import { designSystem } from '@/constants/designSystem';
-import { Avatar } from '@/components/ui';
+import { Avatar, ErrorState, LoadingState } from '@/components/ui';
 import { RequestStatusModal, type GroupRequestStatus } from '@/components/group/RequestStatusModal';
+import { usePullToRefresh } from '@/hooks';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 const DS = designSystem;
@@ -135,6 +137,10 @@ export default function GroupDetailScreen() {
     }
   }, [id]);
 
+  const { refreshing, onRefresh } = usePullToRefresh({
+    onRefresh: loadAll,
+  });
+
   useEffect(() => { void loadAll(); }, [loadAll]);
 
   // Refresh when screen comes back into focus (after send/request)
@@ -147,7 +153,7 @@ export default function GroupDetailScreen() {
     return (
       <View style={styles.screen}>
         <Stack.Screen options={{ headerShown: false }} />
-        <View style={styles.center}><ActivityIndicator color={DS.colors.brand.primary} /></View>
+        <LoadingState message="Loading group..." />
       </View>
     );
   }
@@ -156,12 +162,13 @@ export default function GroupDetailScreen() {
     return (
       <View style={styles.screen}>
         <Stack.Screen options={{ headerShown: true, headerTitle: 'Group', headerTintColor: DS.colors.neutral.text, headerStyle: { backgroundColor: '#fff' } }} />
-        <View style={styles.center}>
-          <Text style={styles.emptyTitle}>Group not found</Text>
-          <TouchableOpacity style={styles.btn} onPress={() => router.back()}>
-            <Text style={styles.btnText}>Go Back</Text>
-          </TouchableOpacity>
-        </View>
+        <ErrorState
+          variant="notFound"
+          title="Group not found"
+          message="This group may have been deleted or you no longer have access."
+          action={{ label: 'Go Back', onPress: () => router.back() }}
+          style={{ marginTop: 100 }}
+        />
       </View>
     );
   }
@@ -187,7 +194,17 @@ export default function GroupDetailScreen() {
       }} />
 
       <SafeAreaView style={styles.flex} edges={['bottom']}>
-        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          contentContainerStyle={styles.scroll} 
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl 
+              refreshing={refreshing} 
+              onRefresh={onRefresh} 
+              tintColor={DS.colors.brand.primary} 
+            />
+          }
+        >
 
           {/* Horizontal member card */}
           <View style={styles.memberCard}>

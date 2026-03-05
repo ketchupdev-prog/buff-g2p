@@ -1,6 +1,5 @@
 import { StyleSheet, Text, View, Image, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { designSystem } from '@/constants/designSystem';
@@ -8,6 +7,7 @@ import CardFrame from '@/components/cards/CardFrame';
 import { useUser } from '@/contexts/UserContext';
 import { generateBuffrIdFromPhone } from '@/services/auth';
 import { ensurePrimaryWallet } from '@/services/wallets';
+import { OnboardingLayout } from '@/components/layout';
 
 export default function OnboardingCompleteScreen() {
   const { profile, cardNumberMasked, expiryDate: contextExpiry, setBuffrId, isLoaded } = useUser();
@@ -27,8 +27,6 @@ export default function OnboardingCompleteScreen() {
           return;
         }
         try {
-          // Use phone-derived card only when missing (e.g. race). Never call GET /user/card
-          // here: backend returns the first user in DB, which can overwrite the card set at OTP.
           const { buffrId, cardNumberMasked: masked } = await generateBuffrIdFromPhone(profile.phone);
           if (!cancelled) {
             await setBuffrId(buffrId, masked, null);
@@ -62,72 +60,61 @@ export default function OnboardingCompleteScreen() {
   const expiryDate = contextExpiry ?? '--/--';
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <OnboardingLayout
+      screenTitle="Registration Completed"
+      screenSubtitle="Your account has been verified successfully. Let's get started with Buffr!"
+      scrollable={true}
+    >
       <View style={styles.container}>
-        <Image
-          source={require('../../assets/images/icon.png')}
-          style={styles.icon}
-          resizeMode="contain"
-        />
-        <Text style={styles.heading}>Registration Completed</Text>
-        <Text style={styles.instructionText}>
-          Welcome to Buffr. Your account has been successfully created.
-        </Text>
-
         <View style={styles.cardPreviewContainer}>
-          {cardReady ? (
-            <CardFrame
-              userName={userName}
-              cardNumber={cardNumber}
-              expiryDate={expiryDate}
-            />
+        {cardReady ? (
+          <CardFrame
+            userName={userName}
+            cardNumber={cardNumber}
+            expiryDate={expiryDate}
+          />
+        ) : (
+          <View style={styles.cardPlaceholder}>
+            <ActivityIndicator size="large" color={designSystem.colors.brand.primary} />
+            <Text style={styles.cardPlaceholderText}>Preparing your card…</Text>
+          </View>
+        )}
+      </View>
+
+      {profile && (profile.firstName || profile.email) && (
+        <View style={styles.profileRow}>
+          {profile.photoUri ? (
+            <Image source={{ uri: profile.photoUri }} style={styles.profileAvatar} />
           ) : (
-            <View style={styles.cardPlaceholder}>
-              <ActivityIndicator size="large" color={designSystem.colors.brand.primary} />
-              <Text style={styles.cardPlaceholderText}>Preparing your card…</Text>
+            <View style={styles.profileAvatarPlaceholder}>
+              <Text style={styles.profileAvatarLetter}>
+                {(profile.firstName ?? profile.email ?? '?').charAt(0).toUpperCase()}
+              </Text>
             </View>
           )}
+          <View style={styles.profileInfo}>
+            <Text style={styles.profileName}>{userName || 'User'}</Text>
+            {profile.email ? (
+              <Text style={styles.profileEmail}>{profile.email}</Text>
+            ) : null}
+          </View>
         </View>
+      )}
 
-        <TouchableOpacity style={styles.primaryButton} onPress={handleGoToHome}>
-          <Text style={styles.primaryButtonText}>Go to Home</Text>
-        </TouchableOpacity>
-      </View>
-    </SafeAreaView>
+      <TouchableOpacity style={styles.primaryButton} onPress={handleGoToHome}>
+        <Text style={styles.primaryButtonText}>Go to Home</Text>
+      </TouchableOpacity>
+    </View>
+    </OnboardingLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: 'white',
-  },
   container: {
-    flex: 1,
-    paddingHorizontal: designSystem.spacing.g2p.horizontalPadding,
-    paddingTop: designSystem.spacing.g2p.sectionSpacing,
-    alignItems: 'center',
-    justifyContent: 'center', // Center content vertically
-  },
-  icon: {
-    width: 120,
-    height: 120,
-    marginBottom: designSystem.spacing.g2p.sectionSpacing * 1.5,
-  },
-  heading: {
-    ...designSystem.typography.textStyles.heading,
-    color: designSystem.colors.neutral.text,
-    marginBottom: designSystem.spacing.g2p.sectionSpacing / 2,
-    textAlign: 'center',
-  },
-  instructionText: {
-    ...designSystem.typography.textStyles.body,
-    color: designSystem.colors.neutral.textSecondary,
-    textAlign: 'center',
-    marginBottom: designSystem.spacing.g2p.sectionSpacing * 2,
+    flexGrow: 0,
   },
   cardPreviewContainer: {
-    marginBottom: designSystem.spacing.g2p.sectionSpacing * 2,
+    marginBottom: designSystem.spacing.g2p.sectionSpacing,
   },
   cardPlaceholder: {
     minHeight: 214,
@@ -139,20 +126,60 @@ const styles = StyleSheet.create({
     color: designSystem.colors.neutral.textSecondary,
     marginTop: 12,
   },
+  profileRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: designSystem.colors.neutral.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: designSystem.colors.neutral.border,
+    padding: 16,
+    marginBottom: designSystem.spacing.g2p.sectionSpacing,
+  },
+  profileAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    marginRight: 12,
+  },
+  profileAvatarPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: designSystem.colors.brand.primaryMuted,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  profileAvatarLetter: {
+    ...designSystem.typography.textStyles.title,
+    color: designSystem.colors.brand.primary,
+  },
+  profileInfo: {
+    flex: 1,
+  },
+  profileName: {
+    ...designSystem.typography.textStyles.titleSm,
+    color: designSystem.colors.neutral.text,
+  },
+  profileEmail: {
+    ...designSystem.typography.textStyles.bodySm,
+    color: designSystem.colors.brand.primary,
+    marginTop: 2,
+  },
   primaryButton: {
-    height: designSystem.components.button.height,
-    backgroundColor: designSystem.colors.brand.primary,
-    borderRadius: designSystem.components.button.borderRadius,
+    height: 52,
+    backgroundColor: '#18181B',
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
     width: '100%',
-    position: 'absolute', // Position at bottom
-    bottom: designSystem.spacing.g2p.sectionSpacing,
-    paddingHorizontal: designSystem.spacing.g2p.horizontalPadding,
+    marginTop: 24,
+    marginBottom: designSystem.spacing.g2p.sectionSpacing,
   },
   primaryButtonText: {
-    color: 'white',
-    ...designSystem.typography.textStyles.body,
-    fontWeight: 'bold',
+    color: '#F4F4F5',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

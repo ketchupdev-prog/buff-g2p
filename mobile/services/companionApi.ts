@@ -1,6 +1,6 @@
 /**
  * Buffr AI Companion API client – mobile.
- * No mocks or fallbacks: all responses come from the backend.
+ * Backend only. All responses come from the backend.
  * Location: mobile/services/companionApi.ts
  */
 
@@ -9,6 +9,20 @@ import { getSecureItem } from './secureStorage';
 const COMPANION_URL = (process.env.EXPO_PUBLIC_BUFFR_AI_URL ?? '').replace(/\/$/, '');
 
 export const COMPANION_NOT_CONFIGURED = !COMPANION_URL;
+
+/**
+ * Check if the Buffr AI Companion is reachable (GET /health).
+ * Use this to show real "Online" / "Offline" in the UI instead of static text.
+ */
+export async function checkCompanionHealth(): Promise<boolean> {
+  if (!COMPANION_URL) return false;
+  try {
+    const res = await fetch(`${COMPANION_URL}/health`, { method: 'GET' });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
 
 export interface ChatResponseOk {
   status: 'ok';
@@ -39,7 +53,7 @@ async function getAuthHeader(): Promise<string | undefined> {
 }
 
 /**
- * Send a message or resume after approval. No fallback: requires backend.
+ * Send a message or resume after approval. Requires backend.
  * When backend adds POST /api/buffr-companion/chat/stream (SSE), use streamCompanionChat instead for streaming UX.
  */
 export async function sendCompanionMessage(

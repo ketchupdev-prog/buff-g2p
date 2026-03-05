@@ -6,7 +6,7 @@ This document verifies project structure, database migrations, and API surfaces 
 
 ## 1. Project structure (all levels)
 
-Tree excludes `.git`, `node_modules`, `ai` (venv), `__pycache__`. Run from repo root:
+Tree excludes `.git`, `node_modules`, `ai` (Python venv in backend/), `__pycache__`. Run from repo root:
 
 ```bash
 cd /Users/georgenekwaya/buffr-g2p
@@ -229,10 +229,14 @@ PYTHONPATH=. python scripts/verify_buffr_ai.py
 
 To run the Buffr AI server (Companion + ML):
 
+The Python venv is **`ai`** in `backend/` (not inside `buffr_ai/`). Create it once if missing:
+
 ```bash
 cd backend
+python3 -m venv ai
+source ai/bin/activate   # venv is backend/ai
 pip install -r buffr_ai/requirements.txt
-PYTHONPATH=. uvicorn buffr_ai.main:app --reload --port 8000
+PYTHONPATH=. uvicorn buffr_ai.main:app --reload --host 0.0.0.0 --port 8000
 # Then: GET http://localhost:8000/health
 #       GET http://localhost:8000/api/ml/models
 #       POST http://localhost:8000/api/buffr-companion/chat with {"message":"...."}
@@ -252,8 +256,8 @@ cd backend && npm run migrate
 # 2. Node API (build + start)
 cd backend && npm run build && npm start
 
-# 3. Buffr AI (Companion + ML)
-cd backend && PYTHONPATH=. uvicorn buffr_ai.main:app --reload --port 8000
+# 3. Buffr AI (Companion + ML) – venv is backend/ai (create with python3 -m venv ai if missing)
+cd backend && source ai/bin/activate && pip install -r buffr_ai/requirements.txt && PYTHONPATH=. uvicorn buffr_ai.main:app --reload --host 0.0.0.0 --port 8000
 
 # 4. Verify Buffr AI imports and graph
 cd backend && PYTHONPATH=. python scripts/verify_buffr_ai.py

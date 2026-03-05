@@ -22,6 +22,7 @@ import {
   transactionIcon,
   type Transaction,
 } from '@/services/transactions';
+import { ErrorState } from '@/components/ui';
 
 export default function TransactionDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -94,12 +95,13 @@ export default function TransactionDetailScreen() {
           <ActivityIndicator color={designSystem.colors.brand.primary} />
         </View>
       ) : !tx ? (
-        <View style={styles.center}>
-          <Text style={styles.notFound}>Transaction not found.</Text>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Text style={styles.link}>Go back</Text>
-          </TouchableOpacity>
-        </View>
+        <ErrorState
+          variant="notFound"
+          title="Transaction not found"
+          message="This transaction may have been removed or is no longer available."
+          action={{ label: 'Go Back', onPress: () => router.back() }}
+          style={{ marginTop: 100 }}
+        />
       ) : (
         <View style={styles.container}>
           {/* Amount Block */}

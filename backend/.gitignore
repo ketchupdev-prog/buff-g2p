@@ -3,3 +3,9 @@ dist/
 .env
 .env.local
 *.log
+# Python venv (Buffr AI) – canonical venv is backend/ai
+ai/
+.venv/
+# Python bytecode
+__pycache__/
+*.pyc

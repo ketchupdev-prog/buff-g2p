@@ -1,6 +1,6 @@
 /**
  * Send money service – Buffr G2P.
- * P2P transfers, recipient lookup. Contacts: API when configured; otherwise device contacts only.
+ * Backend and database only for P2P and recipient lookup. When API is configured, use it; device contacts when API is unavailable.
  */
 import * as ExpoContacts from 'expo-contacts';
 import { getSecureItem } from '@/services/secureStorage';

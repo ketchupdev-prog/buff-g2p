@@ -28,6 +28,14 @@ export interface CashOutResult {
   error?: string;
 }
 
+export interface BankCashOutParams {
+  userId: string;
+  walletId: string;
+  amount: number;
+  bankAccountId: string;
+  idempotencyKey?: string;
+}
+
 /**
  * Process a cash-out transaction with optional Fineract sync.
  * 
@@ -239,4 +247,171 @@ export async function generateAtmCode(
   }
 
   return { code, expiresAt, balance: newBalance };
+}
+
+/**
+ * Process bank transfer cash-out.
+ * 
+ * Transfers funds from user's Buffr wallet to their linked bank account.
+ * Validates bank account ownership, checks daily limits, and updates balances.
+ * 
+ * @param params - Bank cash-out parameters
+ * @returns CashOutResult with success status and updated balance
+ */
+export async function processBankCashOut(params: BankCashOutParams): Promise<CashOutResult> {
+  const { userId, walletId, amount, bankAccountId, idempotencyKey } = params;
+
+  // 1. Validate amount
+  if (typeof amount !== "number" || !Number.isFinite(amount) || amount <= 0) {
+    return { success: false, error: "amount must be a positive number" };
+  }
+
+  // 2. Verify bank account ownership and active status
+  const bankAccountRows = await sql`
+    SELECT id, account_number, bank_name, account_holder_name, is_verified, is_primary
+    FROM linked_bank_accounts
+    WHERE id = ${bankAccountId} AND user_id = ${userId} AND is_active = true
+    LIMIT 1
+  `;
+
+  if (bankAccountRows.length === 0) {
+    return { success: false, error: "Bank account not found or inactive" };
+  }
+
+  const bankAccount = bankAccountRows[0] as {
+    id: string;
+    account_number: string;
+    bank_name: string;
+    account_holder_name: string;
+    is_verified: boolean;
+    is_primary: boolean;
+  };
+
+  // 3. Require verified account for bank transfers
+  if (!bankAccount.is_verified) {
+    return { success: false, error: "Bank account must be verified before cash-out" };
+  }
+
+  // 4. Get wallet and verify ownership + balance (row lock for update)
+  const walletRows = await sql`
+    SELECT id, balance, fineract_savings_account_id, currency
+    FROM wallets
+    WHERE id = ${walletId} AND user_id = ${userId}
+    FOR UPDATE
+    LIMIT 1
+  `;
+
+  if (walletRows.length === 0) {
+    return { success: false, error: "Wallet not found" };
+  }
+
+  const wallet = walletRows[0] as {
+    id: string;
+    balance: number;
+    fineract_savings_account_id: string | null;
+    currency: string;
+  };
+  const currentBalance = Number(wallet.balance ?? 0);
+
+  if (currentBalance < amount) {
+    return { success: false, error: "Insufficient funds" };
+  }
+
+  // 5. Check daily cash-out limit
+  if (await wouldExceedCashOutLimit(userId, amount)) {
+    return { success: false, error: "Daily cash-out limit exceeded" };
+  }
+
+  const newBalance = currentBalance - amount;
+
+  // 6. Debit wallet in Neon (Buffr database)
+  await sql`
+    UPDATE wallets
+    SET balance = ${newBalance}, updated_at = now()
+    WHERE id = ${walletId}
+  `;
+
+  const transactionId = idempotencyKey || `txn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  
+  await sql`
+    INSERT INTO wallet_transactions (wallet_id, type, amount, reference, external_id)
+    VALUES (
+      ${walletId}, 
+      ${"cash_out"}, 
+      ${amount}, 
+      ${"Bank transfer to " + bankAccount.bank_name + " " + bankAccount.account_number.slice(-4)},
+      ${transactionId}
+    )
+  `;
+
+  // 7. Create bank transfer record
+  await sql`
+    INSERT INTO bank_transfers (
+      user_id, wallet_id, bank_account_id, amount, status, 
+      reference, created_at
+    )
+    VALUES (
+      ${userId}, ${walletId}, ${bankAccountId}, ${amount}, 'pending',
+      ${transactionId}, now()
+    )
+  `;
+
+  // 8. Fineract withdrawal (optional - per PRD §2.6, failures don't fail user response)
+  if (isFineractEnabled() && wallet.fineract_savings_account_id != null) {
+    const fineractAccountId = Number(wallet.fineract_savings_account_id);
+    if (!isNaN(fineractAccountId)) {
+      try {
+        const withdrawResult = await withdraw({
+          savingsAccountId: fineractAccountId,
+          amount,
+          transactionDate: new Date().toISOString().slice(0, 10),
+        });
+        if (!withdrawResult.success) {
+          console.error("Fineract withdrawal for bank cash-out failed:", withdrawResult.error);
+        }
+      } catch (err) {
+        console.error("Fineract withdrawal for bank cash-out failed:", err);
+      }
+    }
+  }
+
+  // 9. Voucher accounting for cash-out (optional journal entries)
+  if (isFineractEnabled()) {
+    try {
+      const jeResult = await postVoucherCashedOut({
+        voucherId: walletId,
+        amount,
+        currency: wallet.currency ?? "NAD",
+      });
+      if (!jeResult.success) {
+        console.error("Voucher accounting (bank cash-out) failed:", jeResult.error);
+      }
+    } catch (err) {
+      console.error("Voucher accounting (bank cash-out) failed:", err);
+    }
+  }
+
+  // 10. Log successful bank transfer initiation
+  await sql`
+    INSERT INTO audit_logs (user_id, entity_type, entity_id, action, meta)
+    VALUES (
+      ${userId}, 
+      'bank_transfer', 
+      ${transactionId}, 
+      'initiated',
+      ${JSON.stringify({ 
+        walletId, 
+        bankAccountId, 
+        amount, 
+        bankName: bankAccount.bank_name,
+        accountNumber: bankAccount.account_number.slice(-4)
+      })}
+    )
+  `;
+
+  return {
+    success: true,
+    transactionId,
+    balance: newBalance,
+  };
 }

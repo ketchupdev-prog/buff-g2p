@@ -124,9 +124,6 @@ class MLService:
             # Load trained weights from backend/buffr_ai/models/ when present
             self._load_trained_weights()
 
-            # Load trained weights from backend/buffr_ai/models/ when present
-            self._load_trained_weights()
-
             self._initialized = True
             logger.info(f"ML Service initialized with {len(self._models)} models")
             return True

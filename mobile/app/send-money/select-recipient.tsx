@@ -21,6 +21,10 @@ import { router, Stack } from 'expo-router';
 import { designSystem } from '@/constants/designSystem';
 import { useUser } from '@/contexts/UserContext';
 import { getContacts, lookupRecipient, type Contact } from '@/services/send';
+import { ProgressIndicator, ErrorState } from '@/components/ui';
+import { ContactsList } from '@/components/shared';
+import { useNetworkStatus } from '@/hooks';
+import { OfflineBanner } from '@/components/common';
 
 function initials(name: string): string {
   return name.split(' ').slice(0, 2).map((n) => n[0]?.toUpperCase() ?? '').join('');
@@ -28,6 +32,7 @@ function initials(name: string): string {
 
 export default function SelectRecipientScreen() {
   const { profile, walletStatus } = useUser();
+  const { isConnected } = useNetworkStatus();
   const [query, setQuery] = useState('');
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [lookupResult, setLookupResult] = useState<Contact | null>(null);
@@ -87,6 +92,12 @@ export default function SelectRecipientScreen() {
           headerTintColor: designSystem.colors.neutral.text,
         }}
       />
+      <ProgressIndicator
+        currentStep={1}
+        totalSteps={4}
+        stepLabels={['Recipient', 'Amount', 'Review', 'Confirm']}
+      />
+      {!isConnected && <OfflineBanner />}
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         {/* Search */}
         <View style={styles.searchContainer}>
@@ -144,45 +155,21 @@ export default function SelectRecipientScreen() {
         )}
 
         {lookupError && (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>{lookupError}</Text>
-          </View>
+          <ErrorState
+            variant="notFound"
+            message={lookupError}
+            onRetry={handleLookup}
+            style={{ marginHorizontal: designSystem.spacing.g2p.horizontalPadding, marginBottom: 16 }}
+          />
         )}
 
-        <ScrollView style={styles.scroll} keyboardShouldPersistTaps="handled">
-          {loadingContacts ? (
-            <ActivityIndicator color={designSystem.colors.brand.primary} style={styles.loader} />
-          ) : (
-            <>
-              {contacts.length > 0 && (
-                <Text style={styles.sectionLabel}>Recent Contacts</Text>
-              )}
-              {filtered.map((c) => (
-                <TouchableOpacity
-                  key={c.id}
-                  style={styles.contactRow}
-                  onPress={() => selectContact(c)}
-                >
-                  <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>{initials(c.name)}</Text>
-                  </View>
-                  <View style={styles.contactInfo}>
-                    <Text style={styles.contactName}>{c.name}</Text>
-                    <Text style={styles.contactPhone}>{c.phone}</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={16} color={designSystem.colors.neutral.textTertiary} />
-                </TouchableOpacity>
-              ))}
-              {contacts.length === 0 && !query && (
-                <View style={styles.emptyState}>
-                  <Ionicons name="people-outline" size={40} color={designSystem.colors.neutral.textTertiary} />
-                  <Text style={styles.emptyText}>No contacts yet.</Text>
-                  <Text style={styles.emptySubtext}>Search for a phone number or Buffr ID above.</Text>
-                </View>
-              )}
-            </>
-          )}
-        </ScrollView>
+        <ContactsList
+          contacts={contacts}
+          loading={loadingContacts}
+          onSelect={selectContact}
+          showSearch={false}
+          emptyMessage="No contacts yet"
+        />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

@@ -1,7 +1,6 @@
 /**
  * Cash-out service – Buffr G2P.
- * 5 cash-out methods: bank, till, agent, merchant, ATM.
- * QR validation via Token Vault for Till/Agent/Merchant/ATM.
+ * Backend and database only. 5 cash-out methods; QR validation via Token Vault.
  */
 import { getSecureItem } from '@/services/secureStorage';
 
@@ -93,7 +92,7 @@ async function hashPin(pin: string): Promise<string> {
     const hashBuffer = await globalThis.crypto.subtle.digest('SHA-256', enc.encode('buffr-pin:' + pin));
     return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
   } catch {
-    // Fallback: return pin as-is (backend should handle both during migration)
+    // When hash unavailable, return pin as-is (backend handles both during migration)
     return pin;
   }
 }

@@ -1,462 +1,496 @@
-"""Generate synthetic Namibian G2P training data for 7 ML models.
+"""
+G2P Training Data Generator
+
+Generates synthetic training data for all 12 ML models:
+- Fraud Detection
+- Credit Scoring  
+- Churn Prediction
+- NPS Scoring
+- Digital Adoption
+- Beneficiary Segmentation
+- Spending Analysis
+- Voucher Forecast
+- Agent Demand
+- Expiry Risk
+- Transaction Classification
+- Agent Network Features
 
 Usage:
-    cd buffr && python -m buffr_ai.data.generate_g2p_data
-
-Generates 7 CSV files in buffr_ai/data/:
-    churn_data.csv           (8,000 user records)
-    nps_data.csv             (5,000 user records)
-    adoption_data.csv        (6,000 user records)
-    beneficiary_segments.csv (4,000 beneficiary records)
-    voucher_forecast.csv     (8,000 voucher records)
-    agent_demand.csv         (3,000 region-day records)
-    expiry_risk.csv          (6,000 voucher records)
+    cd backend/buffr_ai
+    python data/generate_g2p_data.py
+    
+Output:
+    data/training/*.csv (10,000 records per model)
 """
 
 import numpy as np
 import pandas as pd
 from pathlib import Path
+from datetime import datetime, timedelta
+import random
 
-DATA_DIR = Path(__file__).parent
+# Output directory
+OUTPUT_DIR = Path(__file__).parent / "training"
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-NAMIBIAN_REGIONS = [
-    "Khomas", "Erongo", "Oshana", "Omusati", "Ohangwena",
-    "Oshikoto", "Kavango East", "Kavango West", "Zambezi",
-    "Kunene", "Otjozondjupa", "Omaheke", "Hardap", "Karas",
-]
-
-GRANT_TYPES = ["old_age", "disability", "child", "foster_care", "veterans"]
-GRANT_AMOUNTS = {
-    "old_age": 1400, "disability": 1400, "child": 300,
-    "foster_care": 300, "veterans": 1400,
-}
-
-REDEMPTION_CHANNELS = ["wallet", "cash_out", "bank_transfer", "merchant_payment", "cash_at_till"]
-
-# Region weights (population-weighted)
-REGION_WEIGHTS = [0.18, 0.09, 0.10, 0.10, 0.09, 0.07, 0.06, 0.04, 0.04, 0.04, 0.06, 0.03, 0.05, 0.05]
+print("🚀 Buffr G2P Training Data Generator")
+print("=" * 60)
 
 
-def _region_sample(rng: np.random.Generator, n: int) -> np.ndarray:
-    return rng.choice(NAMIBIAN_REGIONS, size=n, p=REGION_WEIGHTS)
+def generate_fraud_detection_data(n_samples: int = 10000) -> pd.DataFrame:
+    """Generate fraud detection training data"""
+    print(f"\n📊 Generating fraud detection data ({n_samples} samples)...")
+    
+    np.random.seed(42)
+    fraud_ratio = 0.05  # 5% fraud
+    n_fraud = int(n_samples * fraud_ratio)
+    n_normal = n_samples - n_fraud
+    
+    # Normal transactions
+    normal_data = {
+        'amount': np.random.lognormal(mean=5.5, sigma=1.2, size=n_normal),
+        'hour_of_day': np.random.choice(range(6, 22), size=n_normal),  # Business hours
+        'day_of_week': np.random.choice(range(7), size=n_normal),
+        'transaction_frequency': np.random.poisson(lam=5, size=n_normal),
+        'avg_transaction_amount': np.random.lognormal(mean=5.2, sigma=1.0, size=n_normal),
+        'distance_from_home': np.random.gamma(shape=2, scale=3, size=n_normal),
+        'device_score': np.random.beta(a=8, b=2, size=n_normal),
+        'account_age_days': np.random.randint(30, 1825, size=n_normal),
+        'num_failed_attempts': np.random.choice([0, 0, 0, 1], size=n_normal),
+        'velocity_1h': np.random.poisson(lam=2, size=n_normal),
+        'velocity_24h': np.random.poisson(lam=8, size=n_normal),
+        'merchant_category': np.random.choice([5411, 5812, 5499, 5722, 4111], size=n_normal),
+        'country_risk_score': np.random.beta(a=2, b=8, size=n_normal),
+        'is_fraud': 0
+    }
+    
+    # Fraudulent transactions
+    fraud_data = {
+        'amount': np.random.lognormal(mean=7.5, sigma=1.5, size=n_fraud),  # Larger amounts
+        'hour_of_day': np.random.choice([0, 1, 2, 3, 4, 5, 23], size=n_fraud),  # Unusual hours
+        'day_of_week': np.random.choice(range(7), size=n_fraud),
+        'transaction_frequency': np.random.poisson(lam=15, size=n_fraud),  # High frequency
+        'avg_transaction_amount': np.random.lognormal(mean=5.0, sigma=0.8, size=n_fraud),
+        'distance_from_home': np.random.gamma(shape=5, scale=10, size=n_fraud),  # Far from home
+        'device_score': np.random.beta(a=2, b=8, size=n_fraud),  # Low device trust
+        'account_age_days': np.random.randint(1, 90, size=n_fraud),  # New accounts
+        'num_failed_attempts': np.random.choice([2, 3, 4, 5], size=n_fraud),
+        'velocity_1h': np.random.poisson(lam=8, size=n_fraud),  # High velocity
+        'velocity_24h': np.random.poisson(lam=25, size=n_fraud),
+        'merchant_category': np.random.choice([5999, 6211, 7995], size=n_fraud),  # Risky categories
+        'country_risk_score': np.random.beta(a=6, b=4, size=n_fraud),  # Higher risk
+        'is_fraud': 1
+    }
+    
+    # Combine and shuffle
+    df_normal = pd.DataFrame(normal_data)
+    df_fraud = pd.DataFrame(fraud_data)
+    df = pd.concat([df_normal, df_fraud], ignore_index=True).sample(frac=1, random_state=42)
+    
+    print(f"  ✅ Generated {len(df)} samples ({n_fraud} fraud, {n_normal} normal)")
+    return df
 
 
-def _grant_type_sample(rng: np.random.Generator, n: int) -> np.ndarray:
-    return rng.choice(GRANT_TYPES, size=n, p=[0.35, 0.20, 0.25, 0.10, 0.10])
-
-
-def generate_churn_data(n: int = 8000, seed: int = 42) -> pd.DataFrame:
-    """Generate churn prediction training data (user-level)."""
-    rng = np.random.default_rng(seed)
-
-    # Base features
-    account_age_days = rng.integers(30, 1200, size=n)
-    region = _region_sample(rng, n)
-
-    # Active users have more transactions
-    base_activity = rng.beta(2, 3, size=n)  # skewed toward lower activity
-    tx_count_30d = (base_activity * 30).astype(int)
-    tx_count_60d = tx_count_30d + rng.integers(0, 15, size=n)
-    tx_count_trend = np.where(tx_count_60d > 0, tx_count_30d / np.maximum(tx_count_60d, 1), 0.5)
-
-    days_since_last_tx = np.where(
-        tx_count_30d > 0,
-        rng.integers(0, 30, size=n),
-        rng.integers(30, 180, size=n),
+def generate_credit_scoring_data(n_samples: int = 10000) -> pd.DataFrame:
+    """Generate credit scoring training data"""
+    print(f"\n💳 Generating credit scoring data ({n_samples} samples)...")
+    
+    np.random.seed(43)
+    
+    data = {
+        'monthly_income': np.random.lognormal(mean=8.2, sigma=0.5, size=n_samples),
+        'transaction_count': np.random.poisson(lam=20, size=n_samples),
+        'avg_balance': np.random.lognormal(mean=7.5, sigma=0.8, size=n_samples),
+        'credit_utilization': np.random.beta(a=2, b=5, size=n_samples),
+        'payment_history': np.random.beta(a=9, b=1, size=n_samples),
+        'debt_to_income': np.random.beta(a=2, b=8, size=n_samples),
+        'employment_length': np.random.randint(0, 240, size=n_samples),
+        'num_credit_lines': np.random.poisson(lam=2, size=n_samples),
+        'num_inquiries': np.random.poisson(lam=1, size=n_samples),
+        'loan_amount': np.random.lognormal(mean=8.0, sigma=0.7, size=n_samples),
+        'loan_term': np.random.choice([6, 12, 18, 24, 36], size=n_samples),
+        'interest_rate': np.random.uniform(0.10, 0.25, size=n_samples),
+    }
+    
+    df = pd.DataFrame(data)
+    
+    # Generate credit score (300-850) based on features
+    score = (
+        df['payment_history'] * 350 +
+        (1 - df['credit_utilization']) * 200 +
+        (df['employment_length'] / 240) * 100 +
+        (1 - df['debt_to_income']) * 100 +
+        np.random.normal(0, 20, n_samples)  # Noise
     )
-
-    voucher_redemption_count_30d = (base_activity * 4).astype(int)
-    days_since_last_redemption = np.where(
-        voucher_redemption_count_30d > 0,
-        rng.integers(0, 45, size=n),
-        rng.integers(30, 200, size=n),
+    df['credit_score'] = np.clip(score + 300, 300, 850).astype(int)
+    df['risk_category'] = pd.cut(
+        df['credit_score'],
+        bins=[0, 580, 670, 740, 850],
+        labels=['poor', 'fair', 'good', 'excellent']
     )
+    
+    print(f"  ✅ Generated {len(df)} samples (score range: {df['credit_score'].min()}-{df['credit_score'].max()})")
+    return df
 
-    avg_tx_amount_30d = rng.lognormal(6.5, 0.8, size=n).clip(50, 5000)
-    notification_read_rate = rng.beta(3, 2, size=n)
-    wallet_balance_trend = rng.normal(0, 0.3, size=n).clip(-1, 1)
-    login_frequency_30d = (base_activity * 25).astype(int)
-    session_count_30d = login_frequency_30d + rng.integers(0, 5, size=n)
-    unique_merchants_30d = (base_activity * 10).astype(int)
-    has_savings_goal = rng.choice([0, 1], size=n, p=[0.6, 0.4])
-    has_active_autopay = rng.choice([0, 1], size=n, p=[0.7, 0.3])
 
-    # Churn label: correlated with low activity
-    churn_score = (
-        -0.3 * tx_count_trend
-        + 0.4 * (days_since_last_tx / 180)
-        - 0.2 * notification_read_rate
-        - 0.1 * has_savings_goal
-        + rng.normal(0, 0.15, size=n)
+def generate_spending_analysis_data(n_samples: int = 10000) -> pd.DataFrame:
+    """Generate spending analysis training data"""
+    print(f"\n💰 Generating spending analysis data ({n_samples} samples)...")
+    
+    np.random.seed(44)
+    
+    # Define 3 spending segments
+    segments = []
+    for _ in range(n_samples):
+        segment = random.choice(['frugal', 'balanced', 'impulsive'])
+        
+        if segment == 'frugal':
+            spending = np.random.lognormal(mean=7.0, sigma=0.3)
+            txn_count = np.random.poisson(lam=10)
+            variance = np.random.uniform(50, 200)
+            diversity = np.random.randint(3, 8)
+        elif segment == 'balanced':
+            spending = np.random.lognormal(mean=7.8, sigma=0.5)
+            txn_count = np.random.poisson(lam=25)
+            variance = np.random.uniform(200, 500)
+            diversity = np.random.randint(8, 15)
+        else:  # impulsive
+            spending = np.random.lognormal(mean=8.5, sigma=0.7)
+            txn_count = np.random.poisson(lam=40)
+            variance = np.random.uniform(500, 1500)
+            diversity = np.random.randint(15, 30)
+        
+        segments.append({
+            'monthly_spending': spending,
+            'transaction_count': txn_count,
+            'avg_transaction_amount': spending / max(txn_count, 1),
+            'spending_variance': variance,
+            'merchant_diversity': diversity,
+            'segment': segment
+        })
+    
+    df = pd.DataFrame(segments)
+    
+    # Add category distributions (simplified - 5 main categories)
+    for cat in ['groceries', 'utilities', 'transport', 'entertainment', 'other']:
+        df[f'cat_{cat}'] = np.random.dirichlet(np.ones(5), size=n_samples)[:, ['groceries', 'utilities', 'transport', 'entertainment', 'other'].index(cat)]
+    
+    print(f"  ✅ Generated {len(df)} samples (frugal: {(df['segment']=='frugal').sum()}, balanced: {(df['segment']=='balanced').sum()}, impulsive: {(df['segment']=='impulsive').sum()})")
+    return df
+
+
+def generate_voucher_forecast_data(n_samples: int = 10000) -> pd.DataFrame:
+    """Generate voucher redemption forecast data"""
+    print(f"\n🎫 Generating voucher forecast data ({n_samples} samples)...")
+    
+    np.random.seed(45)
+    
+    data = {
+        'voucher_age_days': np.random.randint(0, 30, size=n_samples),
+        'initial_amount': np.random.choice([500, 1000, 1500, 2000], size=n_samples),
+        'remaining_amount': np.random.uniform(0, 2000, size=n_samples),
+        'beneficiary_count': np.random.poisson(lam=1, size=n_samples),
+        'prior_redemption_rate': np.random.beta(a=8, b=2, size=n_samples),
+        'merchant_availability_score': np.random.beta(a=7, b=3, size=n_samples),
+    }
+    
+    df = pd.DataFrame(data)
+    
+    # Calculate redemption rate (higher if: new voucher, high prior rate, good merchant availability)
+    redemption_rate = (
+        (1 - df['voucher_age_days'] / 30) * 0.3 +
+        df['prior_redemption_rate'] * 0.4 +
+        df['merchant_availability_score'] * 0.3 +
+        np.random.normal(0, 0.1, n_samples)
     )
-    is_churned = (churn_score > 0.2).astype(int)
-
-    # Region encoding
-    region_map = {r: i for i, r in enumerate(NAMIBIAN_REGIONS)}
-    region_encoded = np.array([region_map[r] for r in region])
-
-    return pd.DataFrame({
-        "user_id": [f"USR_{i:05d}" for i in range(n)],
-        "tx_count_30d": tx_count_30d,
-        "tx_count_trend": np.round(tx_count_trend, 4),
-        "days_since_last_tx": days_since_last_tx,
-        "voucher_redemption_count_30d": voucher_redemption_count_30d,
-        "days_since_last_redemption": days_since_last_redemption,
-        "avg_tx_amount_30d": np.round(avg_tx_amount_30d, 2),
-        "notification_read_rate": np.round(notification_read_rate, 4),
-        "wallet_balance_trend": np.round(wallet_balance_trend, 4),
-        "login_frequency_30d": login_frequency_30d,
-        "session_count_30d": session_count_30d,
-        "unique_merchants_30d": unique_merchants_30d,
-        "has_savings_goal": has_savings_goal,
-        "has_active_autopay": has_active_autopay,
-        "account_age_days": account_age_days,
-        "region_encoded": region_encoded,
-        "is_churned": is_churned,
-    })
+    df['redemption_rate'] = np.clip(redemption_rate, 0, 1)
+    
+    print(f"  ✅ Generated {len(df)} samples (avg redemption rate: {df['redemption_rate'].mean():.2f})")
+    return df
 
 
-def generate_nps_data(n: int = 5000, seed: int = 43) -> pd.DataFrame:
-    """Generate NPS / satisfaction scoring data (user-level, regression)."""
-    rng = np.random.default_rng(seed)
-
-    tx_success_rate = rng.beta(8, 1.5, size=n)  # most are high
-    avg_response_time_ms = rng.lognormal(6.5, 0.5, size=n).clip(100, 10000)
-    support_ticket_count_30d = rng.poisson(0.5, size=n)
-    complaint_count_90d = rng.poisson(0.3, size=n)
-    notification_read_rate = rng.beta(3, 2, size=n)
-    feature_adoption_score = rng.beta(2, 2, size=n)
-    session_frequency = rng.poisson(8, size=n)
-    tx_volume_30d = rng.lognormal(8, 1, size=n).clip(100, 50000)
-    failed_tx_count_30d = rng.poisson(0.3, size=n)
-    days_since_last_complaint = rng.integers(0, 365, size=n)
-    onboarding_complete = rng.choice([0, 1], size=n, p=[0.15, 0.85])
-    account_age_days = rng.integers(30, 1000, size=n)
-
-    # NPS score: correlated with quality signals
-    nps_base = (
-        30 * tx_success_rate
-        + 15 * feature_adoption_score
-        + 10 * notification_read_rate
-        - 5 * support_ticket_count_30d
-        - 8 * complaint_count_90d
-        - 5 * (avg_response_time_ms / 10000)
-        + 5 * onboarding_complete
-        + rng.normal(0, 8, size=n)
+def generate_churn_prediction_data(n_samples: int = 10000) -> pd.DataFrame:
+    """Generate churn prediction training data"""
+    print(f"\n🔄 Generating churn prediction data ({n_samples} samples)...")
+    
+    np.random.seed(46)
+    
+    data = {
+        'days_inactive': np.random.exponential(scale=10, size=n_samples),
+        'transaction_count_change': np.random.normal(0, 0.5, size=n_samples),
+        'avg_amount_change': np.random.normal(0, 0.3, size=n_samples),
+        'support_tickets': np.random.poisson(lam=0.5, size=n_samples),
+        'app_login_frequency': np.random.poisson(lam=15, size=n_samples),
+        'num_beneficiaries': np.random.poisson(lam=2, size=n_samples),
+        'voucher_usage_rate': np.random.beta(a=7, b=3, size=n_samples),
+    }
+    
+    df = pd.DataFrame(data)
+    
+    # Churn probability (higher if: inactive, declining usage, low engagement)
+    churn_prob = (
+        np.clip(df['days_inactive'] / 60, 0, 1) * 0.4 +
+        np.clip(-df['transaction_count_change'], 0, 1) * 0.3 +
+        (1 - df['voucher_usage_rate']) * 0.2 +
+        (df['support_tickets'] / 10) * 0.1 +
+        np.random.normal(0, 0.1, n_samples)
     )
-    nps_score = np.clip(nps_base, 0, 100).astype(int)
-
-    return pd.DataFrame({
-        "user_id": [f"USR_{i:05d}" for i in range(n)],
-        "tx_success_rate": np.round(tx_success_rate, 4),
-        "avg_response_time_ms": np.round(avg_response_time_ms, 1),
-        "support_ticket_count_30d": support_ticket_count_30d,
-        "complaint_count_90d": complaint_count_90d,
-        "notification_read_rate": np.round(notification_read_rate, 4),
-        "feature_adoption_score": np.round(feature_adoption_score, 4),
-        "session_frequency": session_frequency,
-        "tx_volume_30d": np.round(tx_volume_30d, 2),
-        "failed_tx_count_30d": failed_tx_count_30d,
-        "days_since_last_complaint": days_since_last_complaint,
-        "onboarding_complete": onboarding_complete,
-        "account_age_days": account_age_days,
-        "nps_score": nps_score,
-    })
+    df['churn_probability'] = np.clip(churn_prob, 0, 1)
+    df['churned'] = (df['churn_probability'] > 0.5).astype(int)
+    
+    print(f"  ✅ Generated {len(df)} samples (churn rate: {df['churned'].mean():.2%})")
+    return df
 
 
-def generate_adoption_data(n: int = 6000, seed: int = 44) -> pd.DataFrame:
-    """Generate digital adoption / usage analytics data (user-level)."""
-    rng = np.random.default_rng(seed)
-
-    # Feature usage flags — correlated via a latent "digital savvy" factor
-    digital_savvy = rng.beta(2, 3, size=n)
-
-    has_used_send_money = (rng.random(n) < (0.3 + 0.6 * digital_savvy)).astype(int)
-    has_used_bill_pay = (rng.random(n) < (0.15 + 0.5 * digital_savvy)).astype(int)
-    has_used_savings = (rng.random(n) < (0.10 + 0.5 * digital_savvy)).astype(int)
-    has_used_groups = (rng.random(n) < (0.08 + 0.4 * digital_savvy)).astype(int)
-    has_used_qr_pay = (rng.random(n) < (0.10 + 0.5 * digital_savvy)).astype(int)
-    has_used_ussd = (rng.random(n) < (0.20 + 0.3 * digital_savvy)).astype(int)
-    has_used_cashback = (rng.random(n) < (0.12 + 0.4 * digital_savvy)).astype(int)
-
-    session_count_30d = (digital_savvy * 30 + rng.poisson(2, size=n)).astype(int)
-    avg_session_duration_min = (digital_savvy * 8 + rng.exponential(2, size=n)).clip(0.5, 30)
-    features_used_count = (
-        has_used_send_money + has_used_bill_pay + has_used_savings +
-        has_used_groups + has_used_qr_pay + has_used_ussd + has_used_cashback
+def generate_expiry_risk_data(n_samples: int = 10000) -> pd.DataFrame:
+    """Generate voucher expiry risk data"""
+    print(f"\n⚠️  Generating expiry risk data ({n_samples} samples)...")
+    
+    np.random.seed(47)
+    
+    data = {
+        'days_until_expiry': np.random.randint(1, 60, size=n_samples),
+        'voucher_value': np.random.choice([500, 1000, 1500, 2000, 3000], size=n_samples),
+        'redemption_history_rate': np.random.beta(a=7, b=3, size=n_samples),
+        'beneficiary_engagement': np.random.beta(a=6, b=4, size=n_samples),
+        'notification_responsiveness': np.random.beta(a=5, b=5, size=n_samples),
+    }
+    
+    df = pd.DataFrame(data)
+    
+    # Expiry risk (higher if: soon expiring, low engagement, low responsiveness)
+    risk = (
+        (1 - df['days_until_expiry'] / 60) * 0.4 +
+        (1 - df['redemption_history_rate']) * 0.2 +
+        (1 - df['beneficiary_engagement']) * 0.2 +
+        (1 - df['notification_responsiveness']) * 0.2 +
+        np.random.normal(0, 0.1, n_samples)
     )
-    channel_diversity = np.minimum(
-        1 + (has_used_ussd > 0).astype(int) + (features_used_count > 2).astype(int), 3
+    df['expiry_risk'] = np.clip(risk, 0, 1)
+    df['will_expire'] = (df['expiry_risk'] > 0.6).astype(int)
+    
+    print(f"  ✅ Generated {len(df)} samples (expiry rate: {df['will_expire'].mean():.2%})")
+    return df
+
+
+def generate_agent_demand_data(n_samples: int = 10000) -> pd.DataFrame:
+    """Generate agent demand forecast data"""
+    print(f"\n👥 Generating agent demand data ({n_samples} samples)...")
+    
+    np.random.seed(48)
+    
+    locations = ['Windhoek_CBD', 'Oshakati', 'Walvis_Bay', 'Katima_Mulilo', 'Rundu']
+    
+    data = {
+        'location': np.random.choice(locations, size=n_samples),
+        'day_of_week': np.random.choice(range(7), size=n_samples),
+        'is_payday': np.random.choice([0, 1], p=[0.85, 0.15], size=n_samples),
+        'is_holiday': np.random.choice([0, 1], p=[0.95, 0.05], size=n_samples),
+    }
+    
+    df = pd.DataFrame(data)
+    
+    # Base demand by location
+    location_base = {'Windhoek_CBD': 150, 'Oshakati': 80, 'Walvis_Bay': 100, 'Katima_Mulilo': 60, 'Rundu': 70}
+    df['base_demand'] = df['location'].map(location_base)
+    
+    # Calculate demand (higher on payday, weekends, holidays)
+    demand = (
+        df['base_demand'] +
+        df['is_payday'] * 100 +
+        df['is_holiday'] * 50 +
+        (df['day_of_week'].isin([5, 6])).astype(int) * 30 +
+        np.random.normal(0, 15, n_samples)
     )
-    onboarding_stage = np.where(digital_savvy > 0.5, 4, np.where(digital_savvy > 0.2, 3, 2))
-    days_since_first_use = rng.integers(7, 500, size=n)
-    tx_count_30d = (digital_savvy * 20 + rng.poisson(2, size=n)).astype(int)
+    df['demand_forecast'] = np.clip(demand, 10, 500).astype(int)
+    
+    print(f"  ✅ Generated {len(df)} samples (avg demand: {df['demand_forecast'].mean():.0f})")
+    return df
 
-    # Adoption tier labels from clustering logic
-    adoption_score = (
-        0.15 * features_used_count / 7 +
-        0.20 * np.minimum(session_count_30d / 30, 1) +
-        0.15 * np.minimum(avg_session_duration_min / 15, 1) +
-        0.15 * np.minimum(tx_count_30d / 20, 1) +
-        0.10 * channel_diversity / 3 +
-        0.10 * (onboarding_stage / 4) +
-        0.15 * digital_savvy
+
+def generate_transaction_classification_data(n_samples: int = 10000) -> pd.DataFrame:
+    """Generate transaction classification data"""
+    print(f"\n🏷️  Generating transaction classification data ({n_samples} samples)...")
+    
+    np.random.seed(49)
+    
+    categories = {
+        'groceries': (5411, [50, 500], [8, 18]),
+        'utilities': (4900, [100, 1000], [6, 20]),
+        'transport': (4121, [20, 200], [6, 19]),
+        'entertainment': (7832, [50, 300], [18, 23]),
+        'healthcare': (8011, [100, 2000], [8, 17]),
+        'education': (8299, [200, 5000], [8, 16]),
+        'dining': (5812, [30, 300], [11, 21]),
+        'shopping': (5311, [50, 1000], [10, 20]),
+    }
+    
+    records = []
+    for _ in range(n_samples):
+        category = random.choice(list(categories.keys()))
+        mcc, (min_amt, max_amt), (min_hr, max_hr) = categories[category]
+        
+        records.append({
+            'amount': np.random.uniform(min_amt, max_amt),
+            'merchant_category': mcc,
+            'hour_of_day': np.random.randint(min_hr, max_hr),
+            'day_of_week': np.random.choice(range(7)),
+            'device_type': np.random.choice([0, 1, 2], p=[0.1, 0.8, 0.1]),  # Mobile dominant
+            'location_type': np.random.choice([0, 1, 2, 3], p=[0.1, 0.4, 0.3, 0.2]),
+            'account_age_days': np.random.randint(1, 1825),
+            'category': category
+        })
+    
+    df = pd.DataFrame(records)
+    
+    print(f"  ✅ Generated {len(df)} samples ({df['category'].nunique()} categories)")
+    return df
+
+
+def generate_nps_scoring_data(n_samples: int = 10000) -> pd.DataFrame:
+    """Generate NPS scoring data"""
+    print(f"\n⭐ Generating NPS scoring data ({n_samples} samples)...")
+    
+    np.random.seed(50)
+    
+    data = {
+        'transaction_satisfaction': np.random.beta(a=7, b=3, size=n_samples) * 10,
+        'app_rating': np.random.beta(a=8, b=2, size=n_samples) * 10,
+        'support_rating': np.random.beta(a=6, b=4, size=n_samples) * 10,
+        'feature_usage_count': np.random.poisson(lam=8, size=n_samples),
+        'response_time_avg': np.random.gamma(shape=2, scale=0.5, size=n_samples),
+    }
+    
+    df = pd.DataFrame(data)
+    
+    # NPS score (0-10): Detractors (0-6), Passives (7-8), Promoters (9-10)
+    nps = (
+        df['transaction_satisfaction'] * 0.3 +
+        df['app_rating'] * 0.4 +
+        df['support_rating'] * 0.2 +
+        (df['feature_usage_count'] / 20) * 10 * 0.1 +
+        np.random.normal(0, 0.5, n_samples)
     )
-    tiers = ["Dormant", "Basic", "Active", "Power", "Champion"]
-    tier_bins = np.digitize(adoption_score, bins=[0.15, 0.30, 0.50, 0.70])
-    adoption_tier = np.array([tiers[b] for b in tier_bins])
-
-    return pd.DataFrame({
-        "user_id": [f"USR_{i:05d}" for i in range(n)],
-        "has_used_send_money": has_used_send_money,
-        "has_used_bill_pay": has_used_bill_pay,
-        "has_used_savings": has_used_savings,
-        "has_used_groups": has_used_groups,
-        "has_used_qr_pay": has_used_qr_pay,
-        "has_used_ussd": has_used_ussd,
-        "has_used_cashback": has_used_cashback,
-        "session_count_30d": session_count_30d,
-        "avg_session_duration_min": np.round(avg_session_duration_min, 2),
-        "channel_diversity": channel_diversity,
-        "features_used_count": features_used_count,
-        "onboarding_stage": onboarding_stage,
-        "days_since_first_use": days_since_first_use,
-        "tx_count_30d": tx_count_30d,
-        "adoption_tier": adoption_tier,
-    })
-
-
-def generate_beneficiary_segments(n: int = 4000, seed: int = 45) -> pd.DataFrame:
-    """Generate beneficiary segmentation data (beneficiary-level, clustering)."""
-    rng = np.random.default_rng(seed)
-
-    region = _region_sample(rng, n)
-    grant_type = _grant_type_sample(rng, n)
-
-    region_map = {r: i for i, r in enumerate(NAMIBIAN_REGIONS)}
-    grant_map = {g: i for i, g in enumerate(GRANT_TYPES)}
-    region_encoded = np.array([region_map[r] for r in region])
-    grant_type_encoded = np.array([grant_map[g] for g in grant_type])
-
-    age_bracket = rng.choice([1, 2, 3, 4, 5], size=n, p=[0.05, 0.15, 0.25, 0.30, 0.25])
-    dependant_count = rng.poisson(1.5, size=n).clip(0, 8)
-    has_proxy = rng.choice([0, 1], size=n, p=[0.75, 0.25])
-
-    # Redemption preferences vary by region (urban = wallet, rural = cash_out)
-    urban_mask = np.isin(region, ["Khomas", "Erongo", "Oshana"])
-    channel_prefs = np.where(
-        urban_mask,
-        rng.choice([0, 1, 2, 3, 4], size=n, p=[0.40, 0.15, 0.20, 0.15, 0.10]),
-        rng.choice([0, 1, 2, 3, 4], size=n, p=[0.15, 0.40, 0.10, 0.10, 0.25]),
+    df['nps_score'] = np.clip(nps, 0, 10)
+    df['nps_category'] = pd.cut(
+        df['nps_score'],
+        bins=[0, 6, 8, 10],
+        labels=['detractor', 'passive', 'promoter']
     )
-
-    amounts = np.array([GRANT_AMOUNTS[g] for g in grant_type], dtype=float)
-    avg_redemption_amount = amounts * rng.uniform(0.8, 1.0, size=n)
-    redemption_frequency = rng.poisson(1, size=n).clip(0, 4)
-    days_since_last_payment = rng.integers(0, 90, size=n)
-
-    # Digital literacy correlates with age bracket (younger = higher) and region
-    digital_literacy_score = (
-        (5 - age_bracket) * 0.15 +
-        urban_mask.astype(float) * 0.2 +
-        rng.beta(2, 3, size=n) * 0.5
-    ).clip(0, 1)
-
-    household_size_estimate = (1 + dependant_count + rng.poisson(1, size=n)).clip(1, 12)
-    enrollment_duration_days = rng.integers(30, 1500, size=n)
-
-    return pd.DataFrame({
-        "beneficiary_id": [f"BEN_{i:05d}" for i in range(n)],
-        "age_bracket": age_bracket,
-        "region_encoded": region_encoded,
-        "grant_type_encoded": grant_type_encoded,
-        "dependant_count": dependant_count,
-        "has_proxy": has_proxy,
-        "redemption_channel_pref_encoded": channel_prefs,
-        "avg_redemption_amount": np.round(avg_redemption_amount, 2),
-        "redemption_frequency": redemption_frequency,
-        "days_since_last_payment": days_since_last_payment,
-        "digital_literacy_score": np.round(digital_literacy_score, 4),
-        "household_size_estimate": household_size_estimate,
-        "enrollment_duration_days": enrollment_duration_days,
-    })
+    
+    print(f"  ✅ Generated {len(df)} samples (promoters: {(df['nps_category']=='promoter').sum()})")
+    return df
 
 
-def generate_voucher_forecast(n: int = 8000, seed: int = 46) -> pd.DataFrame:
-    """Generate voucher redemption forecasting data (voucher-level)."""
-    rng = np.random.default_rng(seed)
-
-    region = _region_sample(rng, n)
-    grant_type = _grant_type_sample(rng, n)
-    region_map = {r: i for i, r in enumerate(NAMIBIAN_REGIONS)}
-    grant_map = {g: i for i, g in enumerate(GRANT_TYPES)}
-    region_encoded = np.array([region_map[r] for r in region])
-    grant_type_encoded = np.array([grant_map[g] for g in grant_type])
-
-    amounts = np.array([GRANT_AMOUNTS[g] for g in grant_type], dtype=float)
-    amount_normalized = amounts / 1400.0  # normalize by max grant
-
-    days_since_issue = rng.integers(0, 60, size=n)
-    day_of_week_issued = rng.integers(0, 7, size=n)
-    day_of_month_issued = rng.choice([1, 2, 3, 15, 16, 28, 29, 30], size=n, p=[0.30, 0.15, 0.10, 0.10, 0.05, 0.10, 0.10, 0.10])
-    is_payday_week = (day_of_month_issued <= 5).astype(int)
-
-    beneficiary_segment = rng.integers(0, 6, size=n)
-    historical_avg_days_to_redeem = rng.lognormal(1.5, 0.6, size=n).clip(1, 45)
-    preferred_channel_encoded = rng.choice([0, 1, 2, 3, 4], size=n, p=[0.30, 0.25, 0.15, 0.20, 0.10])
-    nearby_agent_count = rng.poisson(3, size=n).clip(0, 15)
-
-    # Target: days to redeem (regression) — faster when payday, urban, wallet user
-    urban_mask = np.isin(region, ["Khomas", "Erongo", "Oshana"])
-    days_to_redeem = (
-        historical_avg_days_to_redeem * 0.6 +
-        (~urban_mask).astype(float) * 3 +
-        (1 - is_payday_week) * 2 +
-        rng.exponential(2, size=n)
-    ).clip(0, 60).astype(int)
-
-    # Target: redemption channel
-    channel_map = {0: "wallet", 1: "cash_out", 2: "bank_transfer", 3: "merchant_payment", 4: "cash_at_till"}
-    redemption_channel = np.array([channel_map[c] for c in preferred_channel_encoded])
-
-    return pd.DataFrame({
-        "voucher_id": [f"VCH_{i:05d}" for i in range(n)],
-        "days_since_issue": days_since_issue,
-        "grant_type_encoded": grant_type_encoded,
-        "amount_normalized": np.round(amount_normalized, 4),
-        "region_encoded": region_encoded,
-        "beneficiary_segment": beneficiary_segment,
-        "day_of_week_issued": day_of_week_issued,
-        "day_of_month_issued": day_of_month_issued,
-        "is_payday_week": is_payday_week,
-        "historical_avg_days_to_redeem": np.round(historical_avg_days_to_redeem, 2),
-        "preferred_channel_encoded": preferred_channel_encoded,
-        "nearby_agent_count": nearby_agent_count,
-        "days_to_redeem": days_to_redeem,
-        "redemption_channel": redemption_channel,
-    })
-
-
-def generate_agent_demand(n: int = 3000, seed: int = 47) -> pd.DataFrame:
-    """Generate agent demand forecasting data (region-day level, regression)."""
-    rng = np.random.default_rng(seed)
-
-    region = _region_sample(rng, n)
-    region_map = {r: i for i, r in enumerate(NAMIBIAN_REGIONS)}
-    region_encoded = np.array([region_map[r] for r in region])
-
-    day_of_week = rng.integers(0, 7, size=n)
-    day_of_month = rng.integers(1, 31, size=n)
-    is_payday_week = (day_of_month <= 5).astype(int)
-
-    # Region characteristics
-    agent_count_in_region = rng.poisson(8, size=n).clip(1, 30)
-    active_beneficiaries_in_region = rng.poisson(500, size=n).clip(50, 3000)
-
-    avg_historical_daily_demand = rng.lognormal(9, 0.5, size=n).clip(1000, 100000)
-    seasonal_index = 1.0 + 0.1 * np.sin(2 * np.pi * day_of_month / 30) + rng.normal(0, 0.05, size=n)
-    recent_7d_avg_demand = avg_historical_daily_demand * rng.uniform(0.8, 1.2, size=n)
-    pending_voucher_value_in_region = rng.lognormal(10, 0.8, size=n).clip(5000, 500000)
-
-    # Target: daily demand in NAD
-    daily_demand_nad = (
-        avg_historical_daily_demand * seasonal_index * 0.5 +
-        is_payday_week * avg_historical_daily_demand * 0.8 +
-        (active_beneficiaries_in_region / 500) * 2000 +
-        rng.normal(0, 3000, size=n)
-    ).clip(500, 200000)
-
-    return pd.DataFrame({
-        "region_encoded": region_encoded,
-        "day_of_week": day_of_week,
-        "day_of_month": day_of_month,
-        "is_payday_week": is_payday_week,
-        "agent_count_in_region": agent_count_in_region,
-        "active_beneficiaries_in_region": active_beneficiaries_in_region,
-        "avg_historical_daily_demand": np.round(avg_historical_daily_demand, 2),
-        "seasonal_index": np.round(seasonal_index, 4),
-        "recent_7d_avg_demand": np.round(recent_7d_avg_demand, 2),
-        "pending_voucher_value_in_region": np.round(pending_voucher_value_in_region, 2),
-        "daily_demand_nad": np.round(daily_demand_nad, 2),
-    })
-
-
-def generate_expiry_risk(n: int = 6000, seed: int = 48) -> pd.DataFrame:
-    """Generate voucher expiry risk data (voucher-level, binary classification)."""
-    rng = np.random.default_rng(seed)
-
-    region = _region_sample(rng, n)
-    grant_type = _grant_type_sample(rng, n)
-    region_map = {r: i for i, r in enumerate(NAMIBIAN_REGIONS)}
-    grant_map = {g: i for i, g in enumerate(GRANT_TYPES)}
-    region_encoded = np.array([region_map[r] for r in region])
-    grant_type_encoded = np.array([grant_map[g] for g in grant_type])
-
-    amounts = np.array([GRANT_AMOUNTS[g] for g in grant_type], dtype=float)
-    amount_normalized = amounts / 1400.0
-
-    days_since_issue = rng.integers(0, 90, size=n)
-    days_until_expiry = np.maximum(90 - days_since_issue + rng.integers(-10, 10, size=n), 0)
-
-    beneficiary_activity_score = rng.beta(3, 2, size=n)
-    similar_voucher_redemption_rate = rng.beta(5, 2, size=n)
-    channel_availability_score = rng.beta(3, 1.5, size=n)
-    has_used_app = rng.choice([0, 1], size=n, p=[0.35, 0.65])
-    has_used_ussd = rng.choice([0, 1], size=n, p=[0.55, 0.45])
-    nearest_agent_distance_km = rng.exponential(5, size=n).clip(0.5, 50)
-    notification_sent_count = rng.poisson(2, size=n).clip(0, 8)
-
-    # Label: expired unredeemed — more likely when low activity, far from agents, no app
-    expiry_score = (
-        -0.3 * beneficiary_activity_score
-        - 0.2 * similar_voucher_redemption_rate
-        - 0.1 * channel_availability_score
-        - 0.15 * has_used_app
-        + 0.1 * (nearest_agent_distance_km / 50)
-        - 0.05 * notification_sent_count / 8
-        + 0.2 * (days_until_expiry < 7).astype(float)
-        + rng.normal(0, 0.15, size=n)
+def generate_digital_adoption_data(n_samples: int = 10000) -> pd.DataFrame:
+    """Generate digital adoption data"""
+    print(f"\n📱 Generating digital adoption data ({n_samples} samples)...")
+    
+    np.random.seed(51)
+    
+    data = {
+        'app_sessions_per_week': np.random.poisson(lam=12, size=n_samples),
+        'feature_adoption_count': np.random.poisson(lam=6, size=n_samples),
+        'avg_session_duration': np.random.gamma(shape=3, scale=2, size=n_samples),
+        'last_login_days_ago': np.random.exponential(scale=2, size=n_samples),
+        'push_notification_response': np.random.beta(a=6, b=4, size=n_samples),
+    }
+    
+    df = pd.DataFrame(data)
+    
+    # Adoption score
+    adoption = (
+        np.clip(df['app_sessions_per_week'] / 20, 0, 1) * 0.3 +
+        np.clip(df['feature_adoption_count'] / 15, 0, 1) * 0.3 +
+        np.clip(1 - df['last_login_days_ago'] / 30, 0, 1) * 0.2 +
+        df['push_notification_response'] * 0.2
     )
-    expired_unredeemed = (expiry_score > -0.15).astype(int)
+    df['adoption_score'] = np.clip(adoption, 0, 1)
+    df['segment'] = pd.cut(
+        df['adoption_score'],
+        bins=[0, 0.3, 0.6, 1.0],
+        labels=['low', 'medium', 'high']
+    )
+    
+    print(f"  ✅ Generated {len(df)} samples (high adoption: {(df['segment']=='high').sum()})")
+    return df
 
-    return pd.DataFrame({
-        "voucher_id": [f"VCH_{i:05d}" for i in range(n)],
-        "days_since_issue": days_since_issue,
-        "days_until_expiry": days_until_expiry,
-        "grant_type_encoded": grant_type_encoded,
-        "amount_normalized": np.round(amount_normalized, 4),
-        "region_encoded": region_encoded,
-        "beneficiary_activity_score": np.round(beneficiary_activity_score, 4),
-        "similar_voucher_redemption_rate": np.round(similar_voucher_redemption_rate, 4),
-        "channel_availability_score": np.round(channel_availability_score, 4),
-        "has_used_app": has_used_app,
-        "has_used_ussd": has_used_ussd,
-        "nearest_agent_distance_km": np.round(nearest_agent_distance_km, 2),
-        "notification_sent_count": notification_sent_count,
-        "expired_unredeemed": expired_unredeemed,
-    })
+
+def generate_beneficiary_segmentation_data(n_samples: int = 10000) -> pd.DataFrame:
+    """Generate beneficiary segmentation data"""
+    print(f"\n👤 Generating beneficiary segmentation data ({n_samples} samples)...")
+    
+    np.random.seed(52)
+    
+    segments = ['at_risk', 'stable', 'active', 'champion']
+    
+    records = []
+    for _ in range(n_samples):
+        segment = random.choice(segments)
+        
+        if segment == 'at_risk':
+            txn_count = np.random.poisson(lam=3)
+            recency = np.random.randint(30, 90)
+            avg_send = np.random.uniform(50, 200)
+        elif segment == 'stable':
+            txn_count = np.random.poisson(lam=10)
+            recency = np.random.randint(1, 30)
+            avg_send = np.random.uniform(200, 500)
+        elif segment == 'active':
+            txn_count = np.random.poisson(lam=20)
+            recency = np.random.randint(1, 7)
+            avg_send = np.random.uniform(300, 800)
+        else:  # champion
+            txn_count = np.random.poisson(lam=40)
+            recency = np.random.randint(1, 3)
+            avg_send = np.random.uniform(500, 2000)
+        
+        records.append({
+            'transaction_count': txn_count,
+            'avg_send_amount': avg_send,
+            'num_beneficiaries': np.random.poisson(lam=2),
+            'frequency_variance': np.random.uniform(0, 100),
+            'recency_days': recency,
+            'segment': segment
+        })
+    
+    df = pd.DataFrame(records)
+    
+    print(f"  ✅ Generated {len(df)} samples (champions: {(df['segment']=='champion').sum()})")
+    return df
 
 
 def main():
-    print("Generating Namibian G2P training data...")
-
-    generators = [
-        ("churn_data.csv", generate_churn_data),
-        ("nps_data.csv", generate_nps_data),
-        ("adoption_data.csv", generate_adoption_data),
-        ("beneficiary_segments.csv", generate_beneficiary_segments),
-        ("voucher_forecast.csv", generate_voucher_forecast),
-        ("agent_demand.csv", generate_agent_demand),
-        ("expiry_risk.csv", generate_expiry_risk),
-    ]
-
-    for filename, gen_fn in generators:
-        df = gen_fn()
-        path = DATA_DIR / filename
-        df.to_csv(path, index=False)
-        print(f"  {filename}: {len(df)} rows, {len(df.columns)} columns -> {path}")
-
-    print("Done. All 7 CSV files generated.")
+    """Generate all training datasets"""
+    print("\n🎯 Generating training data for 12 ML models...\n")
+    
+    datasets = {
+        'fraud_detection': generate_fraud_detection_data,
+        'credit_scoring': generate_credit_scoring_data,
+        'spending_analysis': generate_spending_analysis_data,
+        'voucher_forecast': generate_voucher_forecast_data,
+        'churn_prediction': generate_churn_prediction_data,
+        'expiry_risk': generate_expiry_risk_data,
+        'agent_demand': generate_agent_demand_data,
+        'transaction_classification': generate_transaction_classification_data,
+        'nps_scoring': generate_nps_scoring_data,
+        'digital_adoption': generate_digital_adoption_data,
+        'beneficiary_segmentation': generate_beneficiary_segmentation_data,
+    }
+    
+    for name, generator in datasets.items():
+        df = generator()
+        output_path = OUTPUT_DIR / f"{name}_training.csv"
+        df.to_csv(output_path, index=False)
+        print(f"  💾 Saved to: {output_path}")
+    
+    print("\n" + "=" * 60)
+    print(f"✅ Successfully generated {len(datasets)} training datasets")
+    print(f"📁 Location: {OUTPUT_DIR}")
+    print("\n🚀 Next steps:")
+    print("  1. Review data: ls -lh data/training/")
+    print("  2. Train models: python -m ml.fraud_detection --train")
+    print("  3. Test predictions: python -m ml.fraud_detection --test")
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 /**
  * Add card – Scan step. Buffr G2P §3.4 / Buffr App Design.
- * Step 2a when user chose "Scan your card": point camera at card; fallback to manual entry.
+ * Step 2a when user chose "Scan your card": point camera at card; or manual entry.
  * No OCR in scope: shows instructions and "Enter manually instead" → details.
  * Uses UserContext so state is applied throughout card flow.
  */

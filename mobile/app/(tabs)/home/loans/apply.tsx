@@ -24,6 +24,7 @@ import {
   EmojiIcon,
   EmojiPicker,
   InfoBanner,
+  ProgressIndicator,
   SuccessScreen,
   Toggle,
 } from '@/components/ui';
@@ -144,6 +145,11 @@ export default function LoansApplyScreen() {
   const interest = Math.round(amount * (offer?.interestRate ?? 15) / 100);
   const totalRepayable = amount + interest;
 
+  const getStepIndex = (): number => {
+    const steps: Step[] = ['offer', 'biometric', 'credited', 'details'];
+    return steps.indexOf(step) + 1;
+  };
+
   if (loading) {
     return (
       <View style={styles.centerFill}>
@@ -229,6 +235,11 @@ export default function LoansApplyScreen() {
     <View style={styles.screen}>
       <Stack.Screen options={{ headerShown: true, headerTitle: 'Apply for Loan', headerTintColor: '#111827', headerStyle: { backgroundColor: '#fff' } }} />
       <SafeAreaView style={styles.safe} edges={['bottom']}>
+        <ProgressIndicator
+          currentStep={getStepIndex()}
+          totalSteps={4}
+          stepLabels={['Offer Details', 'Biometric', 'Loan Credited', 'Add Details']}
+        />
         <ScrollView contentContainerStyle={styles.offerScroll} showsVerticalScrollIndicator={false}>
 
           {/* Offer card */}

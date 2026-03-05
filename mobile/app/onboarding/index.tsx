@@ -1,9 +1,12 @@
 import React from 'react';
 import { StyleSheet, Text, View, Image, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { Link, router } from 'expo-router';
+import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { designSystem } from '@/constants/designSystem';
 import { useUser } from '@/contexts/UserContext';
+
+const CTA_HEIGHT = 52;
+const BUTTON_RADIUS = 16;
 
 export default function WelcomeScreen() {
   const { isLoaded } = useUser();
@@ -20,30 +23,33 @@ export default function WelcomeScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <View style={styles.background} />
       <View style={styles.container}>
         <Image
-          source={require('../../assets/images/buffr_logo.png')} // Adjust path as necessary
+          source={require('../../assets/images/buffr_logo.png')}
           style={styles.logo}
           resizeMode="contain"
         />
-
         <Text style={styles.title}>Welcome to Buffr</Text>
         <Text style={styles.subtitle}>Your G2P payments companion</Text>
-
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity
-            style={styles.primaryButton}
-            onPress={() => router.push('/onboarding/phone')}
-          >
-            <Text style={styles.primaryButtonText}>Get Started</Text>
-          </TouchableOpacity>
-
-          <Link href="/onboarding/phone" asChild>
-            <TouchableOpacity style={styles.secondaryButton}>
-              <Text style={styles.secondaryButtonText}>Sign In</Text>
-            </TouchableOpacity>
-          </Link>
-        </View>
+      </View>
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity
+          style={styles.primaryButton}
+          onPress={() => router.push('/onboarding/phone')}
+          activeOpacity={0.8}
+          accessibilityLabel="Get Started"
+        >
+          <Text style={styles.primaryButtonText}>Get Started</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.secondaryButton}
+          onPress={() => router.push('/onboarding/phone')}
+          activeOpacity={0.8}
+          accessibilityLabel="Sign In"
+        >
+          <Text style={styles.secondaryButtonText}>Sign In</Text>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -52,22 +58,24 @@ export default function WelcomeScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: 'white', // Assuming a white background for onboarding
+  },
+  background: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#FFFFFF',
   },
   container: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: designSystem.spacing.g2p.sectionSpacing,
-    paddingBottom: designSystem.spacing.g2p.contentBottomPadding, // Push content up
   },
   logo: {
-    width: 150, // Placeholder size
-    height: 150, // Placeholder size
-    marginBottom: designSystem.spacing.g2p.sectionSpacing * 2,
+    width: 150,
+    height: 150,
+    marginBottom: designSystem.spacing.g2p.sectionSpacing,
   },
   title: {
-    ...designSystem.typography.textStyles.heading,
+    ...designSystem.typography.textStyles.display,
     color: designSystem.colors.neutral.text,
     marginBottom: designSystem.spacing.g2p.sectionSpacing / 2,
     textAlign: 'center',
@@ -75,39 +83,41 @@ const styles = StyleSheet.create({
   subtitle: {
     ...designSystem.typography.textStyles.body,
     color: designSystem.colors.neutral.textSecondary,
-    marginBottom: designSystem.spacing.g2p.sectionSpacing * 2,
     textAlign: 'center',
   },
   buttonContainer: {
     width: '100%',
-    position: 'absolute', // Position buttons at the bottom
-    bottom: designSystem.spacing.g2p.sectionSpacing,
-    paddingHorizontal: designSystem.spacing.g2p.horizontalPadding, // Use horizontalPadding for consistency
-  },
-  primaryButton: {
-    height: designSystem.components.button.height,
-    backgroundColor: designSystem.colors.brand.primary,
-    borderRadius: designSystem.components.button.borderRadius,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: designSystem.spacing.g2p.sectionSpacing / 2,
-  },
-  primaryButtonText: {
-    color: 'white',
-    ...designSystem.typography.textStyles.body, // Assuming body text style for buttons
-    fontWeight: 'bold',
+    paddingHorizontal: designSystem.spacing.g2p.horizontalPadding,
+    paddingBottom: designSystem.spacing.g2p.sectionSpacing + 24,
+    gap: 12,
   },
   secondaryButton: {
-    height: designSystem.components.button.height,
-    borderColor: designSystem.colors.brand.primary,
+    height: CTA_HEIGHT,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: 'transparent',
     borderWidth: 1,
-    borderRadius: designSystem.components.button.borderRadius,
+    borderColor: designSystem.colors.neutral.border,
+    borderRadius: BUTTON_RADIUS,
+    marginTop: 12,
+  },
+  secondaryButtonText: {
+    color: designSystem.colors.neutral.text,
+    ...designSystem.typography.textStyles.body,
+    fontWeight: (designSystem.typography.fontWeight.semibold as '600'),
+  },
+  primaryButton: {
+    height: CTA_HEIGHT,
+    backgroundColor: designSystem.colors.neutral.text,
+    borderRadius: BUTTON_RADIUS,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  secondaryButtonText: {
-    color: designSystem.colors.brand.primary,
-    ...designSystem.typography.textStyles.body, // Assuming body text style for buttons
-    fontWeight: 'bold',
+  primaryButtonText: {
+    color: designSystem.colors.neutral.surface,
+    ...designSystem.typography.textStyles.body,
+    fontWeight: (designSystem.typography.fontWeight.semibold as '600'),
   },
 });

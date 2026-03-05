@@ -10,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { designSystem } from '@/constants/designSystem';
 import { getTransactions, type Transaction } from '@/services/transactions';
+import { ErrorState } from '@/components/ui';
 
 function formatDate(iso: string): string {
   try { return new Date(iso).toLocaleString('en-NA', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); }
@@ -41,14 +42,13 @@ export default function ReceiveTransactionScreen() {
         {loading ? (
           <View style={styles.center}><ActivityIndicator color={designSystem.colors.brand.primary} /></View>
         ) : !tx ? (
-          <View style={styles.center}>
-            <Ionicons name="receipt-outline" size={48} color="#CBD5E1" />
-            <Text style={styles.emptyTitle}>Receipt not found</Text>
-            <Text style={styles.emptySub}>This transaction may have expired or been removed.</Text>
-            <TouchableOpacity style={styles.btn} onPress={() => router.replace('/(tabs)' as never)}>
-              <Text style={styles.btnText}>Go to Home</Text>
-            </TouchableOpacity>
-          </View>
+          <ErrorState
+            variant="notFound"
+            title="Receipt not found"
+            message="This transaction may have expired or been removed."
+            action={{ label: 'Back to Home', onPress: () => router.replace('/(tabs)' as never) }}
+            style={{ marginTop: 100 }}
+          />
         ) : (
           <ScrollView contentContainerStyle={styles.content}>
             {/* Status indicator */}

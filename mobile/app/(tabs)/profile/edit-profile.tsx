@@ -13,7 +13,7 @@ import { useUser } from '@/contexts/UserContext';
 import { updateProfile } from '@/services/profile';
 
 export default function EditProfileScreen() {
-  const { profile, setProfile, user } = useUser();
+  const { profile, setProfile } = useUser();
   
   const [firstName, setFirstName] = useState(profile?.firstName ?? '');
   const [lastName, setLastName] = useState(profile?.lastName ?? '');
@@ -105,7 +105,7 @@ export default function EditProfileScreen() {
             <View style={styles.field}>
               <Text style={styles.label}>Phone</Text>
               <View style={styles.readOnlyField}>
-                <Text style={styles.readOnlyText}>{user?.phone ?? '—'}</Text>
+                <Text style={styles.readOnlyText}>{profile?.phone ?? '—'}</Text>
               </View>
               <Text style={styles.hint}>Phone number cannot be changed</Text>
             </View>

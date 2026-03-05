@@ -28,6 +28,8 @@ interface SuccessScreenProps {
   checkColor?: string;
   actions?: Action[];
   style?: ViewStyle;
+  /** Optional extra content below actions (e.g. reference card) */
+  children?: React.ReactNode;
 }
 
 export function SuccessScreen({
@@ -37,6 +39,7 @@ export function SuccessScreen({
   checkColor = '#22C55E',
   actions = [],
   style,
+  children,
 }: SuccessScreenProps) {
   const scale = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -77,6 +80,7 @@ export function SuccessScreen({
             ))}
           </View>
         )}
+        {children ? <View style={styles.childrenWrap}>{children}</View> : null}
       </Animated.View>
     </View>
   );
@@ -98,6 +102,7 @@ const styles = StyleSheet.create({
   value: { fontSize: 36, fontWeight: '700', marginBottom: 8, textAlign: 'center' },
   subtitle: { fontSize: 15, color: '#6B7280', textAlign: 'center', lineHeight: 22, marginBottom: 40 },
   actions: { width: '100%', gap: 12 },
+  childrenWrap: { width: '100%', marginTop: 24 },
   actionBtn: {
     height: 52, borderRadius: 9999, backgroundColor: '#020617',
     justifyContent: 'center', alignItems: 'center',

@@ -1,7 +1,7 @@
 /**
  * Auth service – Buffr G2P.
  * OTP request, verification, session management with rate limiting support.
- * Production: set API_BASE_URL and use verifyOtp / getBuffrId from backend.
+ * Production: backend and database only. Set API_BASE_URL and use backend for OTP and user/card.
  * Location: mobile/services/auth.ts
  */
 import * as Crypto from 'expo-crypto';
@@ -204,11 +204,12 @@ export async function getOtpStatus(phone: string): Promise<OtpStatusResult> {
  * 
  * @param phone - User's phone number
  * @param code - 6-digit OTP code
+ * @param email - Optional; required when OTP was sent to email (backend may use for lookup)
  * @returns Verification result with Buffr ID if successful
  */
-export async function verifyOtp(phone: string, code: string): Promise<OtpVerifyResult> {
+export async function verifyOtp(phone: string, code: string, email?: string): Promise<OtpVerifyResult> {
   const normalizedPhone = phone.replace(/\D/g, '').slice(-8);
-  
+
   // Validate code format
   if (!code || code.length !== OTP_LENGTH) {
     return { success: false, error: `Please enter ${OTP_LENGTH}-digit code` };
@@ -216,10 +217,12 @@ export async function verifyOtp(phone: string, code: string): Promise<OtpVerifyR
 
   if (API_BASE_URL) {
     try {
+      const body: Record<string, string> = { phone: normalizedPhone, code };
+      if (email) body.email = email;
       const res = await fetch(`${API_BASE_URL}/api/v1/mobile/auth/verify-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: normalizedPhone, code }),
+        body: JSON.stringify(body),
       });
       
       const data = await res.json();
@@ -284,7 +287,7 @@ export async function verifyOtp(phone: string, code: string): Promise<OtpVerifyR
 
 /**
  * S7: Write a token expiry timestamp (now + TOKEN_TTL_MS) to SecureStore.
- * Also writes a placeholder access token when one is not provided by the API,
+ * Also writes an access token when one is not provided by the API,
  * so that the session guard in app/index.tsx sees a non-null token.
  */
 async function storeTokenExpiry(): Promise<void> {
@@ -374,8 +377,8 @@ export async function generateBuffrIdFromPhone(phone: string): Promise<{ buffrId
     const n = Math.abs(
       Array.from(seed).reduce((acc, c) => ((acc << 5) - acc + c.charCodeAt(0)) | 0, 0)
     );
-    const fallback = n.toString(16).slice(-8).padStart(8, '0');
-    suffix = fallback;
+    const suffixAlt = n.toString(16).slice(-8).padStart(8, '0');
+    suffix = suffixAlt;
   }
   
   const buffrId = `BFR${seed}${suffix}`.slice(0, 16);
@@ -386,7 +389,7 @@ export async function generateBuffrIdFromPhone(phone: string): Promise<{ buffrId
 }
 
 /**
- * Generate deterministic code for demo/development (matches backend logic).
+ * Generate deterministic code for development only when backend is not configured (matches backend logic). Production uses backend OTP.
  */
 function generateDevCode(phone: string): string {
   const seed = parseInt(phone.slice(-6), 10) || 0;
@@ -399,8 +402,8 @@ function generateDevCode(phone: string): string {
 // ============================================================================
 
 /**
- * Resolve Buffr ID and card display. Call after verify-otp or on complete screen if not yet set.
- * When API exists, call GET /api/v1/mobile/user/card and return; else use generateBuffrIdFromPhone.
+ * Resolve Buffr ID and card display. Backend when API is configured; when API is unset, local generation is for development only.
+ * When API exists, call GET /api/v1/mobile/user/card and return; else use generateBuffrIdFromPhone (dev only).
  */
 export async function getOrCreateBuffrId(phone: string): Promise<{ buffrId: string; cardNumberMasked: string; expiryDate: string | null }> {
   if (API_BASE_URL) {

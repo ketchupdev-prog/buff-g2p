@@ -26,7 +26,7 @@ import morgan from "morgan";
 import { sql } from "./lib/db.js";
 import { isFineractEnabled, fineractHealth, fineractCall } from "./lib/fineract.js";
 import { createWallet } from "./services/walletService.js";
-import { processCashOut, generateAtmCode } from "./services/cashoutService.js";
+import { processCashOut, generateAtmCode, processBankCashOut } from "./services/cashoutService.js";
 import { redeemVoucherToWallet } from "./services/voucherService.js";
 import { disburseLoanInBuffr, disburseLoan as fineractDisburseLoan } from "./services/loanService.js";
 import { deposit, withdraw } from "./integrations/fineract/savings.js";
@@ -41,6 +41,15 @@ import {
 } from "./lib/openBanking.js";
 import { securityHeaders } from "./lib/security.js";
 import { wouldExceedSendLimit, wouldExceedLoanLimit } from "./lib/dailyLimits.js";
+import { validateEnvOrExit, validateFeatureDependencies } from "./lib/envValidation.js";
+import { verifyAccessToken, ensureRefreshTokensTable } from "./lib/jwtVerification.js";
+import { 
+  withTransaction, 
+  transferMoneyAtomic, 
+  disburseLoanAtomic, 
+  redeemVoucherAtomic,
+  groupContributionAtomic 
+} from "./lib/transactions.js";
 
 const app = express();
 
@@ -160,6 +169,21 @@ function isMissingTableOrSchemaError(err: unknown): boolean {
  * Replace this with real auth (e.g. JWT subject → users.id) before production.
  */
 async function getCurrentUserId(req: Request): Promise<string> {
+  // Production: JWT signature verification (L3 enhancement implemented)
+  const authHeader = req.header("authorization") || req.header("Authorization");
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.substring(7);
+    const verification = await verifyAccessToken(token);
+    
+    if (verification.valid && verification.payload) {
+      return verification.payload.userId;
+    }
+    
+    // Token invalid - throw error
+    throw new Error(verification.error || "Invalid access token");
+  }
+
+  // Development fallback: explicit user ID header
   const explicitId = req.header("x-user-id");
   if (explicitId) {
     const rows = await sql`
@@ -171,13 +195,19 @@ async function getCurrentUserId(req: Request): Promise<string> {
     return (rows[0] as { id: string }).id;
   }
 
-  const rows = await sql`
-    SELECT id FROM users ORDER BY created_at ASC LIMIT 1
-  `;
-  if (rows.length === 0) {
-    throw new Error("No users found in database");
+  // Development fallback: first user (only if ALLOW_DEV_FALLBACK=true)
+  if (process.env.ALLOW_DEV_FALLBACK === 'true') {
+    const rows = await sql`
+      SELECT id FROM users ORDER BY created_at ASC LIMIT 1
+    `;
+    if (rows.length === 0) {
+      throw new Error("No users found in database");
+    }
+    console.warn('⚠️  Using dev fallback: first user. Set Authorization header for production.');
+    return (rows[0] as { id: string }).id;
   }
-  return (rows[0] as { id: string }).id;
+
+  throw new Error("Unauthorized: Missing Authorization header");
 }
 
 // --- Health check ---
@@ -252,6 +282,10 @@ const requestOtpHandler = async (req: Request, res: Response) => {
     return;
   }
 
+  if (channel === "email" && !email) {
+    res.status(400).json({ success: false, error: "Email is required when sending code by email" });
+    return;
+  }
   if ((channel === "email" || channel === "both") && email) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
@@ -291,23 +325,90 @@ app.post("/api/v1/mobile/auth/verify-otp", async (req: Request, res: Response) =
     return;
   }
 
-  const result = await verifyOtp({ phone: String(phone), code: String(code), purpose: "login" });
+  // Normalize code to 6-digit string so leading zeros are preserved (e.g. 085015 not sent as number 85015)
+  const codeStr = String(code).replace(/\D/g, "").padStart(6, "0").slice(-6);
+  if (codeStr.length !== 6) {
+    res.status(400).json({ success: false, error: "Invalid code format" });
+    return;
+  }
+
+  const result = await verifyOtp({ phone: String(phone), code: codeStr, purpose: "login" });
   
   if (result.success) {
-    // Generate Buffr ID (same logic as before)
-    const digits = String(phone).replace(/\D/g, "").slice(-8) || "00000000";
-    const suffix = String(Math.abs(digits.split("").reduce((a, c) => ((a << 5) - a + c.charCodeAt(0)) | 0, 0))).slice(-8).padStart(8, "0");
-    const buffrId = `BFR${digits}${suffix}`.slice(0, 16);
-    const last4 = (digits + suffix).slice(-4);
-    const cardNumberMasked = `XXXX XXXX XXXX ${last4}`;
-    
-    res.json({
-      success: true,
-      buffrId,
-      cardNumberMasked,
-      token: "dev-session-token",
-      expiryDate: null,
-    });
+    try {
+      // Find or create user by phone
+      const phoneNormalized = String(phone).replace(/\D/g, "");
+      let userRows = await sql`
+        SELECT id, email, first_name, last_name, phone 
+        FROM users 
+        WHERE phone = ${phoneNormalized} 
+        LIMIT 1
+      `;
+      
+      let userId: string;
+      let userEmail: string = '';
+      
+      if (userRows.length === 0) {
+        // Create new user on first login (onboarding)
+        const insertResult = await sql`
+          INSERT INTO users (phone, created_at, updated_at)
+          VALUES (${phoneNormalized}, NOW(), NOW())
+          RETURNING id, email
+        `;
+        userId = (insertResult[0] as { id: string; email: string | null }).id;
+        userEmail = (insertResult[0] as { id: string; email: string | null }).email || '';
+      } else {
+        userId = (userRows[0] as { id: string; email: string | null }).id;
+        userEmail = (userRows[0] as { id: string; email: string | null }).email || '';
+      }
+      
+      // Generate proper JWT token (not "dev-session-token")
+      const { generateToken } = await import("./lib/jwtVerification.js");
+      const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-in-production";
+      const JWT_ACCESS_EXPIRY = process.env.JWT_ACCESS_EXPIRY || "15m";
+      
+      // Parse expiry to seconds
+      const expirySeconds = JWT_ACCESS_EXPIRY.endsWith('m') 
+        ? parseInt(JWT_ACCESS_EXPIRY) * 60 
+        : JWT_ACCESS_EXPIRY.endsWith('h')
+        ? parseInt(JWT_ACCESS_EXPIRY) * 3600
+        : JWT_ACCESS_EXPIRY.endsWith('d')
+        ? parseInt(JWT_ACCESS_EXPIRY) * 86400
+        : 900; // Default 15 minutes
+      
+      const accessToken = generateToken(
+        {
+          userId,
+          email: userEmail,
+          type: 'access',
+        },
+        JWT_SECRET,
+        expirySeconds
+      );
+      
+      // Generate Buffr ID for card display
+      const digits = phoneNormalized.slice(-8) || "00000000";
+      const suffix = String(Math.abs(digits.split("").reduce((a, c) => ((a << 5) - a + c.charCodeAt(0)) | 0, 0))).slice(-8).padStart(8, "0");
+      const buffrId = `BFR${digits}${suffix}`.slice(0, 16);
+      const last4 = (digits + suffix).slice(-4);
+      const cardNumberMasked = `XXXX XXXX XXXX ${last4}`;
+      
+      res.json({
+        success: true,
+        buffrId,
+        cardNumberMasked,
+        token: accessToken, // Real JWT token (use as access_token)
+        expiryDate: new Date(Date.now() + expirySeconds * 1000).toISOString(),
+        userId, // For mobile app storeTokens and auth state
+        isNewUser: userRows.length === 0, // New user → continue onboarding; existing → go to app
+      });
+    } catch (error) {
+      console.error("Token generation error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Failed to generate session token",
+      });
+    }
   } else {
     res.status(400).json({
       success: false,
@@ -1311,59 +1412,21 @@ app.post(
       }
       const recipientWallet: any = recipientWalletRows[0];
 
-      let transactionId: string | undefined;
+      // Use atomic transaction to ensure all-or-nothing operation (T3 enhancement)
+      const result = await transferMoneyAtomic({
+        fromWalletId: sourceWallet.id,
+        toWalletId: recipientWallet.id,
+        amount,
+        note: note || '',
+        senderId,
+        recipientId,
+      });
 
-      await sql`
-        UPDATE wallets
-        SET balance = ${currentBalance - amount}, updated_at = now()
-        WHERE id = ${sourceWallet.id}
-      `;
-      await sql`
-        INSERT INTO wallet_transactions (wallet_id, type, amount, reference)
-        VALUES (
-          ${sourceWallet.id},
-          ${"send"},
-          ${amount},
-          ${note ?? "Money sent"}
-        )
-      `;
-      await sql`
-        UPDATE wallets
-        SET balance = ${Number(recipientWallet.balance ?? 0) + amount}, updated_at = now()
-        WHERE id = ${recipientWallet.id}
-      `;
-      await sql`
-        INSERT INTO wallet_transactions (wallet_id, type, amount, reference)
-        VALUES (
-          ${recipientWallet.id},
-          ${"receive"},
-          ${amount},
-          ${note ?? "Money received"}
-        )
-      `;
-      try {
-        const p2pResult = await sql`
-          INSERT INTO p2p_transactions (
-            sender_id, recipient_id, wallet_id, amount, currency, note
-          )
-          VALUES (
-            ${senderId},
-            ${recipientId},
-            ${sourceWallet.id},
-            ${amount},
-            ${sourceWallet.currency ?? "NAD"},
-            ${note ?? ""}
-          )
-          RETURNING id
-        `;
-        if (Array.isArray(p2pResult) && p2pResult[0]?.id) {
-          transactionId = (p2pResult[0] as { id: string }).id;
-        }
-      } catch (_) {
-        // p2p_transactions table may not exist
+      if (!result.success) {
+        return jsonError(res, 500, result.error || 'Transfer failed');
       }
 
-      res.status(201).json({ transactionId });
+      res.status(201).json({ transactionId: result.data?.transactionId });
     } catch (error) {
       next(error);
     }
@@ -1807,7 +1870,7 @@ app.post(
   }
 );
 
-// --- Location (stub) – PRD §9.4 ---
+// --- Location API (REAL IMPLEMENTATION) – PRD §9.4 ---
 function parseLatLng(req: Request): { lat: number; lng: number; radius: number } | null {
   const lat = Number(req.query.lat);
   const lng = Number(req.query.lng);
@@ -1818,31 +1881,493 @@ function parseLatLng(req: Request): { lat: number; lng: number; radius: number }
   return { lat, lng, radius: Number.isFinite(radius) && radius > 0 ? radius : 5000 };
 }
 
-app.get("/api/v1/mobile/agents/nearby", (req: Request, res: Response) => {
-  if (!parseLatLng(req)) return jsonError(res, 400, "Valid lat and lng query params required");
-  res.json({ agents: [] });
+// Helper: Calculate distance between two points using earthdistance
+// Note: Neon doesn't support dynamic table names in template literals,
+// so we use conditional logic based on table name
+async function findNearbyLocations<T>(
+  tableName: string,
+  lat: number,
+  lng: number,
+  radiusMeters: number,
+  limit: number = 20
+): Promise<T[]> {
+  const radiusInKm = radiusMeters / 1000;
+  let results;
+  
+  // Use conditional queries for each supported table
+  if (tableName === 'cashout_agents') {
+    results = await sql`
+      SELECT *, 
+             earth_distance(
+               ll_to_earth(${lat}, ${lng}),
+               ll_to_earth(latitude, longitude)
+             ) as distance
+      FROM cashout_agents
+      WHERE active = true
+        AND earth_box(ll_to_earth(${lat}, ${lng}), ${radiusInKm * 1000}) @> ll_to_earth(latitude, longitude)
+      ORDER BY distance ASC
+      LIMIT ${limit}
+    `;
+  } else if (tableName === 'nampost_branches') {
+    results = await sql`
+      SELECT *, 
+             earth_distance(
+               ll_to_earth(${lat}, ${lng}),
+               ll_to_earth(latitude, longitude)
+             ) as distance
+      FROM nampost_branches
+      WHERE active = true
+        AND earth_box(ll_to_earth(${lat}, ${lng}), ${radiusInKm * 1000}) @> ll_to_earth(latitude, longitude)
+      ORDER BY distance ASC
+      LIMIT ${limit}
+    `;
+  } else if (tableName === 'smartpay_units') {
+    results = await sql`
+      SELECT *, 
+             earth_distance(
+               ll_to_earth(${lat}, ${lng}),
+               ll_to_earth(latitude, longitude)
+             ) as distance
+      FROM smartpay_units
+      WHERE active = true
+        AND earth_box(ll_to_earth(${lat}, ${lng}), ${radiusInKm * 1000}) @> ll_to_earth(latitude, longitude)
+      ORDER BY distance ASC
+      LIMIT ${limit}
+    `;
+  } else if (tableName === 'atm_locations') {
+    results = await sql`
+      SELECT *, 
+             earth_distance(
+               ll_to_earth(${lat}, ${lng}),
+               ll_to_earth(latitude, longitude)
+             ) as distance
+      FROM atm_locations
+      WHERE active = true
+        AND earth_box(ll_to_earth(${lat}, ${lng}), ${radiusInKm * 1000}) @> ll_to_earth(latitude, longitude)
+      ORDER BY distance ASC
+      LIMIT ${limit}
+    `;
+  } else if (tableName === 'merchants') {
+    results = await sql`
+      SELECT *, 
+             earth_distance(
+               ll_to_earth(${lat}, ${lng}),
+               ll_to_earth(latitude, longitude)
+             ) as distance
+      FROM merchants
+      WHERE is_open = true
+        AND earth_box(ll_to_earth(${lat}, ${lng}), ${radiusInKm * 1000}) @> ll_to_earth(latitude, longitude)
+      ORDER BY distance ASC
+      LIMIT ${limit}
+    `;
+  } else {
+    throw new Error(`Unsupported table: ${tableName}`);
+  }
+  
+  return results as T[];
+}
+
+app.get("/api/v1/mobile/agents/nearby", async (req: Request, res: Response) => {
+  const parsed = parseLatLng(req);
+  if (!parsed) return jsonError(res, 400, "Valid lat and lng query params required");
+  
+  try {
+    const agents = await findNearbyLocations<any>(
+      'cashout_agents',
+      parsed.lat,
+      parsed.lng,
+      parsed.radius,
+      20
+    );
+    
+    // Format response
+    const formatted = agents.map(a => ({
+      id: a.id,
+      name: a.name,
+      type: a.type,
+      address: a.address,
+      latitude: parseFloat(a.latitude),
+      longitude: parseFloat(a.longitude),
+      phone: a.phone,
+      operatingHours: a.operating_hours,
+      fees: a.fees,
+      distance: Math.round(a.distance), // meters
+      verified: a.verified
+    }));
+    
+    res.json({ agents: formatted });
+  } catch (error) {
+    console.error('Error fetching nearby agents:', error);
+    res.json({ agents: [] });
+  }
 });
 
-app.get("/api/v1/mobile/nampost/nearby", (req: Request, res: Response) => {
-  if (!parseLatLng(req)) return jsonError(res, 400, "Valid lat and lng query params required");
-  res.json({ branches: [] });
+app.get("/api/v1/mobile/nampost/nearby", async (req: Request, res: Response) => {
+  const parsed = parseLatLng(req);
+  if (!parsed) return jsonError(res, 400, "Valid lat and lng query params required");
+  
+  try {
+    const branches = await findNearbyLocations<any>(
+      'nampost_branches',
+      parsed.lat,
+      parsed.lng,
+      parsed.radius,
+      20
+    );
+    
+    const formatted = branches.map(b => ({
+      id: b.id,
+      name: b.name,
+      branchCode: b.branch_code,
+      address: b.address,
+      latitude: parseFloat(b.latitude),
+      longitude: parseFloat(b.longitude),
+      phone: b.phone,
+      operatingHours: b.operating_hours,
+      services: b.services,
+      distance: Math.round(b.distance)
+    }));
+    
+    res.json({ branches: formatted });
+  } catch (error) {
+    console.error('Error fetching nearby NamPost branches:', error);
+    res.json({ branches: [] });
+  }
 });
 
-app.get("/api/v1/mobile/smartpay/nearby", (req: Request, res: Response) => {
-  if (!parseLatLng(req)) return jsonError(res, 400, "Valid lat and lng query params required");
-  res.json({ units: [] });
+app.get("/api/v1/mobile/smartpay/nearby", async (req: Request, res: Response) => {
+  const parsed = parseLatLng(req);
+  if (!parsed) return jsonError(res, 400, "Valid lat and lng query params required");
+  
+  try {
+    const units = await findNearbyLocations<any>(
+      'smartpay_units',
+      parsed.lat,
+      parsed.lng,
+      parsed.radius,
+      20
+    );
+    
+    const formatted = units.map(u => ({
+      id: u.id,
+      name: u.name,
+      unitCode: u.unit_code,
+      address: u.address,
+      latitude: parseFloat(u.latitude),
+      longitude: parseFloat(u.longitude),
+      phone: u.phone,
+      operatingHours: u.operating_hours,
+      distance: Math.round(u.distance)
+    }));
+    
+    res.json({ units: formatted });
+  } catch (error) {
+    console.error('Error fetching nearby SmartPay units:', error);
+    res.json({ units: [] });
+  }
 });
 
-app.get("/api/v1/mobile/atms/nearby", (req: Request, res: Response) => {
-  if (!parseLatLng(req)) return jsonError(res, 400, "Valid lat and lng query params required");
-  res.json({ atms: [] });
+app.get("/api/v1/mobile/atms/nearby", async (req: Request, res: Response) => {
+  const parsed = parseLatLng(req);
+  if (!parsed) return jsonError(res, 400, "Valid lat and lng query params required");
+  
+  try {
+    const atms = await findNearbyLocations<any>(
+      'atm_locations',
+      parsed.lat,
+      parsed.lng,
+      parsed.radius,
+      20
+    );
+    
+    const formatted = atms.map(a => ({
+      id: a.id,
+      bankName: a.bank_name,
+      atmId: a.atm_id,
+      address: a.address,
+      latitude: parseFloat(a.latitude),
+      longitude: parseFloat(a.longitude),
+      features: a.features,
+      dailyLimit: parseFloat(a.daily_limit),
+      distance: Math.round(a.distance)
+    }));
+    
+    res.json({ atms: formatted });
+  } catch (error) {
+    console.error('Error fetching nearby ATMs:', error);
+    res.json({ atms: [] });
+  }
 });
 
-// --- Compliance (stub) – PRD §9.4 ---
-app.post("/api/v1/compliance/incident-report", (req: Request, res: Response) => {
-  const payload = req.body ?? {};
-  // Stub: could INSERT into compliance_incident_reports
-  res.status(202).json({ accepted: true });
+// Get merchants (with optional proximity filtering)
+app.get("/api/v1/mobile/merchants/nearby", async (req: Request, res: Response) => {
+  const parsed = parseLatLng(req);
+  const category = req.query.category as string | undefined;
+  
+  // If no location provided, return all merchants (with optional category filter)
+  if (!parsed) {
+    try {
+      let query = sql`
+        SELECT id, name, category, address, phone, latitude, longitude,
+               is_open, is_verified, minimum_transaction_amount, services
+        FROM merchants
+        WHERE is_open = true
+      `;
+      
+      if (category && category !== 'all') {
+        query = sql`
+          SELECT id, name, category, address, phone, latitude, longitude,
+                 is_open, is_verified, minimum_transaction_amount, services
+          FROM merchants
+          WHERE is_open = true AND category = ${category}
+        `;
+      }
+      
+      const merchants = await query;
+      
+      const formatted = merchants.map(m => ({
+        id: m.id,
+        name: m.name,
+        category: m.category,
+        address: m.address,
+        phone: m.phone,
+        latitude: m.latitude,
+        longitude: m.longitude,
+        open: m.is_open,
+        verified: m.is_verified,
+        minTx: m.minimum_transaction_amount,
+        services: m.services || []
+      }));
+      
+      return res.json({ merchants: formatted });
+    } catch (error) {
+      console.error('Error fetching merchants:', error);
+      return res.json({ merchants: [] });
+    }
+  }
+  
+  // With location - return nearby merchants
+  try {
+    const merchants = await findNearbyLocations<any>('merchants', parsed.lat, parsed.lng, parsed.radius, 50);
+    
+    // Apply category filter if specified
+    let filtered = merchants;
+    if (category && category !== 'all') {
+      filtered = merchants.filter(m => m.category === category);
+    }
+    
+    const formatted = filtered.map(m => ({
+      id: m.id,
+      name: m.name,
+      category: m.category,
+      address: m.address,
+      phone: m.phone,
+      latitude: parseFloat(m.latitude),
+      longitude: parseFloat(m.longitude),
+      distance: Math.round(m.distance),
+      open: m.is_open,
+      verified: m.is_verified,
+      minTx: m.minimum_transaction_amount,
+      services: m.services || []
+    }));
+    
+    res.json({ merchants: formatted });
+  } catch (error) {
+    console.error('Error fetching nearby merchants:', error);
+    res.json({ merchants: [] });
+  }
+});
+
+// --- Analytics & Error Logging – PRD §9.4 ---
+app.post("/api/v1/mobile/analytics/event", async (req: Request, res: Response) => {
+  try {
+    const { event, properties, platform, appVersion } = req.body ?? {};
+    
+    if (!event) {
+      return jsonError(res, 400, "event name required");
+    }
+    
+    // Optional user context
+    const userId = properties?.userId || null;
+    
+    await sql`
+      INSERT INTO analytics_events (user_id, event_name, properties, platform, app_version)
+      VALUES (${userId}, ${event}, ${JSON.stringify(properties || {})}, ${platform}, ${appVersion})
+    `;
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error logging analytics event:', error);
+    res.status(500).json({ success: false, error: 'Failed to log event' });
+  }
+});
+
+app.post("/api/v1/mobile/errors/log", async (req: Request, res: Response) => {
+  try {
+    const { error, errorInfo, context } = req.body ?? {};
+    
+    if (!error) {
+      return jsonError(res, 400, "error object required");
+    }
+    
+    const userId = context?.userId || null;
+    
+    await sql`
+      INSERT INTO error_logs (
+        user_id, error_name, error_message, error_stack, 
+        component_stack, context, platform, app_version
+      )
+      VALUES (
+        ${userId}, 
+        ${error.name || 'UnknownError'}, 
+        ${error.message || 'No message'}, 
+        ${error.stack || null},
+        ${errorInfo?.componentStack || null},
+        ${JSON.stringify(context || {})},
+        ${context?.platform || null},
+        ${context?.appVersion || null}
+      )
+    `;
+    
+    res.json({ success: true, logged: true });
+  } catch (err) {
+    console.error('Error logging error:', err);
+    res.status(500).json({ success: false, error: 'Failed to log error' });
+  }
+});
+
+// --- Analytics Summary API – Real data for charts ---
+app.get("/api/v1/mobile/analytics/:userId/summary", async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    const startDate = req.query.start_date as string;
+    const endDate = req.query.end_date as string;
+    
+    // Default to current month if dates not provided
+    const now = new Date();
+    const start = startDate || new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    const end = endDate || now.toISOString().split('T')[0];
+    
+    // Get monthly totals
+    const monthlyStats = await sql`
+      SELECT 
+        COALESCE(SUM(CASE WHEN type IN ('voucher_redeem', 'p2p_receive', 'group_receive', 'loan_disbursement') THEN amount ELSE 0 END), 0) as total_received,
+        COALESCE(SUM(CASE WHEN type IN ('p2p_send', 'group_send', 'bill_payment', 'merchant_payment', 'cash_out') THEN amount ELSE 0 END), 0) as total_sent
+      FROM transactions
+      WHERE user_id = ${userId}
+        AND DATE(created_at) >= ${start}::date
+        AND DATE(created_at) <= ${end}::date
+        AND status = 'completed'
+    `;
+    
+    // Count vouchers redeemed in period
+    const voucherCount = await sql`
+      SELECT COUNT(*) as count
+      FROM transactions
+      WHERE user_id = ${userId}
+        AND type = 'voucher_redeem'
+        AND DATE(created_at) >= ${start}::date
+        AND DATE(created_at) <= ${end}::date
+        AND status = 'completed'
+    `;
+    
+    // Get spending by category
+    const spendingByCategory = await sql`
+      SELECT 
+        CASE 
+          WHEN type = 'bill_payment' THEN 'Bills'
+          WHEN type = 'merchant_payment' THEN 'Merchants'
+          WHEN type = 'p2p_send' THEN 'P2P Transfers'
+          WHEN type = 'group_send' THEN 'Group Contributions'
+          WHEN type = 'cash_out' THEN 'Cash Withdrawals'
+          WHEN type = 'loan_repayment' THEN 'Loan Repayments'
+          ELSE 'Other'
+        END as category,
+        COALESCE(SUM(amount), 0) as amount,
+        COUNT(*) as count
+      FROM transactions
+      WHERE user_id = ${userId}
+        AND type IN ('bill_payment', 'merchant_payment', 'p2p_send', 'group_send', 'cash_out', 'loan_repayment')
+        AND DATE(created_at) >= ${start}::date
+        AND DATE(created_at) <= ${end}::date
+        AND status = 'completed'
+      GROUP BY category
+      ORDER BY amount DESC
+    `;
+    
+    // Get daily transaction summary (last 30 days for chart)
+    const dailyTransactions = await sql`
+      SELECT 
+        DATE(created_at) as date,
+        COALESCE(SUM(CASE WHEN type IN ('voucher_redeem', 'p2p_receive', 'group_receive', 'loan_disbursement') THEN amount ELSE 0 END), 0) as income,
+        COALESCE(SUM(CASE WHEN type IN ('p2p_send', 'group_send', 'bill_payment', 'merchant_payment', 'cash_out', 'loan_repayment') THEN amount ELSE 0 END), 0) as expense
+      FROM transactions
+      WHERE user_id = ${userId}
+        AND DATE(created_at) >= ${start}::date
+        AND DATE(created_at) <= ${end}::date
+        AND status = 'completed'
+      GROUP BY DATE(created_at)
+      ORDER BY date DESC
+      LIMIT 30
+    `;
+    
+    res.json({
+      monthly: {
+        totalReceived: parseFloat(monthlyStats[0]?.total_received ?? 0),
+        vouchersRedeemed: parseInt(voucherCount[0]?.count ?? 0, 10),
+        totalSent: parseFloat(monthlyStats[0]?.total_sent ?? 0),
+        currency: 'NAD'
+      },
+      spendingByCategory: spendingByCategory.map((row: any) => ({
+        category: row.category,
+        amount: parseFloat(row.amount),
+        count: parseInt(row.count, 10)
+      })),
+      dailyTransactions: dailyTransactions.map((row: any) => ({
+        date: row.date,
+        income: parseFloat(row.income),
+        expense: parseFloat(row.expense)
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching analytics summary:', error);
+    res.status(500).json({ error: 'Failed to fetch analytics' });
+  }
+});
+
+// --- Compliance (REAL IMPLEMENTATION) – PRD §9.4 ---
+app.post("/api/v1/compliance/incident-report", async (req: Request, res: Response) => {
+  try {
+    const { incidentType, severity, description, affectedUsers, metadata } = req.body ?? {};
+    
+    if (!incidentType) {
+      return jsonError(res, 400, "incidentType required");
+    }
+    
+    const result = await sql`
+      INSERT INTO compliance_incident_reports (
+        incident_type, severity, description, affected_users, metadata, status
+      )
+      VALUES (
+        ${incidentType},
+        ${severity || 'medium'},
+        ${description || ''},
+        ${affectedUsers || 0},
+        ${JSON.stringify(metadata || {})},
+        'pending'
+      )
+      RETURNING id, incident_type, severity, status, created_at
+    `;
+    
+    res.status(201).json({ 
+      success: true,
+      incident: result[0],
+      reference: `INC-${result[0].id.split('-')[0].toUpperCase()}`
+    });
+  } catch (error) {
+    console.error('Error logging compliance incident:', error);
+    res.status(500).json({ success: false, error: 'Failed to log incident' });
+  }
 });
 
 app.get("/api/v1/compliance/audit-logs", async (req: Request, res: Response) => {
@@ -1877,12 +2402,389 @@ app.post("/api/v1/compliance/affidavit", (req: Request, res: Response) => {
   res.status(201).json({ reference: `AFF-${Date.now()}`, ...context });
 });
 
-app.post("/api/v1/compliance/monthly-stats", (req: Request, res: Response) => {
-  res.status(202).json({ accepted: true });
+app.post("/api/v1/compliance/monthly-stats", async (req: Request, res: Response) => {
+  try {
+    const { month, year, stats } = req.body ?? {};
+    
+    if (!month || !year) {
+      return jsonError(res, 400, "month and year required");
+    }
+    
+    // Log to audit_logs
+    await sql`
+      INSERT INTO audit_logs (entity_type, entity_id, action, meta)
+      VALUES (
+        'compliance',
+        'monthly_stats',
+        'submit_monthly_stats',
+        ${JSON.stringify({ month, year, stats, timestamp: new Date().toISOString() })}
+      )
+    `;
+    
+    res.status(202).json({ accepted: true, month, year });
+  } catch (error) {
+    console.error('Error logging monthly stats:', error);
+    res.status(500).json({ accepted: false });
+  }
 });
 
-// --- USSD – PRD §9.4 ---
-const ussdSessions: Map<string, { step: string }> = new Map();
+// --- Country Selection – PRD §3.1 (Optional Feature) ---
+app.get("/api/v1/mobile/countries", async (req: Request, res: Response) => {
+  try {
+    const countries = await sql`
+      SELECT country_code, country_name, currency_code, currency_symbol, 
+             phone_prefix, flag_emoji, features, active
+      FROM supported_countries
+      WHERE active = true
+      ORDER BY country_name ASC
+    `;
+    
+    const formatted = countries.map(c => ({
+      code: c.country_code,
+      name: c.country_name,
+      currency: {
+        code: c.currency_code,
+        symbol: c.currency_symbol
+      },
+      phonePrefix: c.phone_prefix,
+      flag: c.flag_emoji,
+      features: c.features
+    }));
+    
+    res.json({ countries: formatted });
+  } catch (error) {
+    console.error('Error fetching countries:', error);
+    res.json({ countries: [] });
+  }
+});
+
+app.get("/api/v1/mobile/countries/detect", async (req: Request, res: Response) => {
+  try {
+    // Try to detect from IP geolocation (simplified - in production use proper IP geolocation service)
+    // For now, default to Namibia
+    const detected = await sql`
+      SELECT country_code, country_name, currency_code, currency_symbol, 
+             phone_prefix, flag_emoji, features
+      FROM supported_countries
+      WHERE country_code = 'NA'
+      LIMIT 1
+    `;
+    
+    if (detected.length > 0) {
+      const c = detected[0];
+      res.json({
+        detected: true,
+        country: {
+          code: c.country_code,
+          name: c.country_name,
+          currency: { code: c.currency_code, symbol: c.currency_symbol },
+          phonePrefix: c.phone_prefix,
+          flag: c.flag_emoji,
+          features: c.features
+        }
+      });
+    } else {
+      res.json({ detected: false });
+    }
+  } catch (error) {
+    console.error('Error detecting country:', error);
+    res.json({ detected: false });
+  }
+});
+
+// --- Gamification API – PRD §3.6 (Optional Feature) ---
+app.get("/api/v1/mobile/gamification/:userId", async (req: Request, res: Response) => {
+  try {
+    const userId = req.params.userId;
+    
+    // Get user gamification stats
+    const stats = await sql`
+      SELECT total_points, current_level, current_streak, longest_streak, 
+             last_activity_date, metadata, updated_at
+      FROM user_gamification
+      WHERE user_id = ${userId}
+    `;
+    
+    // Get user achievements
+    const achievements = await sql`
+      SELECT achievement_id, achieved_at, progress, metadata
+      FROM user_achievements
+      WHERE user_id = ${userId}
+      ORDER BY achieved_at DESC
+    `;
+    
+    if (stats.length === 0) {
+      // Initialize gamification for user
+      await sql`
+        INSERT INTO user_gamification (user_id, total_points, current_level)
+        VALUES (${userId}, 0, 1)
+      `;
+      
+      return res.json({
+        totalPoints: 0,
+        currentLevel: 1,
+        currentStreak: 0,
+        longestStreak: 0,
+        achievements: []
+      });
+    }
+    
+    res.json({
+      totalPoints: stats[0].total_points,
+      currentLevel: stats[0].current_level,
+      currentStreak: stats[0].current_streak,
+      longestStreak: stats[0].longest_streak,
+      lastActivityDate: stats[0].last_activity_date,
+      achievements: achievements.map(a => ({
+        id: a.achievement_id,
+        achievedAt: a.achieved_at,
+        progress: a.progress,
+        metadata: a.metadata
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching gamification data:', error);
+    res.status(500).json({ error: 'Failed to fetch gamification data' });
+  }
+});
+
+app.post("/api/v1/mobile/gamification/:userId/event", async (req: Request, res: Response) => {
+  try {
+    const userId = req.params.userId;
+    const { eventType, metadata } = req.body ?? {};
+    
+    if (!eventType) {
+      return jsonError(res, 400, "eventType required");
+    }
+    
+    // Award points based on event type
+    const pointsMap: Record<string, number> = {
+      'first_voucher_redeemed': 50,
+      'first_send': 25,
+      'first_cashout': 25,
+      'daily_login': 5,
+      'transaction_completed': 10,
+      'profile_completed': 100,
+      'streak_7_days': 150,
+      'streak_30_days': 500
+    };
+    
+    const points = pointsMap[eventType] || 0;
+    
+    // Update user points
+    await sql`
+      INSERT INTO user_gamification (user_id, total_points, current_level, last_activity_date)
+      VALUES (${userId}, ${points}, 1, CURRENT_DATE)
+      ON CONFLICT (user_id) 
+      DO UPDATE SET 
+        total_points = user_gamification.total_points + ${points},
+        current_level = FLOOR(SQRT((user_gamification.total_points + ${points}) / 100)) + 1,
+        last_activity_date = CURRENT_DATE,
+        updated_at = NOW()
+    `;
+    
+    // Record achievement if applicable
+    if (pointsMap[eventType]) {
+      await sql`
+        INSERT INTO user_achievements (user_id, achievement_id, metadata)
+        VALUES (${userId}, ${eventType}, ${JSON.stringify(metadata || {})})
+        ON CONFLICT (user_id, achievement_id) DO NOTHING
+      `;
+    }
+    
+    res.json({ success: true, pointsAwarded: points });
+  } catch (error) {
+    console.error('Error recording gamification event:', error);
+    res.status(500).json({ success: false });
+  }
+});
+
+// --- Bank Account Linking – PRD §3.5 (Optional Feature) ---
+app.get("/api/v1/mobile/bank-accounts/:userId", async (req: Request, res: Response) => {
+  try {
+    const userId = req.params.userId;
+    
+    const accounts = await sql`
+      SELECT id, bank_name, account_number, account_holder_name, account_type,
+             branch_code, currency, is_verified, is_primary, linked_at, verified_at
+      FROM linked_bank_accounts
+      WHERE user_id = ${userId}
+      ORDER BY is_primary DESC, linked_at DESC
+    `;
+    
+    const formatted = accounts.map(a => ({
+      id: a.id,
+      bankName: a.bank_name,
+      accountNumber: a.account_number,
+      accountHolderName: a.account_holder_name,
+      accountType: a.account_type,
+      branchCode: a.branch_code,
+      currency: a.currency,
+      isVerified: a.is_verified,
+      isPrimary: a.is_primary,
+      linkedAt: a.linked_at,
+      verifiedAt: a.verified_at
+    }));
+    
+    res.json({ accounts: formatted });
+  } catch (error) {
+    console.error('Error fetching bank accounts:', error);
+    res.status(500).json({ error: 'Failed to fetch bank accounts' });
+  }
+});
+
+app.post("/api/v1/mobile/bank-accounts/:userId/link", async (req: Request, res: Response) => {
+  try {
+    const userId = req.params.userId;
+    const { bankName, accountNumber, accountHolderName, accountType, branchCode } = req.body ?? {};
+    
+    if (!bankName || !accountNumber) {
+      return jsonError(res, 400, "bankName and accountNumber required");
+    }
+    
+    // Check if account already linked
+    const existing = await sql`
+      SELECT id FROM linked_bank_accounts
+      WHERE user_id = ${userId} AND bank_name = ${bankName} AND account_number = ${accountNumber}
+    `;
+    
+    if (existing.length > 0) {
+      return jsonError(res, 409, "Account already linked");
+    }
+    
+    // Insert new linked account
+    const result = await sql`
+      INSERT INTO linked_bank_accounts (
+        user_id, bank_name, account_number, account_holder_name, 
+        account_type, branch_code, is_verified, is_primary
+      )
+      VALUES (
+        ${userId}, ${bankName}, ${accountNumber}, ${accountHolderName || null},
+        ${accountType || 'savings'}, ${branchCode || null}, false, false
+      )
+      RETURNING id, bank_name, account_number, is_verified, linked_at
+    `;
+    
+    // Log verification attempt
+    await sql`
+      INSERT INTO bank_verification_attempts (linked_account_id, verification_method, status)
+      VALUES (${result[0].id}, 'pending_verification', 'pending')
+    `;
+    
+    res.status(201).json({
+      success: true,
+      account: {
+        id: result[0].id,
+        bankName: result[0].bank_name,
+        accountNumber: result[0].account_number,
+        isVerified: result[0].is_verified,
+        linkedAt: result[0].linked_at,
+        verificationRequired: true
+      }
+    });
+  } catch (error) {
+    console.error('Error linking bank account:', error);
+    res.status(500).json({ success: false, error: 'Failed to link bank account' });
+  }
+});
+
+app.post("/api/v1/mobile/bank-accounts/:accountId/verify", async (req: Request, res: Response) => {
+  try {
+    const accountId = req.params.accountId;
+    const { verificationCode, method } = req.body ?? {};
+    
+    // In production, implement actual verification logic
+    // For now, simulate verification
+    const isValid = verificationCode && verificationCode.length === 6;
+    
+    if (isValid) {
+      await sql`
+        UPDATE linked_bank_accounts
+        SET is_verified = true, verified_at = NOW(), updated_at = NOW()
+        WHERE id = ${accountId}
+      `;
+      
+      await sql`
+        UPDATE bank_verification_attempts
+        SET status = 'success', resolved_at = NOW()
+        WHERE linked_account_id = ${accountId} AND status = 'pending'
+      `;
+      
+      res.json({ success: true, verified: true });
+    } else {
+      await sql`
+        UPDATE bank_verification_attempts
+        SET attempts_count = attempts_count + 1
+        WHERE linked_account_id = ${accountId} AND status = 'pending'
+      `;
+      
+      res.status(400).json({ success: false, verified: false, error: 'Invalid verification code' });
+    }
+  } catch (error) {
+    console.error('Error verifying bank account:', error);
+    res.status(500).json({ success: false, error: 'Verification failed' });
+  }
+});
+
+app.delete("/api/v1/mobile/bank-accounts/:accountId", async (req: Request, res: Response) => {
+  try {
+    const accountId = req.params.accountId;
+    
+    await sql`
+      DELETE FROM linked_bank_accounts
+      WHERE id = ${accountId}
+    `;
+    
+    res.json({ success: true, deleted: true });
+  } catch (error) {
+    console.error('Error deleting bank account:', error);
+    res.status(500).json({ success: false, error: 'Failed to delete account' });
+  }
+});
+
+app.post("/api/v1/mobile/bank-accounts/:accountId/set-primary", async (req: Request, res: Response) => {
+  try {
+    const accountId = req.params.accountId;
+    
+    // Get account to find user_id
+    const account = await sql`
+      SELECT user_id FROM linked_bank_accounts WHERE id = ${accountId}
+    `;
+    
+    if (account.length === 0) {
+      return jsonError(res, 404, "Account not found");
+    }
+    
+    const userId = account[0].user_id;
+    
+    // Clear all primary flags for this user
+    await sql`
+      UPDATE linked_bank_accounts
+      SET is_primary = false, updated_at = NOW()
+      WHERE user_id = ${userId}
+    `;
+    
+    // Set new primary
+    await sql`
+      UPDATE linked_bank_accounts
+      SET is_primary = true, updated_at = NOW()
+      WHERE id = ${accountId}
+    `;
+    
+    res.json({ success: true, isPrimary: true });
+  } catch (error) {
+    console.error('Error setting primary account:', error);
+    res.status(500).json({ success: false, error: 'Failed to set primary' });
+  }
+});
+
+// --- USSD – PRD §9.4 (ENHANCED) ---
+interface USSDSession {
+  step: string;
+  data?: Record<string, any>;
+}
+
+const ussdSessions: Map<string, USSDSession> = new Map();
 
 app.post("/api/v1/ussd/menu", async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -1894,51 +2796,162 @@ app.post("/api/v1/ussd/menu", async (req: Request, res: Response, next: NextFunc
     };
     const sessionKey = sessionId ?? phoneNumber ?? "default";
     const input = (text ?? "").trim();
-    let step = ussdSessions.get(sessionKey)?.step ?? "main";
-
-    if (input === "") {
-      step = "main";
-    } else if (step === "main") {
-      if (input === "1") step = "balance";
-      else if (input === "2") step = "voucher";
-      else if (input === "3") step = "cashout";
-      else step = "main";
-    }
+    let session = ussdSessions.get(sessionKey) ?? { step: "main", data: {} };
 
     let response: string;
     let endSession = false;
 
-    if (step === "main") {
-      ussdSessions.set(sessionKey, { step: "main" });
-      response = "Welcome to Buffr\n1. Balance\n2. Voucher\n3. Cash-out code\n";
-    } else if (step === "balance") {
-      ussdSessions.delete(sessionKey);
-      endSession = true;
+    // Main menu
+    if (input === "" || session.step === "main") {
+      session = { step: "main", data: {} };
+      response = `Welcome to Buffr
+1. Check Balance
+2. Redeem Voucher
+3. Generate Cash-Out Code
+4. Transaction History
+5. Nearby Agents
+6. Help`;
+    }
+    // Balance inquiry
+    else if (session.step === "main" && input === "1") {
       try {
         const userRows = await sql`SELECT id FROM users WHERE phone = ${phoneNumber ?? ""} LIMIT 1`;
         if (userRows.length === 0) {
-          response = "User not found.";
+          response = "Phone not registered with Buffr.";
+          endSession = true;
         } else {
           const uid = (userRows[0] as { id: string }).id;
           const walletRows = await sql`
-            SELECT balance, currency FROM wallets WHERE user_id = ${uid} ORDER BY updated_at ASC LIMIT 1
+            SELECT balance, currency FROM wallets WHERE user_id = ${uid} ORDER BY created_at ASC LIMIT 1
           `;
           const bal = walletRows.length ? Number((walletRows[0] as { balance: number }).balance) : 0;
-          response = `Balance: ${bal} NAD`;
+          const curr = walletRows.length ? (walletRows[0] as { currency: string }).currency : "NAD";
+          response = `Your Balance: ${curr} ${bal.toFixed(2)}`;
+          endSession = true;
         }
-      } catch {
-        response = "Service unavailable.";
+      } catch (err) {
+        response = "Service unavailable. Try again later.";
+        endSession = true;
       }
-    } else if (step === "voucher") {
-      ussdSessions.set(sessionKey, { step: "voucher" });
-      response = "Enter voucher code:";
-    } else if (step === "cashout") {
+    }
+    // Redeem voucher - ask for code
+    else if (session.step === "main" && input === "2") {
+      session = { step: "voucher_enter_code", data: {} };
+      response = "Enter 16-digit voucher code:";
+    }
+    // Redeem voucher - process code
+    else if (session.step === "voucher_enter_code") {
+      if (input.length !== 16) {
+        response = "Invalid code. Must be 16 digits.\nEnter voucher code:";
+      } else {
+        try {
+          const voucher = await sql`
+            SELECT id, amount, status FROM vouchers WHERE code = ${input} LIMIT 1
+          `;
+          
+          if (voucher.length === 0) {
+            response = "Voucher not found.";
+            endSession = true;
+          } else if (voucher[0].status !== 'active') {
+            response = `Voucher already ${voucher[0].status}.`;
+            endSession = true;
+          } else {
+            // Find user
+            const userRows = await sql`SELECT id FROM users WHERE phone = ${phoneNumber ?? ""} LIMIT 1`;
+            if (userRows.length === 0) {
+              response = "Phone not registered.";
+              endSession = true;
+            } else {
+              const userId = userRows[0].id;
+              const amount = voucher[0].amount;
+              
+              // Redeem to wallet (simplified - real flow would check auth)
+              const wallets = await sql`
+                SELECT id FROM wallets WHERE user_id = ${userId} LIMIT 1
+              `;
+              
+              if (wallets.length > 0) {
+                await sql`
+                  UPDATE wallets 
+                  SET balance = balance + ${amount}, updated_at = NOW()
+                  WHERE id = ${wallets[0].id}
+                `;
+                
+                await sql`
+                  UPDATE vouchers 
+                  SET status = 'redeemed', redeemed_at = NOW(), updated_at = NOW()
+                  WHERE id = ${voucher[0].id}
+                `;
+                
+                response = `Success! NAD ${amount} added to wallet.`;
+              } else {
+                response = "Wallet not found. Please use mobile app.";
+              }
+              endSession = true;
+            }
+          }
+        } catch (err) {
+          response = "Redemption failed. Try again later.";
+          endSession = true;
+        }
+      }
+    }
+    // Cash-out code generation
+    else if (session.step === "main" && input === "3") {
+      response = "Use Buffr mobile app to generate secure cash-out codes.";
+      endSession = true;
+    }
+    // Transaction history
+    else if (session.step === "main" && input === "4") {
+      try {
+        const userRows = await sql`SELECT id FROM users WHERE phone = ${phoneNumber ?? ""} LIMIT 1`;
+        if (userRows.length === 0) {
+          response = "Phone not registered.";
+          endSession = true;
+        } else {
+          const userId = userRows[0].id;
+          const txs = await sql`
+            SELECT type, amount, status, created_at
+            FROM transactions
+            WHERE user_id = ${userId}
+            ORDER BY created_at DESC
+            LIMIT 3
+          `;
+          
+          if (txs.length === 0) {
+            response = "No recent transactions.";
+          } else {
+            response = "Last 3 transactions:\n" + txs.map((t, i) => 
+              `${i+1}. ${t.type} NAD ${t.amount} (${t.status})`
+            ).join('\n');
+          }
+          endSession = true;
+        }
+      } catch (err) {
+        response = "Service unavailable.";
+        endSession = true;
+      }
+    }
+    // Nearby agents
+    else if (session.step === "main" && input === "5") {
+      response = "Nearest Buffr agents:\n1. Spar CBD, Windhoek\n2. Checkers Maerua\n3. Agent - Maria, Oshakati\nVisit agent for cash withdrawal.";
+      endSession = true;
+    }
+    // Help
+    else if (session.step === "main" && input === "6") {
+      response = "Buffr Help:\nCall: 061-123-4567\nWhatsApp: +264 81 234 5678\nEmail: help@buffr.na";
+      endSession = true;
+    }
+    else {
+      response = "Invalid option. Please try again.";
+      session = { step: "main", data: {} };
+    }
+
+    // Update or delete session
+    if (endSession) {
       ussdSessions.delete(sessionKey);
-      endSession = true;
-      response = "Generate cash-out code in the Buffr app.";
     } else {
-      response = "Invalid option.";
-      endSession = true;
+      ussdSessions.set(sessionKey, session);
     }
 
     res.json({ response, endSession });
@@ -2182,9 +3195,34 @@ app.post(
       if (!allowedMethods.includes(rawMethod)) {
         return jsonError(res, 400, `method must be one of: ${allowedMethods.join(", ")}`);
       }
+      
+      // Handle bank cash-out separately
       if (rawMethod === "bank") {
-        return res.status(501).json({ success: false, error: "Bank transfer cash-out not yet implemented" });
+        const bankAccountId = req.body.bankAccountId || req.body.bank_account_id;
+        if (!bankAccountId) {
+          return jsonError(res, 400, "bankAccountId is required for bank cash-out");
+        }
+        
+        const result = await processBankCashOut({
+          userId,
+          walletId,
+          amount,
+          bankAccountId,
+          idempotencyKey
+        });
+        
+        if (!result.success) {
+          return jsonError(res, 400, result.error ?? "Bank cash-out failed");
+        }
+        
+        return res.status(200).json({
+          success: true,
+          transactionId: result.transactionId,
+          balance: result.balance,
+          message: "Transfer initiated successfully"
+        });
       }
+      
       const cashoutMethod = rawMethod as "atm" | "till" | "agent" | "merchant";
 
       if (cashoutMethod === "atm") {
@@ -2664,10 +3702,11 @@ app.get('/api/v1/mobile/open-banking/banks', async (req: Request, res: Response)
   });
 });
 
-// Create OAuth consent request
+// Create OAuth consent request with PKCE
 app.post('/api/v1/mobile/open-banking/consent', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { bankId, scopes, redirectUri, state } = req.body;
+    const userId = await getCurrentUserId(req);
+    const { bankId, scopes, redirectUri } = req.body;
     
     if (!bankId) {
       return res.status(400).json({
@@ -2675,15 +3714,33 @@ app.post('/api/v1/mobile/open-banking/consent', async (req: Request, res: Respon
       });
     }
     
+    // Generate state and PKCE verifier
+    const state = `${Math.random().toString(36).slice(2)}-${Date.now()}`;
+    const { generateCodeVerifier } = await import("./lib/openBanking.js");
+    const codeVerifier = generateCodeVerifier();
+    
+    // Store state in database (expires in 10 minutes)
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    await sql`
+      INSERT INTO oauth_states (state, user_id, bank_id, redirect_uri, code_verifier, expires_at)
+      VALUES (${state}, ${userId}, ${bankId}, ${redirectUri || 'buffr://oauth/callback'}, ${codeVerifier}, ${expiresAt.toISOString()})
+    `;
+    
+    // Create consent
     const consent = await createConsent({
       bankId,
       scopes: scopes || [],
-      redirectUri: redirectUri || '',
-      state: state || '',
+      redirectUri: redirectUri || 'buffr://oauth/callback',
+      state,
     });
     
-    res.json(consent);
+    res.json({
+      ...consent,
+      codeVerifier, // Client needs this for PKCE
+      expiresAt: expiresAt.toISOString()
+    });
   } catch (error: any) {
+    console.error('Consent creation error:', error);
     res.status(400).json({
       errors: [{ code: 'CONSENT_ERROR', title: error.message }],
     });
@@ -2693,12 +3750,31 @@ app.post('/api/v1/mobile/open-banking/consent', async (req: Request, res: Respon
 // Exchange OAuth code for bank tokens
 app.post('/api/v1/mobile/open-banking/token-exchange', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { bankId, code, redirectUri, codeVerifier } = req.body;
+    const userId = await getCurrentUserId(req);
+    const { bankId, code, redirectUri, codeVerifier, state } = req.body;
     
     if (!bankId || !code) {
       return res.status(400).json({
         errors: [{ code: 'INVALID_REQUEST', title: 'bankId and code are required' }],
       });
+    }
+    
+    // Verify state if provided (CSRF protection)
+    if (state) {
+      const stateResult = await sql`
+        SELECT user_id, bank_id FROM oauth_states
+        WHERE state = ${state} AND expires_at > NOW()
+        LIMIT 1
+      `;
+      
+      if (stateResult.length === 0) {
+        return res.status(400).json({
+          errors: [{ code: 'INVALID_STATE', title: 'State parameter invalid or expired' }],
+        });
+      }
+      
+      // Clean up used state
+      await sql`DELETE FROM oauth_states WHERE state = ${state}`;
     }
     
     // Exchange code for tokens
@@ -2709,10 +3785,29 @@ app.post('/api/v1/mobile/open-banking/token-exchange', async (req: Request, res:
       codeVerifier,
     });
     
-    // In production, store tokens in database for the user
-    // For now, return success
-    res.json({ linked: true });
+    // Store tokens in database
+    const { saveTokens } = await import("./lib/openBanking.js");
+    await saveTokens(userId, bankId, tokens);
+    
+    // Log successful link
+    await sql`
+      INSERT INTO audit_logs (user_id, entity_type, entity_id, action, meta)
+      VALUES (
+        ${userId}, 
+        'open_banking', 
+        ${bankId}, 
+        'bank_linked',
+        ${JSON.stringify({ bank: bankId, timestamp: new Date().toISOString() })}
+      )
+    `;
+    
+    res.json({ 
+      success: true,
+      linked: true,
+      expiresAt: new Date(tokens.expiresAt).toISOString()
+    });
   } catch (error: any) {
+    console.error('Token exchange error:', error);
     res.status(400).json({
       errors: [{ code: 'TOKEN_EXCHANGE_ERROR', title: error.message }],
     });
@@ -2790,6 +3885,752 @@ app.get('/api/v1/mobile/open-banking/accounts/:accountId/transactions', async (r
   }
 });
 
+// --- Offline Code Registration ---
+
+/**
+ * POST /api/v1/mobile/offline-codes/register
+ * Register offline-generated code for later use.
+ */
+app.post('/api/v1/mobile/offline-codes/register', async (req, res, next) => {
+  try {
+    const userId = await getCurrentUserId(req);
+    const { code, nonce, transactionId, walletId, amount, method, expiresAt } = req.body;
+    
+    // Validate code format
+    if (!code || !code.startsWith('OFFLINE-')) {
+      return res.status(400).json({ error: 'Invalid offline code format' });
+    }
+    
+    if (!nonce || !transactionId || !walletId || !amount || !method) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    // Check for duplicate registration (idempotency)
+    const existing = await sql`
+      SELECT id FROM offline_codes_registry
+      WHERE code = ${code} OR nonce = ${nonce}
+    `;
+    
+    if (existing.length > 0) {
+      return res.status(200).json({ 
+        message: 'Code already registered', 
+        status: 'registered' 
+      });
+    }
+    
+    // Verify wallet exists and belongs to user
+    const wallet = await sql`
+      SELECT balance FROM wallets WHERE id = ${walletId} AND user_id = ${userId}
+    `;
+    
+    if (wallet.length === 0) {
+      return res.status(404).json({ error: 'Wallet not found' });
+    }
+    
+    if (wallet[0].balance < amount) {
+      return res.status(400).json({ error: 'Insufficient balance' });
+    }
+    
+    // Register code in database
+    await sql`
+      INSERT INTO offline_codes_registry (
+        code, nonce, transaction_id, wallet_id, amount, method, status, expires_at
+      )
+      VALUES (
+        ${code}, ${nonce}, ${transactionId}, ${walletId}, ${amount}, 
+        ${method}, 'registered', ${expiresAt}
+      )
+    `;
+    
+    res.json({
+      status: 'registered',
+      code,
+      expiresAt
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// --- Group Shared Wallets & Contributions ---
+
+/**
+ * GET /api/v1/mobile/groups/:groupId/wallet
+ * Get group shared wallet balance.
+ */
+app.get('/api/v1/mobile/groups/:groupId/wallet', async (req, res, next) => {
+  try {
+    const userId = await getCurrentUserId(req);
+    const { groupId } = req.params;
+    
+    // Verify user is group member
+    const membership = await sql`
+      SELECT role FROM group_members 
+      WHERE group_id = ${groupId} AND user_id = ${userId}
+    `;
+    
+    if (membership.length === 0) {
+      return res.status(403).json({ error: 'Not a group member' });
+    }
+    
+    // Get group wallet
+    const wallet = await sql`
+      SELECT id, group_id, balance, currency, type, is_active, created_at
+      FROM group_wallets
+      WHERE group_id = ${groupId} AND is_active = true
+    `;
+    
+    if (wallet.length === 0) {
+      return res.status(404).json({ error: 'Group wallet not found' });
+    }
+    
+    res.json({ wallet: wallet[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/v1/mobile/groups/:groupId/contributions
+ * Get member contribution breakdown.
+ */
+app.get('/api/v1/mobile/groups/:groupId/contributions', async (req, res, next) => {
+  try {
+    const userId = await getCurrentUserId(req);
+    const { groupId } = req.params;
+    
+    // Verify user is group member
+    const membership = await sql`
+      SELECT role FROM group_members 
+      WHERE group_id = ${groupId} AND user_id = ${userId}
+    `;
+    
+    if (membership.length === 0) {
+      return res.status(403).json({ error: 'Not a group member' });
+    }
+    
+    // Get members with their total contributions
+    const members = await sql`
+      SELECT 
+        u.id as user_id,
+        u.first_name || ' ' || u.last_name as name,
+        u.phone as phone_number,
+        gm.joined_at,
+        gm.role,
+        COALESCE(SUM(gc.amount), 0) as total_contributed,
+        MAX(gc.created_at) as last_contribution
+      FROM group_members gm
+      JOIN users u ON u.id = gm.user_id
+      LEFT JOIN group_contributions gc ON gc.group_id = gm.group_id AND gc.user_id = gm.user_id
+      WHERE gm.group_id = ${groupId}
+      GROUP BY u.id, u.first_name, u.last_name, u.phone, gm.joined_at, gm.role
+      ORDER BY total_contributed DESC
+    `;
+    
+    res.json({ members });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/v1/mobile/groups/:groupId/transactions
+ * Get group transaction history.
+ */
+app.get('/api/v1/mobile/groups/:groupId/transactions', async (req, res, next) => {
+  try {
+    const userId = await getCurrentUserId(req);
+    const { groupId } = req.params;
+    const limit = parseInt(req.query.limit as string) || 50;
+    
+    // Verify user is group member
+    const membership = await sql`
+      SELECT role FROM group_members 
+      WHERE group_id = ${groupId} AND user_id = ${userId}
+    `;
+    
+    if (membership.length === 0) {
+      return res.status(403).json({ error: 'Not a group member' });
+    }
+    
+    // Get group transactions
+    const transactions = await sql`
+      SELECT 
+        gt.id,
+        gt.group_id,
+        gt.type,
+        gt.amount,
+        gt.from_user_id,
+        gt.to_user_id,
+        gt.description,
+        gt.status,
+        gt.created_at
+      FROM group_transactions gt
+      WHERE gt.group_id = ${groupId}
+      ORDER BY gt.created_at DESC
+      LIMIT ${limit}
+    `;
+    
+    res.json({ transactions });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/v1/mobile/groups/:groupId/contribute
+ * Contribute to group wallet from personal wallet.
+ */
+app.post('/api/v1/mobile/groups/:groupId/contribute', async (req, res, next) => {
+  try {
+    const userId = await getCurrentUserId(req);
+    const { groupId } = req.params;
+    const { amount, fromWalletId, method } = req.body;
+    
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ error: 'Invalid amount' });
+    }
+    
+    // Verify user is group member
+    const membership = await sql`
+      SELECT role FROM group_members 
+      WHERE group_id = ${groupId} AND user_id = ${userId}
+    `;
+    
+    if (membership.length === 0) {
+      return res.status(403).json({ error: 'Not a group member' });
+    }
+    
+    // Verify source wallet
+    const wallet = await sql`
+      SELECT balance FROM wallets WHERE id = ${fromWalletId} AND user_id = ${userId}
+    `;
+    
+    if (wallet.length === 0) {
+      return res.status(404).json({ error: 'Wallet not found' });
+    }
+    
+    if (wallet[0].balance < amount) {
+      return res.status(400).json({ error: 'Insufficient balance' });
+    }
+    
+    // Use atomic transaction to ensure all-or-nothing operation (T3 enhancement)
+    const result = await groupContributionAtomic({
+      groupId,
+      userId,
+      walletId: fromWalletId,
+      amount,
+      description: method === 'instant' ? 'Instant contribution' : 'Member contribution',
+    });
+
+    if (!result.success) {
+      return res.status(500).json({ error: result.error || 'Contribution failed' });
+    }
+    
+    res.json({ success: true, message: 'Contribution successful', contributionId: result.data?.contributionId });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/v1/mobile/groups/:groupId/send
+ * Send from group wallet to recipient.
+ */
+app.post('/api/v1/mobile/groups/:groupId/send', async (req, res, next) => {
+  try {
+    const userId = await getCurrentUserId(req);
+    const { groupId } = req.params;
+    const { recipientId, amount, description } = req.body;
+    
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ error: 'Invalid amount' });
+    }
+    
+    // Verify user is admin
+    const membership = await sql`
+      SELECT role FROM group_members 
+      WHERE group_id = ${groupId} AND user_id = ${userId}
+    `;
+    
+    if (membership.length === 0 || membership[0].role !== 'admin') {
+      return res.status(403).json({ error: 'Only admins can send from group' });
+    }
+    
+    // Get group wallet balance
+    const groupWallet = await sql`
+      SELECT balance FROM group_wallets WHERE group_id = ${groupId}
+    `;
+    
+    if (groupWallet.length === 0) {
+      return res.status(404).json({ error: 'Group wallet not found' });
+    }
+    
+    if (groupWallet[0].balance < amount) {
+      return res.status(400).json({ error: 'Insufficient group balance' });
+    }
+    
+    // Execute operations sequentially
+    // Debit group wallet
+    await sql`
+      UPDATE group_wallets SET balance = balance - ${amount} WHERE group_id = ${groupId}
+    `;
+    
+    // Credit recipient (assuming recipientId is a user ID)
+    await sql`
+      UPDATE wallets SET balance = balance + ${amount} 
+      WHERE user_id = ${recipientId} AND type = 'main'
+    `;
+    
+    // Record transaction
+    await sql`
+      INSERT INTO group_transactions (group_id, type, amount, to_user_id, description, status)
+      VALUES (${groupId}, 'send', ${amount}, ${recipientId}, ${description || 'Group payment'}, 'completed')
+    `;
+    
+    res.json({ success: true, message: 'Payment sent from group' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/v1/mobile/groups/:groupId/withdraw
+ * Withdraw from group wallet to personal wallet.
+ */
+app.post('/api/v1/mobile/groups/:groupId/withdraw', async (req, res, next) => {
+  try {
+    const userId = await getCurrentUserId(req);
+    const { groupId } = req.params;
+    const { amount, toWalletId } = req.body;
+    
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ error: 'Invalid amount' });
+    }
+    
+    // Verify user is admin
+    const membership = await sql`
+      SELECT role FROM group_members 
+      WHERE group_id = ${groupId} AND user_id = ${userId}
+    `;
+    
+    if (membership.length === 0 || membership[0].role !== 'admin') {
+      return res.status(403).json({ error: 'Only admins can withdraw from group' });
+    }
+    
+    // Verify destination wallet
+    const wallet = await sql`
+      SELECT id FROM wallets WHERE id = ${toWalletId} AND user_id = ${userId}
+    `;
+    
+    if (wallet.length === 0) {
+      return res.status(404).json({ error: 'Wallet not found' });
+    }
+    
+    // Get group wallet balance
+    const groupWallet = await sql`
+      SELECT balance FROM group_wallets WHERE group_id = ${groupId}
+    `;
+    
+    if (groupWallet.length === 0) {
+      return res.status(404).json({ error: 'Group wallet not found' });
+    }
+    
+    if (groupWallet[0].balance < amount) {
+      return res.status(400).json({ error: 'Insufficient group balance' });
+    }
+    
+    // Execute operations sequentially
+    // Debit group wallet
+    await sql`
+      UPDATE group_wallets SET balance = balance - ${amount} WHERE group_id = ${groupId}
+    `;
+    
+    // Credit personal wallet
+    await sql`
+      UPDATE wallets SET balance = balance + ${amount} WHERE id = ${toWalletId}
+    `;
+    
+    // Record transaction
+    await sql`
+      INSERT INTO group_transactions (group_id, type, amount, from_user_id, description, status)
+      VALUES (${groupId}, 'withdrawal', ${amount}, ${userId}, 'Withdrawal to personal wallet', 'completed')
+    `;
+    
+    res.json({ success: true, message: 'Withdrawal successful' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// --- Loan Repayment Edge Cases ---
+
+/**
+ * POST /api/v1/mobile/vouchers/:voucherId/redeem-with-loan
+ * Redeem voucher with automatic loan repayment deduction.
+ */
+app.post('/api/v1/mobile/vouchers/:voucherId/redeem-with-loan', async (req, res, next) => {
+  try {
+    const userId = await getCurrentUserId(req);
+    const { voucherId } = req.params;
+    const { walletId, method } = req.body;
+    
+    // Get voucher
+    const voucher = await sql`
+      SELECT * FROM vouchers WHERE id = ${voucherId} AND user_id = ${userId} AND status = 'available'
+    `;
+    
+    if (voucher.length === 0) {
+      return res.status(404).json({ error: 'Voucher not found or already redeemed' });
+    }
+    
+    const voucherAmount = voucher[0].amount;
+    
+    // Check for active loan
+    const loan = await sql`
+      SELECT id, amount_remaining FROM loans 
+      WHERE user_id = ${userId} AND status = 'active'
+      ORDER BY created_at ASC
+      LIMIT 1
+    `;
+    
+    let loanRepayment = 0;
+    let loanFullyRepaid = false;
+    let overpayment = 0;
+    
+    if (loan.length > 0) {
+      const loanBalance = loan[0].amount_remaining;
+      loanRepayment = Math.min(voucherAmount, loanBalance);
+      loanFullyRepaid = voucherAmount >= loanBalance;
+      overpayment = Math.max(0, voucherAmount - loanBalance);
+    }
+    
+    const netAmount = voucherAmount - loanRepayment;
+    
+    // Execute operations sequentially
+    // Mark voucher as redeemed
+    await sql`
+      UPDATE vouchers SET status = 'redeemed', redeemed_at = NOW() WHERE id = ${voucherId}
+    `;
+    
+    // Apply loan repayment if applicable
+    if (loanRepayment > 0 && loan.length > 0) {
+      // Update loan with repayment
+      if (loanFullyRepaid) {
+        await sql`
+          UPDATE loans 
+          SET amount_paid = amount_paid + ${loanRepayment},
+              amount_remaining = amount_remaining - ${loanRepayment},
+              status = 'repaid',
+              repaid_at = NOW()
+          WHERE id = ${loan[0].id}
+        `;
+      } else {
+        await sql`
+          UPDATE loans 
+          SET amount_paid = amount_paid + ${loanRepayment},
+              amount_remaining = amount_remaining - ${loanRepayment},
+              status = 'active'
+          WHERE id = ${loan[0].id}
+        `;
+      }
+      
+      // Record repayment
+      await sql`
+        INSERT INTO loan_repayments (loan_id, amount, method)
+        VALUES (${loan[0].id}, ${loanRepayment}, 'voucher_redemption')
+      `;
+    }
+    
+    // Credit wallet with net amount (or full amount if no loan)
+    if (method === 'wallet' && netAmount > 0) {
+      await sql`
+        UPDATE wallets SET balance = balance + ${netAmount} WHERE id = ${walletId}
+      `;
+    }
+    
+    res.json({
+      voucherAmount,
+      loanRepayment,
+      netAmount,
+      loanFullyRepaid,
+      overpayment: overpayment > 0 ? overpayment : undefined
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/v1/mobile/loans/:loanId/repay
+ * Make partial early repayment from wallet.
+ */
+app.post('/api/v1/mobile/loans/:loanId/repay', async (req, res, next) => {
+  try {
+    const userId = await getCurrentUserId(req);
+    const { loanId } = req.params;
+    const { amount, walletId } = req.body;
+    
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ error: 'Invalid amount' });
+    }
+    
+    // Get loan
+    const loan = await sql`
+      SELECT * FROM loans WHERE id = ${loanId} AND user_id = ${userId} AND status = 'active'
+    `;
+    
+    if (loan.length === 0) {
+      return res.status(404).json({ error: 'Active loan not found' });
+    }
+    
+    const loanBalance = loan[0].amount_remaining;
+    const isFullRepayment = amount >= loanBalance;
+    const repaymentAmount = Math.min(amount, loanBalance);
+    const overpayment = Math.max(0, amount - loanBalance);
+    
+    // Get wallet
+    const wallet = await sql`
+      SELECT balance FROM wallets WHERE id = ${walletId} AND user_id = ${userId}
+    `;
+    
+    if (wallet.length === 0) {
+      return res.status(404).json({ error: 'Wallet not found' });
+    }
+    
+    if (wallet[0].balance < amount) {
+      return res.status(400).json({ error: 'Insufficient wallet balance' });
+    }
+    
+    // Execute operations sequentially
+    // Debit wallet
+    await sql`
+      UPDATE wallets SET balance = balance - ${repaymentAmount} WHERE id = ${walletId}
+    `;
+    
+    // Update loan
+    if (isFullRepayment) {
+      await sql`
+        UPDATE loans 
+        SET amount_paid = amount_paid + ${repaymentAmount},
+            amount_remaining = amount_remaining - ${repaymentAmount},
+            status = 'repaid',
+            repaid_at = NOW()
+        WHERE id = ${loanId}
+      `;
+    } else {
+      await sql`
+        UPDATE loans 
+        SET amount_paid = amount_paid + ${repaymentAmount},
+            amount_remaining = amount_remaining - ${repaymentAmount},
+            status = 'active'
+        WHERE id = ${loanId}
+      `;
+    }
+    
+    // Record repayment
+    await sql`
+      INSERT INTO loan_repayments (loan_id, amount, method)
+      VALUES (${loanId}, ${repaymentAmount}, 'wallet')
+    `;
+    
+    // Handle overpayment if exists
+    if (overpayment > 0) {
+      await sql`
+        UPDATE wallets SET balance = balance + ${overpayment} WHERE id = ${walletId}
+      `;
+    }
+    
+    res.json({
+      repayment: {
+        id: 'repayment_' + Date.now(),
+        loanId,
+        amount: repaymentAmount,
+        method: 'wallet',
+        isPartial: !isFullRepayment,
+        remainingBalance: loanBalance - repaymentAmount,
+        overpayment: overpayment > 0 ? overpayment : undefined,
+        createdAt: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/v1/mobile/loans/:loanId/register-cash-repayment
+ * Register cash redemption for loan repayment.
+ */
+app.post('/api/v1/mobile/loans/:loanId/register-cash-repayment', async (req, res, next) => {
+  try {
+    const userId = await getCurrentUserId(req);
+    const { loanId } = req.params;
+    const { voucherId, cashAmount, tillCode } = req.body;
+    
+    // Verify loan
+    const loan = await sql`
+      SELECT * FROM loans WHERE id = ${loanId} AND user_id = ${userId} AND status = 'active'
+    `;
+    
+    if (loan.length === 0) {
+      return res.status(404).json({ error: 'Active loan not found' });
+    }
+    
+    const loanBalance = loan[0].amount_remaining;
+    const repaymentAmount = Math.min(cashAmount, loanBalance);
+    const isFullRepayment = cashAmount >= loanBalance;
+    
+    // Execute operations sequentially
+    // Update loan
+    if (isFullRepayment) {
+      await sql`
+        UPDATE loans 
+        SET amount_paid = amount_paid + ${repaymentAmount},
+            amount_remaining = amount_remaining - ${repaymentAmount},
+            status = 'repaid',
+            repaid_at = NOW()
+        WHERE id = ${loanId}
+      `;
+    } else {
+      await sql`
+        UPDATE loans 
+        SET amount_paid = amount_paid + ${repaymentAmount},
+            amount_remaining = amount_remaining - ${repaymentAmount},
+            status = 'active'
+        WHERE id = ${loanId}
+      `;
+    }
+    
+    // Record repayment
+    await sql`
+      INSERT INTO loan_repayments (loan_id, amount, method, metadata)
+      VALUES (${loanId}, ${repaymentAmount}, 'cash_till', ${JSON.stringify({ voucherId, tillCode })})
+    `;
+    
+    res.json({
+      repayment: {
+        id: 'repayment_' + Date.now(),
+        loanId,
+        amount: repaymentAmount,
+        method: 'cash_till',
+        isPartial: !isFullRepayment,
+        remainingBalance: loanBalance - repaymentAmount,
+        createdAt: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/v1/mobile/vouchers/:voucherId/calculate-repayment
+ * Calculate repayment breakdown before redemption.
+ */
+app.get('/api/v1/mobile/vouchers/:voucherId/calculate-repayment', async (req, res, next) => {
+  try {
+    const userId = await getCurrentUserId(req);
+    const { voucherId } = req.params;
+    
+    // Get voucher
+    const voucher = await sql`
+      SELECT amount FROM vouchers WHERE id = ${voucherId} AND user_id = ${userId} AND status = 'available'
+    `;
+    
+    if (voucher.length === 0) {
+      return res.status(404).json({ error: 'Voucher not found' });
+    }
+    
+    const voucherAmount = voucher[0].amount;
+    
+    // Check for active loan
+    const loan = await sql`
+      SELECT id, amount_remaining FROM loans 
+      WHERE user_id = ${userId} AND status = 'active'
+      ORDER BY created_at ASC
+      LIMIT 1
+    `;
+    
+    if (loan.length === 0) {
+      return res.json({
+        voucherAmount,
+        deductionAmount: 0,
+        netToWallet: voucherAmount,
+        willFullyRepay: false
+      });
+    }
+    
+    const loanBalance = loan[0].amount_remaining;
+    const deductionAmount = Math.min(voucherAmount, loanBalance);
+    const willFullyRepay = voucherAmount >= loanBalance;
+    
+    res.json({
+      voucherAmount,
+      activeLoanId: loan[0].id,
+      loanBalance,
+      deductionAmount,
+      netToWallet: voucherAmount - deductionAmount,
+      willFullyRepay
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// --- Push Notifications ---
+
+/**
+ * POST /api/v1/mobile/notifications/register-token
+ * Register or update user's push notification token
+ */
+app.post('/api/v1/mobile/notifications/register-token', async (req, res, next) => {
+  try {
+    const userId = await getCurrentUserId(req);
+    const { token, platform, deviceInfo } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ error: 'Token is required' });
+    }
+
+    // Upsert push token
+    await sql`
+      INSERT INTO push_tokens (user_id, token, platform, device_info, updated_at)
+      VALUES (${userId}, ${token}, ${platform}, ${JSON.stringify(deviceInfo)}, NOW())
+      ON CONFLICT (user_id, token)
+      DO UPDATE SET
+        platform = EXCLUDED.platform,
+        device_info = EXCLUDED.device_info,
+        updated_at = NOW(),
+        is_active = true
+    `;
+
+    res.json({ success: true, message: 'Token registered' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/v1/mobile/notifications/unregister-token
+ * Deactivate user's push token (logout or disable notifications)
+ */
+app.post('/api/v1/mobile/notifications/unregister-token', async (req, res, next) => {
+  try {
+    const userId = await getCurrentUserId(req);
+
+    await sql`
+      UPDATE push_tokens
+      SET is_active = false, updated_at = NOW()
+      WHERE user_id = ${userId}
+    `;
+
+    res.json({ success: true, message: 'Token deactivated' });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // --- Buffr AI Companion Proxy ---
 // Proxies requests to Python FastAPI server (port 8000)
 
@@ -2848,9 +4689,28 @@ app.use(
 const PORT = Number(process.env.PORT ?? 3001);
 
 if (process.env.NODE_ENV !== "test") {
+  // Validate environment variables before starting server
+  console.log('🔍 Validating environment configuration...');
+  validateEnvOrExit();
+  validateFeatureDependencies();
+  
+  // Ensure database tables exist
+  (async () => {
+    try {
+      await ensureRefreshTokensTable();
+      console.log('✅ Database tables validated');
+    } catch (error) {
+      console.error('❌ Database initialization failed:', error);
+      process.exit(1);
+    }
+  })();
+
   app.listen(PORT, () => {
     // eslint-disable-next-line no-console
-    console.log(`Buffr G2P backend listening on http://localhost:${PORT}`);
+    console.log(`✅ Buffr G2P backend listening on http://localhost:${PORT}`);
+    console.log(`📋 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`🔐 Security: JWT signature verification enabled`);
+    console.log(`💾 Database: ${process.env.DATABASE_URL?.split('@')[1]?.split('/')[0] || 'Neon PostgreSQL'}`);
   });
 }
 

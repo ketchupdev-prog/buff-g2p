@@ -31,6 +31,20 @@ cd backend && npm run dev
 
 Listens on `http://localhost:3001` (or `PORT` from `.env`).
 
+**Buffr AI (Companion, optional):** The Python venv is **`ai`** in `backend/` (there is no venv inside `buffr_ai/`). Create it once if missing, then activate and run:
+
+```bash
+cd backend
+# Create venv once (if you get "no such file or directory: ai/bin/activate")
+python3 -m venv ai
+source ai/bin/activate
+pip install -r buffr_ai/requirements.txt
+
+# Start the API. Use --host 0.0.0.0 so the mobile app on a physical device (same LAN) can reach it.
+PYTHONPATH=. uvicorn buffr_ai.main:app --reload --host 0.0.0.0 --port 8000
+```
+See [buffr_ai/README.md](buffr_ai/README.md).
+
 ## Database
 
 - **Same DB as Ketchup Portal** – `DATABASE_URL` points to the same Neon project.
@@ -75,6 +89,7 @@ See `.env.example` and `.env` comments for the full list.
 | [docs/DB_STRUCTURE.md](docs/DB_STRUCTURE.md) | Full database schema (tables, indexes, OTP functions) |
 | [docs/OTP_ONBOARDING.md](docs/OTP_ONBOARDING.md) | OTP and onboarding: migrations, email/SMS setup |
 | [docs/EMAIL_SMTP.md](docs/EMAIL_SMTP.md) | SMTP configuration and test send (ichigo@ketchup.cc) |
+| [buffr_ai/README.md](buffr_ai/README.md) | Buffr AI Companion (Python). Venv: **`ai`** in `backend/` (create with `python3 -m venv ai` if missing). |
 | [FINERACT.md](FINERACT.md) | Fineract integration (core banking) |
 | [API_AUDIT.md](API_AUDIT.md) | API endpoints overview |
 | [SECURITY.md](SECURITY.md) | Security and compliance notes |

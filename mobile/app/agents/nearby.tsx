@@ -1,6 +1,6 @@
 /**
  * Agents Map – Buffr G2P §3.4.
- * Map view of nearby agents, NamPost, ATMs. Uses shared NearbyAgentsContent (real map, no placeholder).
+ * Map view of nearby agents, NamPost, ATMs. Uses shared NearbyAgentsContent (real map).
  */
 import React from 'react';
 import { Stack } from 'expo-router';

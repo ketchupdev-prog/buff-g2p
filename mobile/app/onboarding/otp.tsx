@@ -1,23 +1,40 @@
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useRef, useState, useEffect } from 'react';
 import { designSystem } from '@/constants/designSystem';
 import { useUser } from '@/contexts/UserContext';
-import { verifyOtp } from '@/services/auth';
+import { verifyOtp, requestOtp } from '@/services/auth';
+import { OnboardingLayout } from '@/components/layout';
 
 const DS = designSystem;
 const OTP_LENGTH = 6;
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+const RESEND_COOLDOWN_SECONDS = 60;
 
 export default function OtpVerificationScreen() {
-  const { profile, setProfile, setBuffrId } = useUser();
+  const { profile, setBuffrId } = useUser();
   const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(''));
   const inputRefs = useRef<(TextInput | null)[]>([]);
   const [verifying, setVerifying] = useState(false);
   const phoneNumber = profile?.phone ?? '+264';
-  const { devCode } = useLocalSearchParams<{ devCode?: string }>();
+  const { devCode, channel: paramChannel, email: paramEmail } = useLocalSearchParams<{
+    devCode?: string;
+    channel?: string;
+    email?: string;
+  }>();
+  const channel = (paramChannel === 'email' ? 'email' : 'sms') as 'sms' | 'email';
+  const resendEmail = paramEmail ?? undefined;
+
+  // Resend cooldown: start at 60s when screen mounts, then count down
+  const [resendCooldown, setResendCooldown] = useState(RESEND_COOLDOWN_SECONDS);
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = setInterval(() => {
+      setResendCooldown((s) => (s <= 1 ? 0 : s - 1));
+    }, 1000);
+    return () => clearInterval(t);
+  }, [resendCooldown]);
 
   // S9: Rate-limiting state.
   const [attempts, setAttempts] = useState(0);
@@ -72,7 +89,11 @@ export default function OtpVerificationScreen() {
     }
     setVerifying(true);
     try {
-      const result = await verifyOtp(profile.phone, fullOtp);
+        const result = await verifyOtp(
+          profile.phone,
+          fullOtp,
+          (channel === 'email' && resendEmail) ? resendEmail : undefined
+        );
       if (result.success && result.buffrId && result.cardNumberMasked) {
         // S9: Reset attempt counter on success.
         setAttempts(0);
@@ -85,7 +106,10 @@ export default function OtpVerificationScreen() {
         if (nextAttempts >= MAX_ATTEMPTS) {
           setLockedUntil(Date.now() + LOCKOUT_DURATION_MS);
         } else {
-          alert('Invalid code. Please try again.');
+          const msg = (result.error ?? "").toLowerCase().includes("expired")
+            ? "Code expired. Please request a new code."
+            : (result.error ?? "Invalid code. Please try again.");
+          alert(msg);
         }
       }
     } catch (e) {
@@ -96,35 +120,27 @@ export default function OtpVerificationScreen() {
     }
   };
 
+  const otpSubtitle =
+    channel === 'email' && resendEmail
+      ? `We have sent an OTP to your ${resendEmail}. Please confirm it.`
+      : `We have sent an OTP to your ${phoneNumber} phone number. Please confirm it.`;
+
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <Stack.Screen
-        options={{
-          headerShown: true,
-          headerTitle: 'Can you please verify',
-          headerTitleStyle: {
-            ...designSystem.typography.textStyles.title,
-            color: designSystem.colors.neutral.text,
-          },
-          headerBackTitleVisible: false,
-          headerTintColor: designSystem.colors.neutral.text,
-        }}
-      />
+    <OnboardingLayout
+      screenTitle="Can you please verify"
+      screenSubtitle={otpSubtitle}
+      scrollable={false}
+    >
       <View style={styles.container}>
-        <Text style={styles.instructionText}>
-          We sent a code to {phoneNumber}
-        </Text>
-        {(__DEV__ || devCode) && (
+        {devCode != null && devCode !== '' && (
           <View style={styles.devHint}>
             <Text style={styles.devHintText}>
-              {devCode
-                ? `Your verification code: ${devCode}`
-                : `Development: No SMS is sent. Use any ${OTP_LENGTH}-digit code (e.g. 123456).`}
+              Your verification code: {devCode}
             </Text>
           </View>
         )}
 
-        {/* S9: Lockout banner — shown when too many failed attempts have occurred. */}
+        {/* S9: Lockout banner */}
         {isLockedOut && (
           <View style={styles.lockoutBanner}>
             <Text style={styles.lockoutBannerText}>
@@ -150,8 +166,40 @@ export default function OtpVerificationScreen() {
           ))}
         </View>
 
-        <TouchableOpacity style={styles.resendButton} disabled={verifying || isLockedOut}>
-          <Text style={styles.resendButtonText}>Resend code (60s)</Text>
+        <TouchableOpacity
+          style={styles.resendButton}
+          disabled={verifying || isLockedOut || resendCooldown > 0}
+          onPress={async () => {
+            if (!profile?.phone || resendCooldown > 0) return;
+            setResendCooldown(RESEND_COOLDOWN_SECONDS);
+            try {
+              const result = await requestOtp(
+                profile.phone,
+                channel === 'email' ? resendEmail : undefined,
+                channel
+              );
+              if (!result.success) {
+                alert(result.error ?? 'Could not resend code.');
+                setResendCooldown(0);
+              }
+            } catch (e) {
+              console.error('Resend OTP error:', e);
+              alert('Could not resend code. Try again.');
+              setResendCooldown(0);
+            }
+          }}
+        >
+          <Text style={styles.resendButtonText}>
+            {resendCooldown > 0 ? `Resend code (${resendCooldown}s)` : 'Resend code'}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.changeNumberLink}
+          onPress={() => router.replace('/onboarding/phone')}
+          disabled={verifying}
+        >
+          <Text style={styles.changeNumberLinkText}>Change number</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -159,28 +207,16 @@ export default function OtpVerificationScreen() {
           onPress={handleVerify}
           disabled={verifying || isLockedOut}
         >
-          {verifying ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Verify</Text>}
+          {verifying ? <ActivityIndicator color="#F4F4F5" /> : <Text style={styles.primaryButtonText}>Verify</Text>}
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </OnboardingLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: 'white',
-  },
   container: {
-    flex: 1,
-    paddingHorizontal: designSystem.spacing.g2p.horizontalPadding,
-    paddingTop: designSystem.spacing.g2p.sectionSpacing,
-  },
-  instructionText: {
-    ...designSystem.typography.textStyles.body,
-    color: designSystem.colors.neutral.text,
-    textAlign: 'center',
-    marginBottom: designSystem.spacing.g2p.sectionSpacing,
+    flexGrow: 0,
   },
   devHint: {
     backgroundColor: designSystem.colors.feedback?.yellow100 ?? '#fef3c7',
@@ -200,39 +236,47 @@ const styles = StyleSheet.create({
     marginBottom: designSystem.spacing.g2p.sectionSpacing,
   },
   otpInput: {
-    width: 48, // Adjust width based on number of digits and spacing
+    width: 48,
     height: 56,
     borderWidth: 1,
     borderColor: designSystem.colors.neutral.border,
-    borderRadius: designSystem.components.otpInput.borderRadius,
+    borderRadius: 16,
     textAlign: 'center',
-    ...designSystem.typography.textStyles.title, // Larger font for OTP digits
+    ...designSystem.typography.textStyles.title,
     color: designSystem.colors.neutral.text,
   },
   resendButton: {
     alignSelf: 'center',
-    marginBottom: designSystem.spacing.g2p.sectionSpacing * 2,
+    marginBottom: 12,
   },
   resendButtonText: {
     ...designSystem.typography.textStyles.caption,
     color: designSystem.colors.brand.primary,
   },
+  changeNumberLink: {
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  changeNumberLinkText: {
+    ...designSystem.typography.textStyles.caption,
+    color: designSystem.colors.neutral.textSecondary ?? designSystem.colors.neutral.text,
+  },
   primaryButton: {
-    height: designSystem.components.button.height,
-    backgroundColor: designSystem.colors.brand.primary,
-    borderRadius: designSystem.components.button.borderRadius,
+    height: 52,
+    backgroundColor: '#18181B',
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 'auto',
+    marginTop: 16,
     marginBottom: designSystem.spacing.g2p.sectionSpacing,
   },
   primaryButtonDisabled: {
     opacity: 0.6,
   },
   primaryButtonText: {
-    color: 'white',
-    ...designSystem.typography.textStyles.body,
-    fontWeight: 'bold',
+    color: '#F4F4F5',
+    fontSize: 16,
+    fontWeight: '600',
   },
   // S9: Lockout banner styles.
   lockoutBanner: {

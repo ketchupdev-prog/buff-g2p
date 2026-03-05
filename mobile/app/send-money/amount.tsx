@@ -20,7 +20,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useUser } from '@/contexts/UserContext';
 import { getWallets, type Wallet } from '@/services/wallets';
-import { Avatar, PayFromSheet, PayFromPill, buildPaySources, type PaySource } from '@/components/ui';
+import { Avatar, PayFromSheet, PayFromPill, ProgressIndicator, buildPaySources, type PaySource, LoadingState } from '@/components/ui';
+import { AmountInput } from '@/components/shared';
+import { designSystem } from '@/constants/designSystem';
+import { useNetworkStatus } from '@/hooks';
+import { OfflineBanner } from '@/components/common';
 
 export default function ReceiverDetailsScreen() {
   const { profile, walletStatus } = useUser();
@@ -40,12 +44,16 @@ export default function ReceiverDetailsScreen() {
   const [showPayFrom, setShowPayFrom] = useState(false);
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [amountError, setAmountError] = useState<string | null>(null);
+  const [loadingWallets, setLoadingWallets] = useState(true);
+  const { isConnected } = useNetworkStatus();
 
   useEffect(() => {
     getWallets().then((ws) => {
       setWallets(ws);
       const sources = buildPaySources(ws);
       if (sources.length > 0) setPaySource(sources[0]);
+    }).finally(() => {
+      setLoadingWallets(false);
     });
   }, []);
 
@@ -94,12 +102,21 @@ export default function ReceiverDetailsScreen() {
             ),
           }}
         />
+        <ProgressIndicator
+          currentStep={2}
+          totalSteps={4}
+          stepLabels={['Recipient', 'Amount', 'Review', 'Confirm']}
+        />
+        {!isConnected && <OfflineBanner />}
 
         <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+          {loadingWallets ? (
+            <LoadingState message="Loading wallets..." />
+          ) : (
+            <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
 
-            {/* Hero: recipient profile */}
-            <View style={styles.hero}>
+              {/* Hero: recipient profile */}
+              <View style={styles.hero}>
               <View style={styles.avatarShadow}>
                 <Avatar name={recipientName ?? '?'} size={88} />
               </View>
@@ -135,34 +152,23 @@ export default function ReceiverDetailsScreen() {
             )}
 
             {/* Amount input */}
-            <View style={styles.amountWrap}>
-              <Text style={styles.amountPrefix}>N$</Text>
-              <TextInput
-                style={styles.amountInput}
-                placeholder="0"
-                placeholderTextColor="#D1D5DB"
+            <View style={styles.amountContainer}>
+              <AmountInput
                 value={amount}
-                onChangeText={(t) => {
-                  const cleaned = t.replace(/[^0-9.]/g, '');
-                  const match = /^(\d*\.?\d{0,2})/.exec(cleaned);
-                  setAmount(match ? match[1] : '');
+                onChange={(val) => {
+                  setAmount(val);
                   setAmountError(null);
                 }}
-                keyboardType="decimal-pad"
+                error={amountError}
+                availableBalance={selectedWallet?.balance}
                 autoFocus
+                quickAmounts={[]}
               />
             </View>
 
-            {amountError ? <Text style={styles.amountError}>{amountError}</Text> : null}
-
-            {selectedWallet && (
-              <Text style={styles.balanceHint}>
-                Available: N${selectedWallet.balance.toLocaleString('en-NA', { minimumFractionDigits: 2 })}
-              </Text>
-            )}
-
             <View style={{ height: 40 }} />
           </ScrollView>
+          )}
 
           {/* Pay button */}
           <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 24) }]}>
@@ -229,11 +235,7 @@ const styles = StyleSheet.create({
   },
 
   // Amount
-  amountWrap: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, marginTop: 8 },
-  amountPrefix: { fontSize: 20, fontWeight: '600', color: '#9CA3AF', marginRight: 8 },
-  amountInput: { fontSize: 52, fontWeight: '700', color: '#111827', minWidth: 80, textAlign: 'center', padding: 0 },
-  amountError: { textAlign: 'center', fontSize: 13, color: '#E11D48', marginTop: 8 },
-  balanceHint: { textAlign: 'center', fontSize: 13, color: '#9CA3AF', marginTop: 6 },
+  amountContainer: { paddingHorizontal: 24, marginTop: 8 },
 
   // Footer
   footer: { paddingHorizontal: 24, paddingTop: 16, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#F3F4F6' },

@@ -20,7 +20,8 @@ import { router } from 'expo-router';
 import { useUser } from '@/contexts/UserContext';
 import { designSystem } from '@/constants/designSystem';
 import { AppHeader } from '@/components/layout';
-import { Avatar, getAvatarColor, StatusBadge, statusToVariant, SegmentedControl } from '@/components/ui';
+import { Avatar, getAvatarColor, StatusBadge, statusToVariant, SegmentedControl, ErrorState } from '@/components/ui';
+import { usePullToRefresh } from '@/hooks';
 import {
   getTransactions,
   formatTransactionType,
@@ -244,7 +245,6 @@ export default function TransactionsScreen() {
   const [period, setPeriod] = useState<PeriodKey>('monthly');
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -256,9 +256,12 @@ export default function TransactionsScreen() {
       setError('Could not load transactions. Tap to retry.');
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   }, []);
+
+  const { refreshing, onRefresh } = usePullToRefresh({
+    onRefresh: load,
+  });
 
   useEffect(() => { load(); }, [load]);
 
@@ -347,7 +350,7 @@ export default function TransactionsScreen() {
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={() => { setRefreshing(true); load(); }}
+              onRefresh={onRefresh}
               tintColor="#0029D6"
             />
           }
@@ -355,9 +358,12 @@ export default function TransactionsScreen() {
           {loading ? (
             <ActivityIndicator color="#0029D6" style={{ marginTop: 48 }} />
           ) : error ? (
-            <TouchableOpacity onPress={load} style={styles.errorBox}>
-              <Text style={styles.errorText}>{error}</Text>
-            </TouchableOpacity>
+            <ErrorState
+              variant="network"
+              message={error}
+              onRetry={load}
+              style={{ marginTop: 40 }}
+            />
           ) : (
             <>
               {/* Analytics card */}

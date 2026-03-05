@@ -28,6 +28,7 @@ import {
   EmojiPicker,
   PayFromSheet,
   SegmentedControl,
+  ErrorState,
   type PaySource,
 } from '@/components/ui';
 
@@ -216,12 +217,13 @@ export default function AddWalletScreen() {
             </View>
           )}
 
-          {error ? (
-            <View style={styles.errorBox}>
-              <Ionicons name="warning-outline" size={16} color="#E11D48" />
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          ) : null}
+          {error && (
+            <ErrorState
+              variant="default"
+              message={error}
+              style={{ marginTop: 16 }}
+            />
+          )}
 
           <View style={{ height: 80 }} />
         </ScrollView>

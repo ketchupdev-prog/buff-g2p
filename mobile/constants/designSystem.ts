@@ -7,6 +7,18 @@ export const designSystem = {
     "mobile": { "maxWidth": 393, "description": "G2P reference width; center content on larger screens" }
   },
   "colors": {
+    "primary": "#0029D6",
+    "secondary": "#E11D48",
+    "success": "#22C55E",
+    "error": "#E11D48",
+    "warning": "#F59E0B",
+    "info": "#2563EB",
+    "text": "#020617",
+    "textSecondary": "#64748B",
+    "textTertiary": "#94A3B8",
+    "background": "#F8FAFC",
+    "surface": "#FFFFFF",
+    "border": "#E2E8F0",
     "brand": {
       "primary": "#0029D6",
       "primaryDark": "#1D4ED8",
@@ -66,7 +78,12 @@ export const designSystem = {
       "blobColors": ["#5EEAD4", "#3B82F6", "#1D4ED8"],
       "blobLocations": [0, 0.712, 1],
       "screenColors": ["#FFFFFF", "#E8FBF9", "#D6EBFE", "#93C5FD", "#C7DAFA", "#EFF6FF"],
-      "screenLocations": [0, 0.25, 0.4, 0.5, 0.6, 1]
+      "screenLocations": [0, 0.25, 0.4, 0.5, 0.6, 1],
+      "onboarding": {
+        "description": "Soft light blue to white, left to right (modal screens)",
+        "colors": ["#DBEAFE", "#EFF6FF", "#FFFFFF"],
+        "locations": [0, 0.5, 1]
+      }
     }
   },
   "typography": {
@@ -77,6 +94,16 @@ export const designSystem = {
       "description": "Figma uses SF Pro; fallback to platform default in React Native"
     },
     "fontSize": {
+      "xs": 12,
+      "sm": 14,
+      "base": 16,
+      "lg": 18,
+      "xl": 20,
+      "2xl": 24,
+      "3xl": 30,
+      "4xl": 36
+    },
+    "sizes": {
       "xs": 12,
       "sm": 14,
       "base": 16,
@@ -113,6 +140,15 @@ export const designSystem = {
     }
   },
   "spacing": {
+    "xs": 4,
+    "sm": 8,
+    "md": 16,
+    "lg": 20,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 40,
+    "4xl": 48,
+    "5xl": 64,
     "scale": { "xs": 4, "sm": 8, "md": 16, "lg": 20, "xl": 24, "2xl": 32, "3xl": 40, "4xl": 48, "5xl": 64 },
     "g2p": {
       "horizontalPadding": 24,
@@ -132,7 +168,16 @@ export const designSystem = {
     "md": 16,
     "lg": 24,
     "xl": 32,
-    "pill": 9999
+    "pill": 9999,
+    "full": 9999
+  },
+  "borderRadius": {
+    "sm": 12,
+    "md": 16,
+    "lg": 24,
+    "xl": 32,
+    "pill": 9999,
+    "full": 9999
   },
   "shadows": {
     "sm": { "shadowColor": "#000", "shadowOffset": { "width": 0, "height": 1 }, "shadowOpacity": 0.05, "shadowRadius": 2, "elevation": 1 },

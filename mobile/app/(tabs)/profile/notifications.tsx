@@ -20,6 +20,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { designSystem } from '@/constants/designSystem';
 import { useUser } from '@/contexts/UserContext';
 import { getSecureItem } from '@/services/secureStorage';
+import { ErrorState } from '@/components/ui';
+import { usePullToRefresh } from '@/hooks';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 const PREFERENCES_KEY = 'buffr_notification_preferences';
@@ -145,7 +147,6 @@ export default function NotificationsScreen() {
   useUser();
   const [notifs, setNotifs] = useState<NotifItem[]>([]);
   const [prefs, setPrefs] = useState<NotificationPreferences>(DEFAULT_PREFS);
-  const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -153,12 +154,13 @@ export default function NotificationsScreen() {
     setNotifs(data);
     setPrefs(prefsData);
     setLoading(false);
-    setRefreshing(false);
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  const { refreshing, onRefresh } = usePullToRefresh({
+    onRefresh: load,
+  });
 
-  const onRefresh = useCallback(() => { setRefreshing(true); load(); }, [load]);
+  useEffect(() => { load(); }, [load]);
 
   const handlePrefToggle = useCallback((key: NotifPrefKey, value: boolean) => {
     const next = { ...prefs, [key]: value };
@@ -227,13 +229,12 @@ export default function NotificationsScreen() {
 
           <Text style={styles.recentTitle}>Recent</Text>
           {!loading && notifs.length === 0 && (
-            <View style={styles.emptyState}>
-              <Ionicons name="notifications-outline" size={56} color={designSystem.colors.neutral.textTertiary} />
-              <Text style={styles.emptyTitle}>No notifications yet</Text>
-              <Text style={styles.emptyDesc}>
-                When you get vouchers, reminders, or updates, they'll show here.
-              </Text>
-            </View>
+            <ErrorState
+              variant="empty"
+              title="No notifications yet"
+              message="When you get vouchers, reminders, or updates, they'll show here."
+              style={{ marginTop: 40 }}
+            />
           )}
 
           {notifs.map((n) => {

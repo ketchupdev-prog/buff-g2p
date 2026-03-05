@@ -7,6 +7,7 @@
 
 import { config } from "dotenv";
 import { resolve } from "path";
+import { randomUUID } from "crypto";
 
 // Load environment
 config({ path: resolve(process.cwd(), "backend/.env") });
@@ -24,6 +25,7 @@ interface OpenBankingConfig {
   redirectUri: string;
   scopes: string[];
   banks: BankConfig[];
+  participantId: string; // TPP Participant ID (must match QWAC certificate)
 }
 
 interface BankConfig {
@@ -34,6 +36,7 @@ interface BankConfig {
   tokenEndpoint: string;
   parEndpoint?: string;
   jwksUri?: string;
+  apiEndpoint?: string; // Base URL for banking APIs (e.g., https://api.bank.na)
 }
 
 function getOpenBankingConfig(): OpenBankingConfig {
@@ -47,6 +50,7 @@ function getOpenBankingConfig(): OpenBankingConfig {
       tokenEndpoint: "https://obank.bankwindhoek.com.na/oauth2/token",
       parEndpoint: "https://obank.bankwindhoek.com.na/oauth2/par",
       jwksUri: "https://obank.bankwindhoek.com.na/.well-known/jwks.json",
+      apiEndpoint: "https://api.bankwindhoek.com.na", // §9.1.1
     },
     {
       id: "standard-bank",
@@ -56,6 +60,7 @@ function getOpenBankingConfig(): OpenBankingConfig {
       tokenEndpoint: "https://openbanking.standardbank.com.na/oauth2/token",
       parEndpoint: "https://openbanking.standardbank.com.na/oauth2/par",
       jwksUri: "https://openbanking.standardbank.com.na/.well-known/jwks.json",
+      apiEndpoint: "https://api.standardbank.com.na", // §9.1.1
     },
     {
       id: "nedbank",
@@ -65,6 +70,7 @@ function getOpenBankingConfig(): OpenBankingConfig {
       tokenEndpoint: "https://openbanking.nedbank.com.na/oauth2/token",
       parEndpoint: "https://openbanking.nedbank.com.na/oauth2/par",
       jwksUri: "https://openbanking.nedbank.com.na/.well-known/jwks.json",
+      apiEndpoint: "https://api.nedbank.com.na", // §9.1.1
     },
     {
       id: "fnb",
@@ -74,6 +80,7 @@ function getOpenBankingConfig(): OpenBankingConfig {
       tokenEndpoint: "https://openbanking.fnbnamibia.com.na/oauth2/token",
       parEndpoint: "https://openbanking.fnbnamibia.com.na/oauth2/par",
       jwksUri: "https://openbanking.fnbnamibia.com.na/.well-known/jwks.json",
+      apiEndpoint: "https://api.fnbnamibia.com.na", // §9.1.1
     },
   ];
 
@@ -96,6 +103,7 @@ function getOpenBankingConfig(): OpenBankingConfig {
     redirectUri: process.env.OPEN_BANKING_REDIRECT_URI ?? "buffr://oauth/callback",
     scopes: (process.env.OPEN_BANKING_SCOPES ?? "accounts:read balances:read transactions:read").split(" "),
     banks,
+    participantId: process.env.OPEN_BANKING_PARTICIPANT_ID ?? "API000001", // Must match QWAC certificate
   };
 }
 
@@ -112,6 +120,7 @@ export interface Bank {
   authorizationEndpoint?: string;
   tokenEndpoint?: string;
   parEndpoint?: string;
+  apiEndpoint?: string; // Base URL for banking APIs (e.g., https://api.bank.na)
 }
 
 export interface ConsentRequest {
@@ -152,6 +161,15 @@ export interface LinkedAccount {
   balance?: string;
 }
 
+export interface AccountBalance {
+  accountId: string;
+  currentBalance: number;
+  availableBalance: number;
+  currency: string;
+  creditLimit?: number;
+  amortisedLimit?: number;
+}
+
 // ============================================================================
 // Bank Endpoints
 // ============================================================================
@@ -171,6 +189,7 @@ export function getSupportedBanks(): Bank[] {
     authorizationEndpoint: bank.authorizationEndpoint,
     tokenEndpoint: bank.tokenEndpoint,
     parEndpoint: bank.parEndpoint,
+    apiEndpoint: bank.apiEndpoint,
   }));
 }
 
@@ -208,7 +227,8 @@ export async function createConsent(request: ConsentRequest): Promise<ConsentRes
 
 /**
  * Create consent using Pushed Authorization Request (PAR).
- * More secure - authorization details are sent server-to-server.
+ * Per RFC 9126 and Namibian Open Banking Standards v1.0 §9.5.1.
+ * Authorization details sent server-to-server via mTLS for enhanced security.
  */
 async function createPARConsent(
   bank: BankConfig,
@@ -217,17 +237,80 @@ async function createPARConsent(
 ): Promise<ConsentResponse> {
   const state = request.state || generateState();
   
-  // In production, this would call the bank's PAR endpoint
-  // For now, return a mock response
-  const requestUri = `urn:buffr:par:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+  if (!bank.parEndpoint) {
+    throw new Error(`Bank ${bank.name} does not support PAR`);
+  }
   
-  const authorizationUrl = `${bank.authorizationEndpoint}?request_uri=${encodeURIComponent(requestUri)}`;
+  // Import mTLS client
+  const { createMTLSAgent, openBankingHeaders } = await import('./mTLSClient.js');
   
-  return {
-    authorizationUrl,
-    requestUri,
+  // Generate PKCE challenge
+  const codeVerifier = generateCodeVerifier();
+  const codeChallenge = await generateCodeChallenge(codeVerifier);
+  
+  // PAR request body (RFC 9126)
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: config_.clientId,
+    redirect_uri: request.redirectUri || config_.redirectUri,
+    scope: scopes.join(' '),
     state,
-  };
+    code_challenge: codeChallenge,
+    code_challenge_method: 'S256',
+  });
+  
+  try {
+    const agent = createMTLSAgent(bank.id);
+    
+    // mTLS-secured POST to PAR endpoint
+    const response = await fetch(bank.parEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'ParticipantId': openBankingHeaders('', 1).ParticipantId,
+        'x-v': '1',
+        'x-fapi-interaction-id': randomUUID(),
+      },
+      body: params.toString(),
+      // @ts-ignore - Node.js fetch supports agent
+      agent,
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[PAR] Bank ${bank.name} returned ${response.status}: ${errorText}`);
+      throw new Error(`PAR request failed: ${response.statusText}`);
+    }
+    
+    const parResponse = await response.json();
+    
+    // PAR response contains request_uri (RFC 9126 §3)
+    const requestUri = parResponse.request_uri;
+    const expiresIn = parResponse.expires_in || 600; // Default 10 minutes
+    
+    if (!requestUri) {
+      throw new Error('PAR response missing request_uri');
+    }
+    
+    console.log(`[PAR] Success for ${bank.name}, request_uri expires in ${expiresIn}s`);
+    
+    // Authorization URL using request_uri (§9.5.1)
+    const authorizationUrl = `${bank.authorizationEndpoint}?` +
+      `client_id=${encodeURIComponent(config_.clientId)}&` +
+      `request_uri=${encodeURIComponent(requestUri)}`;
+    
+    return {
+      authorizationUrl,
+      requestUri,
+      state,
+    };
+  } catch (error) {
+    console.error(`[PAR] Error for ${bank.name}:`, error);
+    
+    // Fallback to direct authorization if PAR fails
+    console.warn(`[PAR] Falling back to direct authorization URL for ${bank.name}`);
+    return createDirectConsent(bank, request, scopes);
+  }
 }
 
 /**
@@ -262,69 +345,201 @@ function createDirectConsent(
 
 /**
  * Exchange authorization code for access tokens.
- * Uses mTLS if configured.
+ * Per OAuth 2.0 Authorization Code Flow (RFC 6749) with PKCE (RFC 7636).
+ * Uses mTLS with QWAC certificates per Namibian Open Banking Standards v1.0 §9.4, §9.5.1.
+ * 
+ * Token endpoint requirements (§9.5.1):
+ * 1. Validates authorization code
+ * 2. Verifies PKCE code_verifier against stored code_challenge
+ * 3. Returns access_token (required), refresh_token (optional for long-term consent)
+ * 4. Includes expires_in (seconds), token_type (Bearer), scope
+ * 
+ * @param request - Token exchange parameters
+ * @returns Access and refresh tokens with expiration
  */
 export async function exchangeCodeForTokens(request: TokenExchangeRequest): Promise<BankTokens> {
   const bank = getBankById(request.bankId);
   
   if (!bank) {
-    throw new Error("Bank not found");
+    throw new Error(`Bank not found: ${request.bankId}`);
+  }
+  
+  if (!bank.tokenEndpoint) {
+    throw new Error(`Bank ${bank.name} missing tokenEndpoint configuration`);
   }
 
-  // In production, this would use mTLS client
-  // const mtlsClient = await getMtlsClient(bank.id);
+  // Import mTLS client
+  const { createMTLSAgent } = await import('./mTLSClient.js');
   
+  // Build token request (RFC 6749 §4.1.3)
   const params = new URLSearchParams({
-    grant_type: "authorization_code",
+    grant_type: 'authorization_code',
     code: request.code,
     redirect_uri: request.redirectUri || config_.redirectUri,
     client_id: config_.clientId,
-    client_secret: config_.clientSecret,
   });
   
+  // Include client_secret if configured (confidential client)
+  if (config_.clientSecret) {
+    params.append('client_secret', config_.clientSecret);
+  }
+  
+  // Include PKCE code_verifier (RFC 7636 §4.5)
   if (request.codeVerifier) {
-    params.append("code_verifier", request.codeVerifier);
+    params.append('code_verifier', request.codeVerifier);
   }
 
-  // In production, call the bank's token endpoint with mTLS
-  // const response = await mtlsClient.post(bank.tokenEndpoint, params.toString());
-  
-  // For development, return mock tokens
-  return {
-    accessToken: `mock_access_${Date.now()}`,
-    refreshToken: `mock_refresh_${Date.now()}`,
-    expiresAt: Date.now() + 3600000, // 1 hour
-    scope: config_.scopes.join(" "),
-    tokenType: "Bearer",
-  };
+  try {
+    const agent = createMTLSAgent(bank.id);
+    
+    console.log(`[Token Exchange] Requesting tokens from ${bank.name}`);
+    console.log(`[Token Exchange] Endpoint: ${bank.tokenEndpoint}`);
+    console.log(`[Token Exchange] mTLS: ${agent ? 'enabled' : 'disabled (fallback)'}`);
+    
+    const response = await fetch(bank.tokenEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+        'ParticipantId': config_.participantId || 'API000001',
+        'x-v': '1',
+        'x-fapi-interaction-id': randomUUID(),
+      },
+      body: params.toString(),
+      // @ts-ignore - Node.js fetch supports agent
+      agent,
+    });
+    
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({}));
+      console.error(`[Token Exchange] Failed: ${response.status}`, errorBody);
+      
+      // OAuth error response (RFC 6749 §5.2)
+      if (errorBody.error) {
+        throw new Error(
+          `Token exchange failed: ${errorBody.error_description || errorBody.error}`
+        );
+      }
+      
+      throw new Error(`Token exchange failed: ${response.statusText} (${response.status})`);
+    }
+    
+    const tokenResponse = await response.json();
+    
+    // Validate required fields (RFC 6749 §5.1)
+    if (!tokenResponse.access_token) {
+      throw new Error('Token response missing access_token');
+    }
+    
+    // Calculate expiration timestamp
+    const expiresIn = tokenResponse.expires_in || 3600; // Default 1 hour
+    const expiresAt = Date.now() + (expiresIn * 1000);
+    
+    console.log(`[Token Exchange] Success! Token expires in ${expiresIn}s`);
+    console.log(`[Token Exchange] Scope: ${tokenResponse.scope || config_.scopes.join(' ')}`);
+    console.log(`[Token Exchange] Refresh token: ${tokenResponse.refresh_token ? 'provided' : 'not provided'}`);
+    
+    return {
+      accessToken: tokenResponse.access_token,
+      refreshToken: tokenResponse.refresh_token,
+      expiresAt,
+      scope: tokenResponse.scope || config_.scopes.join(' '),
+      tokenType: tokenResponse.token_type || 'Bearer',
+    };
+  } catch (error) {
+    console.error(`[Token Exchange] Error for ${bank.name}:`, error);
+    throw error;
+  }
 }
 
 /**
- * Refresh access token.
+ * Refresh access token using refresh_token grant.
+ * Per RFC 6749 §6 and Namibian Open Banking Standards v1.0 §9.5.1.
+ * Used for long-term consent (max 180 days per §9.5.3).
+ * 
+ * @param bankId - Bank identifier
+ * @param refreshToken - Refresh token from initial authorization
+ * @returns New access token with updated expiration
  */
 export async function refreshToken(bankId: string, refreshToken: string): Promise<BankTokens> {
   const bank = getBankById(bankId);
   
   if (!bank) {
-    throw new Error("Bank not found");
+    throw new Error(`Bank not found: ${bankId}`);
+  }
+  
+  if (!bank.tokenEndpoint) {
+    throw new Error(`Bank ${bank.name} missing tokenEndpoint configuration`);
   }
 
+  // Import mTLS client
+  const { createMTLSAgent } = await import('./mTLSClient.js');
+  
+  // Build refresh token request (RFC 6749 §6)
   const params = new URLSearchParams({
-    grant_type: "refresh_token",
+    grant_type: 'refresh_token',
     refresh_token: refreshToken,
     client_id: config_.clientId,
-    client_secret: config_.clientSecret,
   });
+  
+  // Include client_secret if configured
+  if (config_.clientSecret) {
+    params.append('client_secret', config_.clientSecret);
+  }
 
-  // In production, call the bank's token endpoint
-  // For development, return mock tokens
-  return {
-    accessToken: `mock_access_${Date.now()}`,
-    refreshToken: `mock_refresh_${Date.now()}`,
-    expiresAt: Date.now() + 3600000,
-    scope: config_.scopes.join(" "),
-    tokenType: "Bearer",
-  };
+  try {
+    const agent = createMTLSAgent(bank.id);
+    
+    console.log(`[Token Refresh] Refreshing token for ${bank.name}`);
+    
+    const response = await fetch(bank.tokenEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+        'ParticipantId': config_.participantId || 'API000001',
+        'x-v': '1',
+        'x-fapi-interaction-id': randomUUID(),
+      },
+      body: params.toString(),
+      // @ts-ignore - Node.js fetch supports agent
+      agent,
+    });
+    
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({}));
+      console.error(`[Token Refresh] Failed: ${response.status}`, errorBody);
+      
+      // Handle invalid_grant (token expired/revoked)
+      if (errorBody.error === 'invalid_grant') {
+        throw new Error('Refresh token expired or revoked. User must re-authenticate.');
+      }
+      
+      throw new Error(`Token refresh failed: ${errorBody.error_description || response.statusText}`);
+    }
+    
+    const tokenResponse = await response.json();
+    
+    if (!tokenResponse.access_token) {
+      throw new Error('Token refresh response missing access_token');
+    }
+    
+    const expiresIn = tokenResponse.expires_in || 3600;
+    const expiresAt = Date.now() + (expiresIn * 1000);
+    
+    console.log(`[Token Refresh] Success! New token expires in ${expiresIn}s`);
+    
+    return {
+      accessToken: tokenResponse.access_token,
+      refreshToken: tokenResponse.refresh_token || refreshToken, // Keep old if not provided
+      expiresAt,
+      scope: tokenResponse.scope || config_.scopes.join(' '),
+      tokenType: tokenResponse.token_type || 'Bearer',
+    };
+  } catch (error) {
+    console.error(`[Token Refresh] Error for ${bank.name}:`, error);
+    throw error;
+  }
 }
 
 // ============================================================================
@@ -332,33 +547,170 @@ export async function refreshToken(bankId: string, refreshToken: string): Promis
 // ============================================================================
 
 /**
- * Get linked accounts for a user.
+ * Get linked accounts for a user from Open Banking connections.
  */
 export async function getLinkedAccounts(userId: string): Promise<LinkedAccount[]> {
-  // In production, query database for user's linked accounts
-  // Return mock data for development
-  return [];
+  try {
+    const { sql } = await import("../lib/db.js");
+    
+    const accounts = await sql`
+      SELECT id, bank_id, account_id, account_name, account_type, 
+             currency, account_number_masked, is_active, last_synced_at
+      FROM open_banking_accounts
+      WHERE user_id = ${userId} AND is_active = true
+      ORDER BY created_at DESC
+    `;
+    
+    return accounts.map(a => ({
+      id: a.id,
+      bankId: a.bank_id,
+      accountId: a.account_id,
+      accountName: a.account_name || 'Account',
+      accountType: a.account_type || 'unknown',
+      currency: a.currency || 'NAD',
+      balance: undefined // Would be fetched from bank API
+    }));
+  } catch (error) {
+    console.error('Error fetching linked accounts:', error);
+    return [];
+  }
 }
 
 /**
- * Get account balance.
+ * Get account balance from Data Provider (bank) API.
+ * Per Namibian Open Banking Standards v1.0 §9.2.3 (Account Balance).
+ * 
+ * API endpoint: GET /bon/v1/banking/accounts/{accountId}/balance
+ * 
+ * Response includes (§9.2.3):
+ * - currentBalance: Balance including pending transactions
+ * - availableBalance: Balance available for withdrawal
+ * - creditLimit: Pre-approved credit amount (optional)
+ * - amortisedLimit: Limit for amortised payments (optional)
+ * - currency: ISO 4217 currency code (NAD)
+ * 
+ * @param userId - User identifier (to validate token ownership)
+ * @param bankId - Bank identifier
+ * @param accountId - Unique account identifier from bank
+ * @returns Account balance details
  */
 export async function getAccountBalance(
   userId: string,
   bankId: string,
   accountId: string
 ): Promise<{ available: string; current: string; currency: string }> {
-  // In production, call bank's API with stored tokens
-  // Return mock data for development
-  return {
-    available: "10000.00",
-    current: "10000.00",
-    currency: "NAD",
-  };
+  const bank = getBankById(bankId);
+  
+  if (!bank) {
+    throw new Error(`Bank not found: ${bankId}`);
+  }
+  
+  if (!bank.apiEndpoint) {
+    throw new Error(`Bank ${bank.name} missing apiEndpoint configuration`);
+  }
+
+  // Verify we have valid tokens
+  const tokens = await getValidTokens(userId, bankId);
+  if (!tokens) {
+    throw new Error("No valid tokens found. Please re-authenticate with the bank.");
+  }
+
+  // Import mTLS client
+  const { makeSecureRequest } = await import('./mTLSClient.js');
+  
+  // Construct URL per §9.1.1: https://{provider}/bon/{version}/{industry}/{resource}
+  const url = `${bank.apiEndpoint}/bon/v1/banking/accounts/${accountId}/balance`;
+  
+  try {
+    console.log(`[Account Balance] Fetching for account ${accountId} from ${bank.name}`);
+    
+    // Make mTLS-secured GET request
+    interface BalanceResponse {
+      accountId: string;
+      currentBalance: number;
+      availableBalance: number;
+      currency: string;
+      creditLimit?: number;
+      amortisedLimit?: number;
+    }
+    
+    const response = await makeSecureRequest<BalanceResponse>(
+      url,
+      tokens.accessToken,
+      bank.id,
+      { method: 'GET' }
+    );
+    
+    // Extract data from standard wrapper (§9.1.8)
+    const balanceData = response.data;
+    
+    console.log(`[Account Balance] Success! Current: ${balanceData.currentBalance} ${balanceData.currency}`);
+    
+    return {
+      available: balanceData.availableBalance.toString(),
+      current: balanceData.currentBalance.toString(),
+      currency: balanceData.currency,
+    };
+  } catch (error) {
+    console.error(`[Account Balance] Error for ${bank.name}:`, error);
+    
+    // Handle specific error cases
+    if (error instanceof Error) {
+      if (error.message.includes('401')) {
+        // Token expired - attempt refresh
+        try {
+          const refreshed = await refreshToken(bankId, tokens.refreshToken);
+          // Update tokens in database
+          await saveTokens(userId, bankId, refreshed);
+          // Retry with new token
+          return getAccountBalance(userId, bankId, accountId);
+        } catch (refreshError) {
+          throw new Error('Access token expired and refresh failed. Please re-authenticate.');
+        }
+      }
+      if (error.message.includes('403')) {
+        throw new Error('Insufficient permissions to access account balance.');
+      }
+      if (error.message.includes('404')) {
+        throw new Error(`Account ${accountId} not found at ${bank.name}.`);
+      }
+    }
+    
+    throw error;
+  }
 }
 
 /**
- * Get account transactions.
+ * Get account transactions from Data Provider (bank) API.
+ * Per Namibian Open Banking Standards v1.0 §9.2.4 (Transaction History).
+ * 
+ * API endpoint: GET /bon/v1/banking/accounts/{accountId}/transactions
+ * 
+ * Query parameters (§9.1.3):
+ * - start: Start date (ISO 8601: YYYY-MM-DD)
+ * - end: End date (ISO 8601: YYYY-MM-DD)
+ * - page: Page number (1-indexed)
+ * - page-size: Records per page (default 25, max 1000 per §9.1.3)
+ * 
+ * Response includes (§9.2.4):
+ * - transactionId: Unique transaction ID
+ * - accountId: Associated account
+ * - amount: Transaction amount (negative for debits)
+ * - currency: ISO 4217 currency code (NAD)
+ * - description: Merchant/transaction description
+ * - postingDateTime: When transaction posted (ISO 8601)
+ * - valueDateTime: Value date (when funds available)
+ * - transactionType: DEBIT or CREDIT
+ * - reference: Bank reference number
+ * 
+ * @param userId - User identifier (to validate token ownership)
+ * @param bankId - Bank identifier
+ * @param accountId - Unique account identifier from bank
+ * @param fromDate - Start date filter (ISO 8601)
+ * @param toDate - End date filter (ISO 8601)
+ * @param page - Page number (1-indexed)
+ * @param pageSize - Records per page (default 25, max 1000)
+ * @returns Paginated transaction list
  */
 export async function getAccountTransactions(
   userId: string,
@@ -382,13 +734,223 @@ export async function getAccountTransactions(
   page: number;
   pageSize: number;
 }> {
-  // In production, call bank's API with stored tokens
-  return {
-    transactions: [],
-    total: 0,
-    page: page || 1,
-    pageSize: pageSize || 20,
-  };
+  const bank = getBankById(bankId);
+  
+  if (!bank) {
+    throw new Error(`Bank not found: ${bankId}`);
+  }
+  
+  if (!bank.apiEndpoint) {
+    throw new Error(`Bank ${bank.name} missing apiEndpoint configuration`);
+  }
+
+  // Verify we have valid tokens
+  const tokens = await getValidTokens(userId, bankId);
+  if (!tokens) {
+    throw new Error("No valid tokens found. Please re-authenticate with the bank.");
+  }
+
+  // Import mTLS client
+  const { makeSecureRequest } = await import('./mTLSClient.js');
+  
+  // Build query parameters (§9.1.3)
+  const params = new URLSearchParams();
+  if (fromDate) params.append('start', fromDate);
+  if (toDate) params.append('end', toDate);
+  if (page) params.append('page', page.toString());
+  params.append('page-size', (pageSize || 25).toString());
+  
+  // Construct URL per §9.1.1
+  const url = `${bank.apiEndpoint}/bon/v1/banking/accounts/${accountId}/transactions?${params.toString()}`;
+  
+  try {
+    console.log(`[Transactions] Fetching for account ${accountId} from ${bank.name}`);
+    console.log(`[Transactions] Filters: ${fromDate || 'no start'} → ${toDate || 'no end'}, page ${page || 1}`);
+    
+    // Make mTLS-secured GET request
+    interface TransactionResponse {
+      transactions: Array<{
+        transactionId: string;
+        accountId: string;
+        amount: number;
+        currency: string;
+        description: string;
+        postingDateTime: string;
+        valueDateTime: string;
+        transactionType: 'DEBIT' | 'CREDIT';
+        reference: string;
+      }>;
+      pagination?: {
+        totalRecords: number;
+        totalPages: number;
+        currentPage: number;
+        pageSize: number;
+      };
+    }
+    
+    const response = await makeSecureRequest<TransactionResponse>(
+      url,
+      tokens.accessToken,
+      bank.id,
+      { method: 'GET' }
+    );
+    
+    // Extract data from standard wrapper (§9.1.8)
+    const data = response.data;
+    
+    // Transform to expected format
+    const transactions = data.transactions.map(tx => ({
+      id: tx.transactionId,
+      date: tx.postingDateTime,
+      amount: tx.amount.toString(),
+      currency: tx.currency,
+      description: tx.description,
+      type: tx.transactionType.toLowerCase(),
+      reference: tx.reference,
+    }));
+    
+    const total = data.pagination?.totalRecords || transactions.length;
+    const currentPage = data.pagination?.currentPage || page || 1;
+    const currentPageSize = data.pagination?.pageSize || pageSize || 25;
+    
+    console.log(`[Transactions] Success! Retrieved ${transactions.length} transactions (page ${currentPage})`);
+    
+    return {
+      transactions,
+      total,
+      page: currentPage,
+      pageSize: currentPageSize,
+    };
+  } catch (error) {
+    console.error(`[Transactions] Error for ${bank.name}:`, error);
+    
+    // Handle specific error cases
+    if (error instanceof Error) {
+      if (error.message.includes('401')) {
+        // Token expired - attempt refresh
+        try {
+          const refreshed = await refreshToken(bankId, tokens.refreshToken);
+          // Update tokens in database
+          await saveTokens(userId, bankId, refreshed);
+          // Retry with new token
+          return getAccountTransactions(userId, bankId, accountId, fromDate, toDate, page, pageSize);
+        } catch (refreshError) {
+          throw new Error('Access token expired and refresh failed. Please re-authenticate.');
+        }
+      }
+      if (error.message.includes('403')) {
+        throw new Error('Insufficient permissions to access transactions.');
+      }
+      if (error.message.includes('404')) {
+        throw new Error(`Account ${accountId} not found at ${bank.name}.`);
+      }
+    }
+    
+    throw error;
+  }
+}
+
+// ============================================================================
+// Database Persistence Functions
+// ============================================================================
+
+/**
+ * Save OAuth tokens to database
+ */
+export async function saveTokens(
+  userId: string,
+  bankId: string,
+  tokens: BankTokens,
+  consentId?: string,
+  accountIds?: string[]
+): Promise<void> {
+  const { sql } = await import("../lib/db.js");
+  
+  const expiresAt = new Date(tokens.expiresAt).toISOString();
+  
+  await sql`
+    INSERT INTO oauth_bank_tokens (
+      user_id, bank_id, access_token, refresh_token, 
+      token_type, scope, expires_at, consent_id, account_ids
+    )
+    VALUES (
+      ${userId}, ${bankId}, ${tokens.accessToken}, ${tokens.refreshToken || null},
+      ${tokens.tokenType}, ${tokens.scope}, ${expiresAt}, ${consentId || null},
+      ${JSON.stringify(accountIds || [])}
+    )
+    ON CONFLICT (user_id, bank_id)
+    DO UPDATE SET
+      access_token = ${tokens.accessToken},
+      refresh_token = ${tokens.refreshToken || null},
+      expires_at = ${expiresAt},
+      scope = ${tokens.scope},
+      updated_at = NOW()
+  `;
+}
+
+/**
+ * Get stored tokens for user and bank
+ */
+export async function getStoredTokens(userId: string, bankId: string): Promise<BankTokens | null> {
+  try {
+    const { sql } = await import("../lib/db.js");
+    
+    const tokens = await sql`
+      SELECT access_token, refresh_token, token_type, scope, expires_at
+      FROM oauth_bank_tokens
+      WHERE user_id = ${userId} AND bank_id = ${bankId}
+      LIMIT 1
+    `;
+    
+    if (tokens.length === 0) {
+      return null;
+    }
+    
+    const token = tokens[0];
+    
+    return {
+      accessToken: token.access_token,
+      refreshToken: token.refresh_token,
+      expiresAt: new Date(token.expires_at).getTime(),
+      scope: token.scope,
+      tokenType: token.token_type || 'Bearer'
+    };
+  } catch (error) {
+    console.error('Error retrieving tokens:', error);
+    return null;
+  }
+}
+
+/**
+ * Check if tokens are expired
+ */
+export function isTokenExpired(tokens: BankTokens): boolean {
+  return Date.now() >= tokens.expiresAt;
+}
+
+/**
+ * Get valid tokens (auto-refresh if expired)
+ */
+export async function getValidTokens(userId: string, bankId: string): Promise<BankTokens | null> {
+  const tokens = await getStoredTokens(userId, bankId);
+  
+  if (!tokens) {
+    return null;
+  }
+  
+  // If expired and we have refresh token, refresh
+  if (isTokenExpired(tokens) && tokens.refreshToken) {
+    try {
+      const newTokens = await refreshToken(bankId, tokens.refreshToken);
+      await saveTokens(userId, bankId, newTokens);
+      return newTokens;
+    } catch (error) {
+      console.error('Token refresh failed:', error);
+      return null;
+    }
+  }
+  
+  return tokens;
 }
 
 // ============================================================================
@@ -397,6 +959,26 @@ export async function getAccountTransactions(
 
 function generateState(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
+/**
+ * Generate PKCE code verifier
+ */
+export function generateCodeVerifier(): string {
+  const array = new Uint8Array(32);
+  crypto.getRandomValues(array);
+  return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Generate PKCE code challenge from verifier
+ */
+export async function generateCodeChallenge(verifier: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(verifier);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  const base64 = Buffer.from(digest).toString('base64');
+  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 }
 
 // ============================================================================

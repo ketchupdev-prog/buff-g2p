@@ -3,8 +3,9 @@
 # Dependencies
 node_modules/
 
-# Python venv (Buffr AI)
+# Python venv (Buffr AI) – at repo root or in backend
 /ai/
+backend/ai/
 
 # Expo
 .expo/

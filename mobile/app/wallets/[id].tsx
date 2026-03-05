@@ -29,6 +29,8 @@ import {
 import { designSystem } from '@/constants/designSystem';
 import { useUser } from '@/contexts/UserContext';
 import { AddMoneyModal } from '@/components/modals';
+import { ErrorState, LoadingState } from '@/components/ui';
+import { usePullToRefresh } from '@/hooks';
 
 /** User-defined icon (emoji) or neutral – per Buffr design, no predetermined types. */
 function walletDisplayIcon(w: Wallet): string {
@@ -45,7 +47,6 @@ export default function WalletDetailScreen() {
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showAddMoneyModal, setShowAddMoneyModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -63,9 +64,12 @@ export default function WalletDetailScreen() {
       console.error('WalletDetail load:', e);
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   }, [id]);
+
+  const { refreshing, onRefresh } = usePullToRefresh({
+    onRefresh: load,
+  });
 
   useEffect(() => { load(); }, [load]);
 
@@ -76,9 +80,7 @@ export default function WalletDetailScreen() {
     return (
       <SafeAreaView style={styles.safe}>
         <Stack.Screen options={{ headerShown: true, headerTitle: 'Wallet', headerTintColor: '#1E293B', headerStyle: { backgroundColor: '#fff' } }} />
-        <View style={styles.center}>
-          <ActivityIndicator color="#0029D6" />
-        </View>
+        <LoadingState message="Loading wallet..." />
       </SafeAreaView>
     );
   }
@@ -117,9 +119,7 @@ export default function WalletDetailScreen() {
       />
 
       {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator color="#0029D6" />
-        </View>
+        <LoadingState message="Loading wallet details..." />
       ) : !wallet ? (
         <View style={styles.center}>
           <Text style={styles.notFound}>Wallet not found.</Text>
@@ -133,7 +133,7 @@ export default function WalletDetailScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor="#0029D6" />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={designSystem.colors.brand.primary} />
           }
         >
           {isFrozen && (
@@ -222,10 +222,12 @@ export default function WalletDetailScreen() {
           </View>
 
           {transactions.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Ionicons name="time-outline" size={40} color="#CBD5E1" />
-              <Text style={styles.emptyText}>No transactions for this wallet.</Text>
-            </View>
+            <ErrorState
+              variant="empty"
+              title="No transactions yet"
+              message="Transactions for this wallet will appear here."
+              style={{ marginTop: 32 }}
+            />
           ) : (
             transactions.map((tx) => {
               const debit = isDebit(tx);

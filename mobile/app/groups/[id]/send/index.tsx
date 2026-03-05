@@ -18,7 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { designSystem } from '@/constants/designSystem';
 import { getSecureItem } from '@/services/secureStorage';
-import { Avatar } from '@/components/ui';
+import { Avatar, ErrorState } from '@/components/ui';
 import { getWallets } from '@/services/wallets';
 import { TwoFAModal } from '@/components/modals';
 

@@ -3,6 +3,14 @@
  * Universal payment screen for all bill types:
  * electricity, water, airtime/data, TV, internet, insurance, tickets, other.
  * §3.4 bill payment flow.
+ * 
+ * ⚠️ DEPRECATED - This 622-line single-screen flow has been replaced by a 3-step wizard:
+ * - /bills/details.tsx (Step 1: Account & Amount)
+ * - /bills/wallet.tsx (Step 2: Wallet Selection)
+ * - /bills/confirm.tsx (Step 3: Confirm & PIN)
+ * 
+ * This file is kept for reference only. Navigation updated in (tabs)/home/bills.tsx
+ * to use the new multi-step flow with ProgressIndicator.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import {

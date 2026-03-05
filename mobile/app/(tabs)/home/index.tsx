@@ -24,6 +24,8 @@ import { getTransactions, formatTransactionType, formatTransactionAmount, transa
 import { checkApiReachable, getApiBaseUrl } from '@/services/network';
 import { designSystem } from '@/constants/designSystem';
 import { AppHeader } from '@/components/layout';
+import { usePullToRefresh, useNetworkStatus } from '@/hooks';
+import { OfflineBanner } from '@/components/common';
 // CardFrame: require with try/catch so runtime never throws "Property 'CardFrame' doesn't exist"
 let CardFrameComponent: React.ComponentType<{ userName: string; cardNumber: string; expiryDate: string }> | null = null;
 try {
@@ -34,80 +36,82 @@ try {
 }
 import { WalletCarousel, RecentContactsCarousel } from '@/components/home';
 import { AddMoneyModal } from '@/components/modals';
+import { CARD_FRAME_FILL } from '@/constants/CardDesign';
 
 // ─── 3×3 Services Grid ────────────────────────────────────────────────────────
 // 9 tiles per Buffr app design: Proof of Life, Receive, Cash Out, Vouchers, Airtime, Bills, Loans, Groups, Find Agent. Send remains via FAB.
+// Colors mapped from CARD_FRAME_FILL for visual consistency with wallet/voucher cards.
 const SERVICES_GRID = [
   {
     id: 'proof-of-life',
     label: 'Proof of Life',
     icon: 'shield-checkmark-outline' as const,
-    color: '#B45309',
-    bg: '#FFFBEB',
-    route: '/proof-of-life/verify',
+    color: CARD_FRAME_FILL[15], // Gold/Amber (frame 15)
+    bg: `${CARD_FRAME_FILL[15]}15`, // 15% opacity background
+    route: '/proof-of-life/intro',
   },
   {
     id: 'receive',
     label: 'Receive',
     icon: 'arrow-down-circle-outline' as const,
-    color: '#22C55E',
-    bg: '#F0FDF4',
+    color: CARD_FRAME_FILL[23], // Emerald/Green (frame 23)
+    bg: `${CARD_FRAME_FILL[23]}15`,
     route: '/receive',
   },
   {
     id: 'cashout',
     label: 'Cash Out',
     icon: 'cash-outline' as const,
-    color: '#8B5CF6',
-    bg: '#F5F3FF',
-    route: '/wallets',
+    color: CARD_FRAME_FILL[27], // Indigo/Purple (frame 27)
+    bg: `${CARD_FRAME_FILL[27]}15`,
+    route: '/wallets/cash-out',
   },
   {
     id: 'vouchers',
     label: 'Vouchers',
     icon: 'gift-outline' as const,
-    color: '#F59E0B',
-    bg: '#FFFBEB',
+    color: CARD_FRAME_FILL[8], // Coral/Orange (frame 8)
+    bg: `${CARD_FRAME_FILL[8]}15`,
     route: '/(tabs)/vouchers',
   },
   {
     id: 'airtime',
     label: 'Airtime',
     icon: 'phone-portrait-outline' as const,
-    color: '#0891B2',
-    bg: '#ECFEFF',
+    color: CARD_FRAME_FILL[30], // Teal (frame 30)
+    bg: `${CARD_FRAME_FILL[30]}15`,
     route: '/(tabs)/home/bills?category=airtime',
   },
   {
     id: 'bills',
     label: 'Pay Bills',
     icon: 'document-text-outline' as const,
-    color: '#E11D48',
-    bg: '#FFF1F2',
+    color: CARD_FRAME_FILL[14], // Rose/Pink (frame 14)
+    bg: `${CARD_FRAME_FILL[14]}15`,
     route: '/(tabs)/home/bills',
   },
   {
     id: 'loans',
     label: 'Loans',
     icon: 'business-outline' as const,
-    color: '#6366F1',
-    bg: '#EEF2FF',
+    color: CARD_FRAME_FILL[22], // Blue (frame 22)
+    bg: `${CARD_FRAME_FILL[22]}15`,
     route: '/(tabs)/home/loans',
   },
   {
     id: 'groups',
     label: 'Groups',
     icon: 'people-outline' as const,
-    color: '#7C3AED',
-    bg: '#EDE9FE',
+    color: CARD_FRAME_FILL[11], // Violet (frame 11)
+    bg: `${CARD_FRAME_FILL[11]}15`,
     route: '/groups',
   },
   {
     id: 'agents',
     label: 'Find Agent',
     icon: 'location-outline' as const,
-    color: '#64748B',
-    bg: '#F8FAFC',
+    color: CARD_FRAME_FILL[20], // Gray (frame 20)
+    bg: `${CARD_FRAME_FILL[20]}15`,
     route: '/(tabs)/home/agents',
   },
 ];
@@ -130,7 +134,6 @@ export default function HomeScreen() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [recentTx, setRecentTx] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [balanceVisible, setBalanceVisible] = useState(true);
@@ -178,9 +181,14 @@ export default function HomeScreen() {
       if (getApiBaseUrl()) setApiReachable(false);
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   }, []);
+
+  const { refreshing, onRefresh } = usePullToRefresh({
+    onRefresh: loadData,
+  });
+
+  const { isConnected } = useNetworkStatus();
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -198,8 +206,6 @@ export default function HomeScreen() {
       loadData();
     }, [loadData]),
   );
-
-  const onRefresh = () => { setRefreshing(true); loadData(); };
 
   // Background gradient via react-native-svg (works without native expo-linear-gradient module)
   const bg = (designSystem.colors as Record<string, unknown>).backgroundGradient as
@@ -243,12 +249,14 @@ export default function HomeScreen() {
           notificationBadge
         />
 
+        {!isConnected && <OfflineBanner />}
+
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={[styles.scrollContent, { paddingBottom: 140 }]}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0029D6" />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={designSystem.colors.brand.primary} />
           }
           keyboardShouldPersistTaps="handled"
         >
@@ -256,7 +264,7 @@ export default function HomeScreen() {
           {showProofOfLifeBanner && (
             <TouchableOpacity
               style={styles.pofBanner}
-              onPress={() => router.push('/proof-of-life/verify' as never)}
+              onPress={() => router.push('/proof-of-life/intro' as never)}
               activeOpacity={0.9}
               accessibilityLabel="Proof of life due. Verify now to continue receiving grants."
             >

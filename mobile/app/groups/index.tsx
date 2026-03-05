@@ -6,6 +6,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -17,7 +18,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { designSystem } from '@/constants/designSystem';
 import { getSecureItem } from '@/services/secureStorage';
-import { Avatar } from '@/components/ui';
+import { Avatar, ErrorState, LoadingState } from '@/components/ui';
+import { usePullToRefresh } from '@/hooks';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 
@@ -67,11 +69,25 @@ export default function GroupsListScreen() {
     }
   }, []);
 
+  const { refreshing, onRefresh } = usePullToRefresh({
+    onRefresh: load,
+  });
+
   useEffect(() => { load(); }, [load]);
 
   return (
     <SafeAreaView style={styles.screen} edges={['bottom']}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        contentContainerStyle={styles.content} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={onRefresh} 
+            tintColor={designSystem.colors.brand.primary} 
+          />
+        }
+      >
         <TouchableOpacity
           style={styles.createCard}
           onPress={() => router.push('/groups/create')}
@@ -90,16 +106,15 @@ export default function GroupsListScreen() {
         </View>
 
         {loading ? (
-          <ActivityIndicator color={designSystem.colors.brand.primary} style={{ marginTop: 24 }} />
+          <LoadingState message="Loading groups..." />
         ) : groups.length === 0 ? (
-          <View style={styles.empty}>
-            <Ionicons name="people-outline" size={48} color="#CBD5E1" />
-            <Text style={styles.emptyTitle}>No groups yet</Text>
-            <Text style={styles.emptyDesc}>Create a group to send or request money together.</Text>
-            <TouchableOpacity style={styles.emptyBtn} onPress={() => router.push('/groups/create')}>
-              <Text style={styles.emptyBtnText}>Create Group</Text>
-            </TouchableOpacity>
-          </View>
+          <ErrorState
+            variant="empty"
+            title="No groups yet"
+            message="Create a group to send or request money together."
+            action={{ label: 'Create Group', onPress: () => router.push('/groups/create') }}
+            style={{ marginTop: 24 }}
+          />
         ) : (
           groups.map((g) => (
             <TouchableOpacity

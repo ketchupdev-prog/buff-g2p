@@ -1,5 +1,5 @@
 /**
- * AI tab – Buffr AI Companion. API and backend only; no mocks or hardcoded fallbacks.
+ * AI tab – Buffr AI Companion. Backend only; all data from API.
  * Uses knowledge base and backend state; supports HITL (approve/deny). Streaming when backend exposes /chat/stream.
  * Location: mobile/app/(tabs)/ai/index.tsx
  */
@@ -20,12 +20,17 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   COMPANION_NOT_CONFIGURED,
+  checkCompanionHealth,
   sendCompanionMessage,
   lastAssistantReply,
   type ChatResponseInterrupt,
   type CompanionError,
 } from '@/services/companionApi';
+import { useUser } from '@/contexts/UserContext';
 import { designSystem } from '@/constants/designSystem';
+import { ErrorState, LoadingState } from '@/components/ui';
+import { useNetworkStatus } from '@/hooks';
+import { OfflineBanner } from '@/components/common';
 
 const THREAD_STORAGE_KEY = 'buffr_companion_thread_id';
 
@@ -36,8 +41,20 @@ interface ChatMessage {
   loading?: boolean;
 }
 
-const WELCOME =
-  "Hi! I'm the Buffr AI Companion. I use the backend and knowledge base to help with vouchers, cash out, bills, loans, and more. How can I help?";
+const WELCOME_INTRO =
+  "I'm the Buffr AI Companion. I use the backend and knowledge base to help with vouchers, cash out, bills, loans, and more. How can I help?";
+
+/** Default welcome text (used for initial state and any code that references WELCOME). */
+const WELCOME = `Hi! ${WELCOME_INTRO}`;
+
+/** Greeting text: personalized with user name when profile has firstName/lastName, otherwise generic. */
+function getWelcomeText(profile: { firstName?: string; lastName?: string } | null): string {
+  const name = [profile?.firstName, profile?.lastName].filter(Boolean).join(' ').trim();
+  if (name) {
+    return `Hi ${name}! ${WELCOME_INTRO}`;
+  }
+  return `Hi! ${WELCOME_INTRO}`;
+}
 
 async function getOrCreateThreadId(): Promise<string> {
   try {
@@ -69,7 +86,9 @@ function errorMessage(err: CompanionError): string {
 }
 
 export default function AiTabScreen() {
-  const [messages, setMessages] = useState<ChatMessage[]>([
+  const { profile } = useUser();
+  const { isConnected } = useNetworkStatus();
+  const [messages, setMessages] = useState<ChatMessage[]>(() => [
     { id: 'welcome', role: 'bot', text: WELCOME },
   ]);
   const [input, setInput] = useState('');
@@ -77,7 +96,30 @@ export default function AiTabScreen() {
   const [error, setError] = useState<string | null>(null);
   const [pendingApproval, setPendingApproval] = useState<ChatResponseInterrupt['approval_payload'] | null>(null);
   const [threadId, setThreadId] = useState<string | null>(null);
+  const [companionOnline, setCompanionOnline] = useState<boolean | null>(null);
   const scrollRef = useRef<ScrollView>(null);
+
+  // When profile loads, update the welcome message to address the user by name.
+  useEffect(() => {
+    const welcomeText = getWelcomeText(profile);
+    setMessages((prev) =>
+      prev.length === 1 && prev[0].id === 'welcome'
+        ? [{ ...prev[0], text: welcomeText }]
+        : prev
+    );
+  }, [profile?.firstName, profile?.lastName]);
+
+  useEffect(() => {
+    if (COMPANION_NOT_CONFIGURED) return;
+    let cancelled = false;
+    setCompanionOnline(null);
+    checkCompanionHealth().then((ok) => {
+      if (!cancelled) setCompanionOnline(ok);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
@@ -178,13 +220,12 @@ export default function AiTabScreen() {
             <Text style={styles.headerTitle}>Buffr AI Companion</Text>
             <Text style={styles.headerSub}>Not configured</Text>
           </View>
-          <View style={styles.errorBlock}>
-            <Ionicons name="warning-outline" size={48} color={designSystem.colors.semantic.error} />
-            <Text style={styles.errorTitle}>Companion unavailable</Text>
-            <Text style={styles.errorText}>
-              Set EXPO_PUBLIC_BUFFR_AI_URL to your Buffr AI backend. No fallback or mocks are used.
-            </Text>
-          </View>
+          <ErrorState
+            variant="network"
+            title="Companion unavailable"
+            message="Set EXPO_PUBLIC_BUFFR_AI_URL to your Buffr AI backend."
+            style={{ marginTop: 60 }}
+          />
         </SafeAreaView>
       </View>
     );
@@ -196,22 +237,34 @@ export default function AiTabScreen() {
       <SafeAreaView style={styles.safe} edges={['top']}>
         <View style={styles.header}>
           <View style={styles.headerInfo}>
-            <View style={styles.botDot} />
+            <View style={[styles.botDot, companionOnline === false && styles.botDotOffline]} />
             <View>
               <Text style={styles.headerTitle}>Buffr AI Companion</Text>
-              <Text style={styles.headerSub}>Backend · Knowledge base · State</Text>
+              <Text
+                style={[
+                  styles.headerSub,
+                  companionOnline === true && styles.headerSubOnline,
+                  companionOnline === false && styles.headerSubOffline,
+                ]}
+              >
+                {companionOnline === null ? 'Checking…' : companionOnline ? 'Online' : 'Offline'}
+              </Text>
             </View>
           </View>
         </View>
 
-        {error ? (
-          <View style={styles.errorBanner}>
-            <Text style={styles.errorBannerText}>{error}</Text>
-            <TouchableOpacity onPress={() => setError(null)} style={styles.errorBannerDismiss}>
-              <Ionicons name="close" size={20} color={designSystem.colors.neutral.text} />
-            </TouchableOpacity>
+        {!isConnected && <OfflineBanner />}
+
+        {error && (
+          <View style={styles.errorBannerWrapper}>
+            <ErrorState
+              variant={error.includes('Connection') || error.includes('Network') ? 'network' : error.includes('service is starting') ? 'default' : 'default'}
+              message={error}
+              onRetry={error.includes('Connection') || error.includes('Network') ? () => setError(null) : undefined}
+              style={{ marginHorizontal: 16 }}
+            />
           </View>
-        ) : null}
+        )}
 
         {pendingApproval ? (
           <View style={styles.approvalBar}>
@@ -327,8 +380,17 @@ const styles = StyleSheet.create({
   },
   headerSub: {
     ...designSystem.typography.textStyles.caption,
-    color: designSystem.colors.semantic.success,
+    color: designSystem.colors.neutral.textSecondary,
     marginTop: 1,
+  },
+  headerSubOnline: {
+    color: designSystem.colors.semantic.success,
+  },
+  headerSubOffline: {
+    color: designSystem.colors.semantic.error,
+  },
+  botDotOffline: {
+    backgroundColor: designSystem.colors.semantic.error,
   },
   botDot: {
     width: 36,
@@ -367,6 +429,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: designSystem.colors.semantic.error + '40',
+  },
+  errorBannerWrapper: {
+    marginTop: 8,
+    marginHorizontal: 0,
   },
   errorBannerText: { flex: 1, fontSize: 13, color: designSystem.colors.neutral.text },
   errorBannerDismiss: { padding: 4 },

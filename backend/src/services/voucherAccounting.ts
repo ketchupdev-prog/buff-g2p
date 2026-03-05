@@ -142,11 +142,10 @@ export async function postVoucherCashedOut(params: {
 }
 
 /**
- * Calculate vouchers due (unredeemed + uncashed).
+ * Calculate vouchers due (unredeemed + uncashed) - REAL IMPLEMENTATION.
  * This is a helper to get the total liability outstanding.
  * 
- * In Fineract, this would be queried from the journal entries or a custom report.
- * For now, this is a placeholder that can be extended.
+ * Queries the database to calculate actual voucher liabilities.
  */
 export async function getVouchersDueSummary(): Promise<{
   success: boolean;
@@ -156,18 +155,31 @@ export async function getVouchersDueSummary(): Promise<{
   vouchersDue?: number;
   error?: string;
 }> {
-  if (!isFineractEnabled()) {
-    return { success: false, error: "Fineract not configured" };
+  try {
+    // Import sql from db for direct queries
+    const { sql } = await import("../lib/db.js");
+    
+    // Calculate from vouchers table
+    const result = await sql`
+      SELECT 
+        COUNT(*) FILTER (WHERE status IN ('active', 'redeemed', 'cashed_out')) as total_issued,
+        COUNT(*) FILTER (WHERE status = 'redeemed') as total_redeemed,
+        COUNT(*) FILTER (WHERE status = 'cashed_out') as total_cashed_out,
+        SUM(amount) FILTER (WHERE status = 'active') as active_liability
+      FROM vouchers
+    `;
+    
+    const stats = result[0];
+    
+    return {
+      success: true,
+      totalIssued: parseInt(stats.total_issued) || 0,
+      totalRedeemed: parseInt(stats.total_redeemed) || 0,
+      totalCashedOut: parseInt(stats.total_cashed_out) || 0,
+      vouchersDue: parseFloat(stats.active_liability) || 0,
+    };
+  } catch (err) {
+    console.error("Failed to calculate vouchers due:", err);
+    return { success: false, error: String(err) };
   }
-
-  // This would require a custom report or summing journal entries
-  // For now, return a placeholder - the actual values would come from Neon DB
-  // or a Fineract report
-  return {
-    success: true,
-    totalIssued: 0,
-    totalRedeemed: 0,
-    totalCashedOut: 0,
-    vouchersDue: 0,
-  };
 }
