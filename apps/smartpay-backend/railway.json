@@ -1,0 +1,30 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "npm install && npm run build"
+  },
+  "deploy": {
+    "startCommand": "npm start",
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10,
+    "healthcheckPath": "/health",
+    "healthcheckTimeout": 300
+  },
+  "services": [
+    {
+      "name": "smartpay-backend",
+      "icon": "nodejs",
+      "language": "typescript",
+      "staticPublishPath": null
+    }
+  ],
+  "environments": {
+    "production": {
+      "variables": {
+        "NODE_ENV": "production",
+        "PORT": "4000"
+      }
+    }
+  }
+}

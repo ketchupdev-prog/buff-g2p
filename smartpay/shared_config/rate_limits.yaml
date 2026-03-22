@@ -1,0 +1,346 @@
+# Unified Rate Limit Configuration for SmartPay
+# Location: shared_config/rate_limits.yaml
+# Purpose: Centralized rate limiting rules for both Python and TypeScript backends
+#
+# Token Bucket Algorithm Parameters:
+# - capacity: Maximum number of tokens (requests) in the bucket
+# - refill_rate: Tokens added per second
+# - window_ms: Time window in milliseconds (for fixed window algorithm)
+# - max_requests: Maximum requests per window (for fixed window algorithm)
+#
+# You can use either token bucket OR fixed window depending on backend implementation
+
+version: "1.0"
+
+# Global rate limits (applies to all requests)
+global:
+  # Default fallback for unspecified endpoints
+  default:
+    algorithm: "token_bucket"  # or "fixed_window"
+    capacity: 1000
+    refill_rate: 0.2778  # 1000 per hour (1000 / 3600 seconds)
+    window_ms: 3600000  # 1 hour
+    max_requests: 1000
+    description: "Default global rate limit"
+
+# Endpoint-specific rate limits
+endpoints:
+  # AI Copilot Endpoints
+  copilot_chat:
+    path: "/api/v1/copilot/chat"
+    algorithm: "token_bucket"
+    capacity: 100
+    refill_rate: 0.1111  # 100 per 15 minutes (100 / 900 seconds)
+    window_ms: 900000  # 15 minutes
+    max_requests: 100
+    description: "Standard copilot chat endpoint"
+    per_user: true
+    
+  copilot_chat_stream:
+    path: "/api/v1/copilot/chat/stream"
+    algorithm: "token_bucket"
+    capacity: 50
+    refill_rate: 0.0556  # 50 per 15 minutes
+    window_ms: 900000  # 15 minutes
+    max_requests: 50
+    description: "Streaming chat endpoint (higher cost)"
+    per_user: true
+  
+  copilot_knowledge_search:
+    path: "/api/v1/copilot/knowledge/search"
+    algorithm: "token_bucket"
+    capacity: 30
+    refill_rate: 0.1  # 30 per 5 minutes (30 / 300 seconds)
+    window_ms: 300000  # 5 minutes
+    max_requests: 30
+    description: "Knowledge base search"
+    per_user: true
+  
+  # ML/Analytics Endpoints
+  ml_predict:
+    path: "/api/v1/ml/predict"
+    algorithm: "token_bucket"
+    capacity: 200
+    refill_rate: 0.0556  # 200 per hour
+    window_ms: 3600000  # 1 hour
+    max_requests: 200
+    description: "Machine learning predictions"
+    per_user: true
+  
+  ml_anomaly_detection:
+    path: "/api/v1/ml/anomaly"
+    algorithm: "token_bucket"
+    capacity: 100
+    refill_rate: 0.0278  # 100 per hour
+    window_ms: 3600000
+    max_requests: 100
+    description: "Anomaly detection endpoint"
+    per_user: true
+
+  analytics_operations:
+    path: "/api/v1/analytics"
+    algorithm: "token_bucket"
+    capacity: 120
+    refill_rate: 0.0333
+    window_ms: 3600000
+    max_requests: 120
+    description: "DuckDB analytics and reporting API"
+    per_user: true
+  
+  # Payment Endpoints (PSD-12 Compliance - Strict Limits)
+  payments_initiate:
+    path: "/api/payments/initiate"
+    algorithm: "token_bucket"
+    capacity: 10
+    refill_rate: 0.0028  # 10 per hour
+    window_ms: 3600000
+    max_requests: 10
+    description: "Payment initiation (PSD-12 strict)"
+    per_user: true
+    security_level: "critical"
+    log_violations: true
+  
+  payments_verify_2fa:
+    path: "/api/payments/verify-2fa"
+    algorithm: "token_bucket"
+    capacity: 20
+    refill_rate: 0.0222  # 20 per 15 minutes
+    window_ms: 900000
+    max_requests: 20
+    description: "2FA verification for payments"
+    per_user: true
+    security_level: "high"
+    log_violations: true
+  
+  payments_tokenize_card:
+    path: "/api/payments/tokenize-card"
+    algorithm: "token_bucket"
+    capacity: 30
+    refill_rate: 0.0083  # 30 per hour
+    window_ms: 3600000
+    max_requests: 30
+    description: "Card tokenization endpoint"
+    per_user: true
+    security_level: "high"
+    log_violations: true
+  
+  transfers:
+    path: "/api/transfers"
+    algorithm: "token_bucket"
+    capacity: 15
+    refill_rate: 0.0042  # 15 per hour
+    window_ms: 3600000
+    max_requests: 15
+    description: "Money transfer operations"
+    per_user: true
+    security_level: "critical"
+    log_violations: true
+  
+  withdrawals:
+    path: "/api/withdrawals"
+    algorithm: "token_bucket"
+    capacity: 10
+    refill_rate: 0.0028  # 10 per hour
+    window_ms: 3600000
+    max_requests: 10
+    description: "Cash withdrawal operations"
+    per_user: true
+    security_level: "critical"
+    log_violations: true
+  
+  # Authentication Endpoints (Brute Force Protection)
+  auth_login:
+    path: "/api/auth/login"
+    algorithm: "fixed_window"
+    capacity: 5
+    refill_rate: 0.0056  # 5 per 15 minutes
+    window_ms: 900000  # 15 minutes
+    max_requests: 5
+    description: "Login endpoint (brute force protection)"
+    per_user: false  # Per IP address
+    per_ip: true
+    security_level: "critical"
+    log_violations: true
+    block_on_exceed: true  # Temporarily block IP
+  
+  auth_verify_2fa:
+    path: "/api/auth/verify-2fa"
+    algorithm: "fixed_window"
+    capacity: 10
+    refill_rate: 0.0111  # 10 per 15 minutes
+    window_ms: 900000
+    max_requests: 10
+    description: "2FA verification during login"
+    per_user: false
+    per_ip: true
+    security_level: "high"
+    log_violations: true
+  
+  auth_request_otp:
+    path: "/api/auth/request-otp"
+    algorithm: "fixed_window"
+    capacity: 10
+    refill_rate: 0.0111  # 10 per 15 minutes
+    window_ms: 900000
+    max_requests: 10
+    description: "OTP request endpoint"
+    per_user: false
+    per_ip: true
+    security_level: "high"
+    log_violations: true
+  
+  auth_reset_password:
+    path: "/api/auth/reset-password"
+    algorithm: "fixed_window"
+    capacity: 3
+    refill_rate: 0.0033  # 3 per 15 minutes
+    window_ms: 900000
+    max_requests: 3
+    description: "Password reset requests"
+    per_user: false
+    per_ip: true
+    security_level: "high"
+    log_violations: true
+  
+  # Admin Endpoints (Strict Limits)
+  admin_operations:
+    path: "/api/v1/admin"
+    algorithm: "token_bucket"
+    capacity: 20
+    refill_rate: 0.0056  # 20 per hour
+    window_ms: 3600000
+    max_requests: 20
+    description: "Administrative operations"
+    per_user: true
+    security_level: "critical"
+    log_violations: true
+  
+  # Read-Only Endpoints (Lenient)
+  transactions_list:
+    path: "/api/transactions"
+    algorithm: "token_bucket"
+    capacity: 60
+    refill_rate: 1.0  # 60 per minute
+    window_ms: 60000  # 1 minute
+    max_requests: 60
+    description: "Transaction history queries"
+    per_user: true
+  
+  account_balance:
+    path: "/api/accounts/balance"
+    algorithm: "token_bucket"
+    capacity: 60
+    refill_rate: 1.0  # 60 per minute
+    window_ms: 60000
+    max_requests: 60
+    description: "Account balance checks"
+    per_user: true
+  
+  user_profile:
+    path: "/api/users/profile"
+    algorithm: "token_bucket"
+    capacity: 60
+    refill_rate: 1.0  # 60 per minute
+    window_ms: 60000
+    max_requests: 60
+    description: "User profile data"
+    per_user: true
+
+  users_pin_set:
+    path: "/api/v1/users/pin"
+    algorithm: "fixed_window"
+    capacity: 10
+    refill_rate: 0.0111
+    window_ms: 3600000
+    max_requests: 10
+    description: "Set or change mobile user PIN"
+    per_user: true
+    security_level: "high"
+    log_violations: true
+
+  users_pin_verify:
+    path: "/api/v1/users/verify-pin"
+    algorithm: "fixed_window"
+    capacity: 15
+    refill_rate: 0.0167
+    window_ms: 900000
+    max_requests: 15
+    description: "PIN verification (brute-force protection)"
+    per_user: true
+    security_level: "critical"
+    log_violations: true
+
+# Paths to skip rate limiting
+skip_paths:
+  - "/"
+  - "/health"
+  - "/api/v1/health"
+  - "/api/v1/health/detailed"
+  - "/docs"
+  - "/openapi.json"
+  - "/redoc"
+  - "/swagger"
+  - "/api-docs"
+  - "/favicon.ico"
+  - "/robots.txt"
+
+# Security event logging configuration
+security_logging:
+  enabled: true
+  log_violations: true
+  log_database: "postgres"  # or "mongodb", "elasticsearch"
+  event_types:
+    - "rate_limit_exceeded"
+    - "ip_blocked"
+    - "suspicious_pattern"
+  severity_levels:
+    critical: ["auth_login", "payments_initiate", "transfers", "withdrawals"]
+    high: ["auth_verify_2fa", "payments_verify_2fa", "admin_operations"]
+    medium: ["copilot_chat", "ml_predict", "analytics_operations"]
+    low: ["transactions_list", "user_profile"]
+
+# Redis configuration (for production)
+redis:
+  enabled: false  # Set to true in production
+  url: "${REDIS_URL}"
+  key_prefix: "smartpay:ratelimit:"
+  key_expiry: 3600  # seconds
+
+# Cleanup configuration
+cleanup:
+  enabled: true
+  interval_seconds: 300  # Clean up every 5 minutes
+  max_bucket_age_seconds: 3600  # Remove buckets older than 1 hour
+
+# Response configuration
+responses:
+  status_code: 429
+  headers:
+    - "X-RateLimit-Limit"
+    - "X-RateLimit-Remaining"
+    - "X-RateLimit-Reset"
+    - "Retry-After"
+  error_messages:
+    default: "Rate limit exceeded. Please try again later."
+    auth: "Too many authentication attempts. Please wait before trying again."
+    payment: "Too many payment requests. Please contact support if this persists."
+    
+# Environment-specific overrides
+environments:
+  development:
+    global:
+      default:
+        capacity: 10000
+        refill_rate: 2.778  # 10x more lenient
+  
+  staging:
+    global:
+      default:
+        capacity: 5000
+        refill_rate: 1.389  # 5x more lenient
+  
+  production:
+    redis:
+      enabled: true
+    security_logging:
+      enabled: true

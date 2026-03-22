@@ -1,0 +1,577 @@
+/**
+ * Namibia Open Banking Standards (OBS) v1.0 - Complete Database Schema
+ * 
+ * Implements all required database structures for:
+ * - Participant Management
+ * - Consent Management
+ * - OAuth 2.0 + OIDC tokens
+ * - Account Information Service (AIS)
+ * - Payment Initiation Service (PIS)
+ * - Service Level Monitoring
+ * - Audit & Compliance
+ * 
+ * To integrate with main schema, copy models to schema.prisma
+ */
+
+// ═══════════════════════════════════════════════════════════
+// PARTICIPANT MANAGEMENT (Chapter 8)
+// ═══════════════════════════════════════════════════════════
+
+model OBSParticipant {
+  id              String   @id @default(cuid())
+  
+  // Participant Identification (OBS 8.1.4)
+  participantId   String   @unique // Format: APInnnnnn
+  role            String   // DP | TPP
+  
+  // Organization Details
+  organizationName String
+  organizationId   String   @unique
+  
+  // Certificate Details (OBS 8.2.1)
+  certificate     String?  @db.Text // x.509 V3 certificate
+  qwac            String?  @db.Text // QWAC certificate
+  certificateExpiry DateTime?
+  
+  // Competent Authority
+  ncaName         String   // e.g., "Bank of Namibia"
+  ncaId           String   // e.g., "NA-BON"
+  
+  // Access Control (OBS 3.2.6)
+  sectors         String[] // e.g., ["Banking"]
+  services        String[] // e.g., ["AIS", "PIS"]
+  operationTypes  String[] // e.g., ["AIS.Read", "PIS.Write"]
+  
+  // Status
+  status          String   // active | suspended | revoked
+  registeredAt    DateTime @default(now())
+  lastActive      DateTime?
+  
+  // Developer Portal Details
+  apiBaseUrl      String?
+  developerPortalUrl String?
+  
+  // Relations
+  consentsAsTPP   OBSConsent[] @relation("TPPConsents")
+  consentsAsDP    OBSConsent[] @relation("DPConsents")
+  paymentsInitiated OBSPayment[] @relation("TPPPayments")
+  paymentsProcessed OBSPayment[] @relation("DPPayments")
+  apiCallsFrom    OBSAPICall[] @relation("FromParticipant")
+  apiCallsTo      OBSAPICall[] @relation("ToParticipant")
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([participantId])
+  @@index([status])
+  @@map("obs_participants")
+}
+
+// ═══════════════════════════════════════════════════════════
+// CONSENT MANAGEMENT (Chapter 9.5)
+// ═══════════════════════════════════════════════════════════
+
+model OBSConsent {
+  id              String   @id @default(cuid())
+  
+  // Consent Identification
+  consentId       String   @unique // UUID
+  
+  // Parties (OAuth Resource Owner, Client, Server)
+  accountHolderId String   // User who owns the data
+  tppParticipantId String  // TPP requesting access
+  dpParticipantId String   // Data Provider holding data
+  
+  // Consent Status (OBS 9.5)
+  status          String   // AwaitingAuthorisation | Authorised | Rejected | Revoked | Expired
+  statusReason    String?
+  
+  // Scopes & Permissions (OBS 9.5.2)
+  scopes          String[] // e.g., ["banking:accounts.basic.read"]
+  permissions     Json?    // Detailed permissions structure
+  
+  // Consent Duration (OBS 9.5.3) - Max 180 days
+  creationDateTime String  // ISO 8601
+  expirationDateTime String // ISO 8601
+  statusUpdateDateTime String? // ISO 8601
+  
+  // Transaction Date Range (for AIS)
+  transactionFromDateTime String? // ISO 8601
+  transactionToDateTime String?   // ISO 8601
+  
+  // Linked Accounts
+  accountIds      String[] // Account IDs consented to
+  
+  // OAuth Flow Data
+  authorizationCode String? @unique
+  authCodeExpiresAt DateTime?
+  authCodeUsed    Boolean @default(false)
+  
+  // PKCE (RFC 7636)
+  codeChallenge   String?
+  codeChallengeMethod String? // S256
+  
+  // Redirect
+  redirectUri     String?
+  state           String?
+  
+  // Access Tokens
+  tokens          OBSAccessToken[]
+  
+  // Relations
+  tpp             OBSParticipant @relation("TPPConsents", fields: [tppParticipantId], references: [participantId], onDelete: Cascade)
+  dp              OBSParticipant @relation("DPConsents", fields: [dpParticipantId], references: [participantId], onDelete: Cascade)
+  accountHolder   User           @relation("AccountHolderConsents", fields: [accountHolderId], references: [id], onDelete: Cascade)
+  
+  // Audit Trail
+  revokedAt       DateTime?
+  revokedBy       String? // user | tpp | dp
+  revokedReason   String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([consentId])
+  @@index([accountHolderId])
+  @@index([tppParticipantId])
+  @@index([dpParticipantId])
+  @@index([status])
+  @@index([expirationDateTime])
+  @@map("obs_consents")
+}
+
+// ═══════════════════════════════════════════════════════════
+// TOKEN MANAGEMENT (OAuth 2.0 + OIDC)
+// ═══════════════════════════════════════════════════════════
+
+model OBSAccessToken {
+  id              String   @id @default(cuid())
+  
+  // Token Details
+  accessToken     String   @unique
+  refreshToken    String?  @unique
+  tokenType       String   @default("Bearer")
+  
+  // Token Metadata
+  scope           String   // Space-separated scopes
+  expiresAt       DateTime
+  refreshExpiresAt DateTime?
+  
+  // Token Status
+  revoked         Boolean  @default(false)
+  revokedAt       DateTime?
+  revokedReason   String?
+  
+  // Linked Consent
+  consentId       String
+  consent         OBSConsent @relation(fields: [consentId], references: [id], onDelete: Cascade)
+  
+  // Usage Tracking
+  lastUsedAt      DateTime?
+  usageCount      Int      @default(0)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([accessToken])
+  @@index([refreshToken])
+  @@index([consentId])
+  @@index([expiresAt])
+  @@map("obs_access_tokens")
+}
+
+// ═══════════════════════════════════════════════════════════
+// ACCOUNT INFORMATION SERVICE (AIS) (Chapter 9.2.4)
+// ═══════════════════════════════════════════════════════════
+
+model OBSAccount {
+  id              String   @id @default(cuid())
+  
+  // Account Identification
+  accountId       String   @unique // Unique within Data Provider
+  dpParticipantId String   // Data Provider
+  accountHolderId String   // Account Owner
+  
+  // Account Details (OBS 9.2.4.1)
+  accountNumber   String   // May be masked
+  accountType     String   // e-Wallet | Current Account | Savings Account | Credit Card | Loan Account
+  accountName     String?
+  currency        String   @default("NAD") // ISO 4217
+  status          String   @default("open") // open | closed
+  holderType      String?  // Consumer | Small Business | Enterprise
+  
+  // Account Metadata
+  openedDate      DateTime?
+  closedDate      DateTime?
+  maturityDate    DateTime?
+  interestRate    Float?
+  overdraftLimit  Float?
+  
+  // Relations
+  accountHolder   User           @relation("AccountHolderAccounts", fields: [accountHolderId], references: [id], onDelete: Cascade)
+  dataProvider    OBSParticipant @relation("DPAccounts", fields: [dpParticipantId], references: [participantId], onDelete: Cascade)
+  balances        OBSBalance[]
+  transactions    OBSTransaction[]
+  
+  // Sync Status
+  lastSyncAt      DateTime?
+  syncEnabled     Boolean  @default(true)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([accountId])
+  @@index([accountHolderId])
+  @@index([dpParticipantId])
+  @@index([status])
+  @@map("obs_accounts")
+}
+
+model OBSBalance {
+  id              String   @id @default(cuid())
+  
+  // Balance Details (OBS 9.2.4.2)
+  accountId       String
+  balanceType     String   // Available | Current | Credit | InterimAvailable | etc.
+  amount          Float
+  currency        String   @default("NAD")
+  creditDebitIndicator String // Credit | Debit
+  dateTime        DateTime
+  
+  // Relations
+  account         OBSAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  
+  createdAt       DateTime @default(now())
+  
+  @@index([accountId])
+  @@index([dateTime])
+  @@map("obs_balances")
+}
+
+model OBSTransaction {
+  id              String   @id @default(cuid())
+  
+  // Transaction Identification (OBS 9.2.4.3)
+  transactionId   String   @unique
+  accountId       String
+  
+  // Transaction Details
+  bookingDateTime DateTime // ISO 8601
+  valueDateTime   DateTime?
+  transactionInformation String? // Description
+  amount          Float
+  currency        String   @default("NAD")
+  creditDebitIndicator String // Credit | Debit
+  status          String   // Pending | Booked | Information
+  
+  // References
+  transactionReference String?
+  endToEndReference String?
+  
+  // Balance After Transaction
+  balanceAfterAmount Float?
+  balanceAfterCurrency String?
+  balanceAfterType String?
+  
+  // Transaction Code
+  proprietaryBankCode String?
+  proprietaryBankCodeIssuer String?
+  
+  // Merchant Details
+  merchantName    String?
+  merchantCategoryCode String?
+  
+  // Party Details
+  debtorName      String?
+  debtorAccount   String?
+  debtorBankId    String?
+  creditorName    String?
+  creditorAccount String?
+  creditorBankId  String?
+  
+  // Relations
+  account         OBSAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  
+  // Sync Metadata
+  retrievedAt     DateTime @default(now())
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([transactionId])
+  @@index([accountId])
+  @@index([bookingDateTime])
+  @@map("obs_transactions")
+}
+
+// ═══════════════════════════════════════════════════════════
+// PAYMENT INITIATION SERVICE (PIS) (Chapter 9.2.4.4)
+// ═══════════════════════════════════════════════════════════
+
+model OBSPayment {
+  id              String   @id @default(cuid())
+  
+  // Payment Identification
+  paymentId       String   @unique // UUID
+  
+  // Parties
+  tppParticipantId String  // TPP initiating
+  dpParticipantId String   // DP processing
+  accountHolderId String   // Payer
+  
+  // Payment Type (OBS 9.2.4.4)
+  paymentType     String   // OnUs | EnCR | NRTC | RTGS | IPP
+  
+  // Debtor (Payer)
+  debtorAccountId String
+  debtorAccountNumber String?
+  
+  // Creditor (Payee)
+  creditorName    String
+  creditorAccountNumber String
+  creditorBankId  String?
+  
+  // Payment Amount
+  instructedAmount Float
+  instructedCurrency String @default("NAD")
+  
+  // References
+  remittanceInformation String?
+  endToEndIdentification String?
+  
+  // Payment Status (OBS 9.2.4.4)
+  status          String   // Initiated | Pending | Accepted | AcceptedSettlementInProcess | AcceptedSettlementCompleted | Rejected | Cancelled
+  statusReason    String?
+  
+  // Timestamps
+  creationDateTime DateTime @default(now())
+  statusUpdateDateTime DateTime @default(now())
+  expectedExecutionDateTime DateTime?
+  actualExecutionDateTime DateTime?
+  
+  // Consent Reference
+  consentId       String?
+  
+  // Relations
+  tpp             OBSParticipant @relation("TPPPayments", fields: [tppParticipantId], references: [participantId], onDelete: Cascade)
+  dp              OBSParticipant @relation("DPPayments", fields: [dpParticipantId], references: [participantId], onDelete: Cascade)
+  accountHolder   User           @relation("AccountHolderPayments", fields: [accountHolderId], references: [id], onDelete: Cascade)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([paymentId])
+  @@index([tppParticipantId])
+  @@index([dpParticipantId])
+  @@index([accountHolderId])
+  @@index([status])
+  @@map("obs_payments")
+}
+
+model OBSBeneficiary {
+  id              String   @id @default(cuid())
+  
+  // Beneficiary Details (OBS 9.2.4.4)
+  beneficiaryId   String   @unique
+  accountHolderId String   // Owner
+  
+  // Payee Information
+  name            String
+  accountNumber   String
+  bankId          String?
+  bankName        String?
+  reference       String?  // Nickname
+  
+  // Relations
+  accountHolder   User     @relation("AccountHolderBeneficiaries", fields: [accountHolderId], references: [id], onDelete: Cascade)
+  
+  addedDate       DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([beneficiaryId])
+  @@index([accountHolderId])
+  @@map("obs_beneficiaries")
+}
+
+// ═══════════════════════════════════════════════════════════
+// API CALL LOGGING & MONITORING (Chapter 9.7, 10.1)
+// ═══════════════════════════════════════════════════════════
+
+model OBSAPICall {
+  id              String   @id @default(cuid())
+  
+  // Call Identification
+  requestId       String   @unique
+  
+  // Parties
+  fromParticipantId String // TPP making call
+  toParticipantId   String // DP receiving call
+  
+  // Request Details
+  method          String   // GET | POST | PUT | DELETE
+  endpoint        String   // e.g., /bon/v1/banking/accounts
+  apiVersion      String   // e.g., "1"
+  
+  // Request Headers
+  requestHeaders  Json
+  requestBody     Json?
+  
+  // Response Details
+  statusCode      Int
+  responseHeaders Json?
+  responseBody    Json?
+  
+  // Timing (for SLA monitoring)
+  requestTime     DateTime
+  responseTime    DateTime?
+  durationMs      Int?     // Response time in milliseconds
+  
+  // Error Information
+  errorCode       String?
+  errorMessage    String?
+  
+  // Access Token
+  accessToken     String?
+  consentId       String?
+  
+  // Relations
+  fromParticipant OBSParticipant @relation("FromParticipant", fields: [fromParticipantId], references: [participantId], onDelete: Cascade)
+  toParticipant   OBSParticipant @relation("ToParticipant", fields: [toParticipantId], references: [participantId], onDelete: Cascade)
+  
+  createdAt       DateTime @default(now())
+  
+  @@index([requestId])
+  @@index([fromParticipantId])
+  @@index([toParticipantId])
+  @@index([endpoint])
+  @@index([statusCode])
+  @@index([requestTime])
+  @@map("obs_api_calls")
+}
+
+// ═══════════════════════════════════════════════════════════
+// SERVICE LEVEL MONITORING (Chapter 9.7, 10.1.2)
+// ═══════════════════════════════════════════════════════════
+
+model OBSServiceLevelMetric {
+  id              String   @id @default(cuid())
+  
+  // Participant
+  participantId   String
+  
+  // Metric Details
+  metricType      String   // availability | response_time | error_rate
+  metricValue     Float
+  targetValue     Float
+  metMet          Boolean
+  
+  // Time Period
+  measurementDate DateTime
+  periodStart     DateTime
+  periodEnd       DateTime
+  
+  // Additional Data
+  notes           String?
+  additionalData  Json?
+  
+  createdAt       DateTime @default(now())
+  
+  @@index([participantId])
+  @@index([metricType])
+  @@index([measurementDate])
+  @@map("obs_service_level_metrics")
+}
+
+// ═══════════════════════════════════════════════════════════
+// DISPUTE MANAGEMENT (Chapter 10.3)
+// ═══════════════════════════════════════════════════════════
+
+model OBSDispute {
+  id              String   @id @default(cuid())
+  
+  // Dispute Identification
+  disputeId       String   @unique
+  
+  // Parties
+  reporterId      String   // Participant or Account Holder reporting
+  counterpartyId  String?  // Other participant involved
+  accountHolderId String?  // Account Holder if involved
+  
+  // Dispute Details
+  disputeType     String   // Type of dispute
+  priority        String   // low | medium | high | critical
+  status          String   // open | investigating | resolved | closed
+  
+  // Related Resources
+  relatedResourceType String? // payment | transaction | consent | account
+  relatedResourceId String?
+  
+  // Description
+  title           String
+  description     String   @db.Text
+  
+  // Resolution
+  resolution      String?  @db.Text
+  resolvedAt      DateTime?
+  resolvedBy      String?
+  
+  // SLA Tracking
+  reportedAt      DateTime @default(now())
+  respondByTime   DateTime
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([disputeId])
+  @@index([reporterId])
+  @@index([status])
+  @@index([priority])
+  @@map("obs_disputes")
+}
+
+// ═══════════════════════════════════════════════════════════
+// CHANGE MANAGEMENT (Chapter 10.4)
+// ═══════════════════════════════════════════════════════════
+
+model OBSChangeNotification {
+  id              String   @id @default(cuid())
+  
+  // Notification Details
+  notificationId  String   @unique
+  participantId   String   // Participant making the change
+  
+  // Change Details
+  changeType      String   // api_update | endpoint_deprecation | service_change
+  severity        String   // minor | major | breaking
+  
+  // Affected Components
+  affectedEndpoints String[]
+  affectedVersions String[]
+  
+  // Description
+  title           String
+  description     String   @db.Text
+  impactAssessment String?  @db.Text
+  
+  // Timeline (OBS 10.4.1)
+  notificationDate DateTime
+  testingAvailableFrom DateTime  // Min 90 days before
+  effectiveDate   DateTime        // Min 180 days notice
+  
+  // Status
+  status          String   // draft | notified | effective | completed
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([participantId])
+  @@index([effectiveDate])
+  @@map("obs_change_notifications")
+}
+
+// Note: Add these relation fields to existing User model:
+//   obsConsents       OBSConsent[]     @relation("AccountHolderConsents")
+//   obsAccounts       OBSAccount[]     @relation("AccountHolderAccounts")
+//   obsPayments       OBSPayment[]     @relation("AccountHolderPayments")
+//   obsBeneficiaries  OBSBeneficiary[] @relation("AccountHolderBeneficiaries")

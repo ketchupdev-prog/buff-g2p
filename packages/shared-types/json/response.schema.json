@@ -1,0 +1,87 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://smartpay.na/schemas/response.json",
+  "title": "Response",
+  "description": "Common API response types",
+  "definitions": {
+    "ApiResponse": {
+      "type": "object",
+      "required": ["success"],
+      "properties": {
+        "success": {
+          "type": "boolean",
+          "description": "Whether the operation was successful"
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable message"
+        },
+        "data": {
+          "description": "Response data payload"
+        },
+        "error": {
+          "type": "string",
+          "description": "Error message if failed"
+        },
+        "code": {
+          "type": "string",
+          "description": "Error code if failed"
+        }
+      }
+    },
+    "TransactionResult": {
+      "type": "object",
+      "required": ["success"],
+      "properties": {
+        "success": {
+          "type": "boolean",
+          "description": "Whether the transaction was successful"
+        },
+        "data": {
+          "description": "Transaction data"
+        },
+        "error": {
+          "type": "string",
+          "description": "Error message if failed"
+        }
+      }
+    },
+    "PaginatedResponse": {
+      "type": "object",
+      "required": ["data", "pagination"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {},
+          "description": "Array of data items"
+        },
+        "pagination": {
+          "type": "object",
+          "required": ["page", "pageSize", "total"],
+          "properties": {
+            "page": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Current page number"
+            },
+            "pageSize": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Items per page"
+            },
+            "total": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Total number of items"
+            },
+            "totalPages": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Total number of pages"
+            }
+          }
+        }
+      }
+    }
+  }
+}

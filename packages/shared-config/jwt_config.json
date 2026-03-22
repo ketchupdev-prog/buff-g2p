@@ -1,0 +1,160 @@
+{
+  "algorithm": "HS256",
+  "token_type": "JWT",
+  "version": "1.0.0",
+  "last_updated": "2026-03-18",
+  
+  "access_token": {
+    "expiry_seconds": 900,
+    "expiry_description": "15 minutes",
+    "type": "access",
+    "auto_refresh_threshold_seconds": 300,
+    "max_concurrent_tokens_per_user": 5
+  },
+  
+  "refresh_token": {
+    "expiry_seconds": 604800,
+    "expiry_description": "7 days",
+    "type": "refresh",
+    "rotation_enabled": true,
+    "rotation_description": "Issue new refresh token on each use for enhanced security",
+    "max_refresh_per_day": 100
+  },
+  
+  "security": {
+    "minimum_secret_length": 32,
+    "require_jti": true,
+    "require_database_validation": true,
+    "revocation_check": true,
+    "prevent_token_reuse": true,
+    "detect_token_theft": {
+      "enabled": true,
+      "max_ip_changes": 3,
+      "max_user_agent_changes": 2
+    }
+  },
+  
+  "environment_variables": {
+    "access_secret": "JWT_SECRET",
+    "refresh_secret": "JWT_REFRESH_SECRET",
+    "fallback_warning": "Using fallback secrets is only allowed in development. Set JWT_SECRET and JWT_REFRESH_SECRET in production.",
+    "validation": {
+      "production_requires_secrets": true,
+      "minimum_entropy_bits": 256
+    }
+  },
+  
+  "database_tables": {
+    "access_tokens": "user_sessions",
+    "refresh_tokens": "refresh_tokens",
+    "indexes": {
+      "user_sessions": ["user_id", "token", "expires_at"],
+      "refresh_tokens": ["user_id", "token", "expires_at", "revoked"]
+    }
+  },
+  
+  "token_payload_schema": {
+    "userId": "string (required) - User identifier",
+    "type": "string (required) - Token type: 'access' or 'refresh'",
+    "iat": "number (required) - Issued at timestamp (Unix epoch)",
+    "exp": "number (required) - Expiration timestamp (Unix epoch)",
+    "jti": "string (required) - Unique token identifier (JWT ID)",
+    "optional_fields": {
+      "email": "string - User email for audit logs",
+      "role": "string - User role (user, admin, etc.)",
+      "deviceId": "string - Device identifier for multi-device support",
+      "sessionId": "string - Session identifier"
+    }
+  },
+  
+  "encoding": {
+    "base64_variant": "base64url",
+    "charset": "utf-8",
+    "header_format": {
+      "alg": "HS256",
+      "typ": "JWT"
+    }
+  },
+  
+  "validation_rules": {
+    "check_signature": true,
+    "check_expiration": true,
+    "check_token_type": true,
+    "check_database_revocation": true,
+    "allow_clock_skew_seconds": 30,
+    "reject_future_tokens": true,
+    "validate_issuer": false,
+    "validate_audience": false
+  },
+  
+  "token_refresh": {
+    "enabled": true,
+    "strategy": "sliding_window",
+    "auto_refresh_before_expiry_seconds": 300,
+    "refresh_endpoint": "/auth/refresh",
+    "return_new_refresh_token": true,
+    "revoke_old_refresh_token": true,
+    "grace_period_seconds": 60
+  },
+  
+  "rate_limiting": {
+    "token_generation": {
+      "max_per_user_per_hour": 10,
+      "max_per_ip_per_hour": 50
+    },
+    "token_refresh": {
+      "max_per_user_per_hour": 60,
+      "max_per_ip_per_hour": 200
+    },
+    "failed_validation": {
+      "max_failures_per_ip_per_hour": 100,
+      "lockout_duration_minutes": 15
+    }
+  },
+  
+  "cleanup": {
+    "enabled": true,
+    "schedule": "daily",
+    "schedule_time": "02:00",
+    "retention": {
+      "expired_access_tokens_days": 0,
+      "expired_refresh_tokens_days": 7,
+      "revoked_refresh_tokens_days": 30
+    }
+  },
+  
+  "monitoring": {
+    "log_token_generation": true,
+    "log_token_validation": true,
+    "log_token_refresh": true,
+    "log_token_revocation": true,
+    "alert_on_suspicious_activity": true,
+    "metrics": {
+      "track_token_lifespan": true,
+      "track_refresh_frequency": true,
+      "track_validation_failures": true
+    }
+  },
+  
+  "best_practices": {
+    "rotate_secrets_regularly": "Rotate JWT secrets every 90 days minimum",
+    "use_https_only": "Always transmit JWT tokens over HTTPS in production",
+    "store_secrets_securely": "Store JWT secrets in environment variables or secret management systems (e.g., AWS Secrets Manager, HashiCorp Vault)",
+    "implement_token_rotation": "Implement refresh token rotation for enhanced security (already enabled in this config)",
+    "cleanup_expired_tokens": "Regularly clean up expired tokens from database (scheduled daily at 2 AM)",
+    "audit_token_usage": "Log token generation and validation for security auditing (enabled)",
+    "implement_rate_limiting": "Rate limit authentication endpoints to prevent brute force attacks (configured)",
+    "monitor_token_theft": "Monitor for suspicious patterns indicating token theft (enabled)",
+    "use_secure_cookies": "Store tokens in httpOnly, secure cookies instead of localStorage",
+    "implement_logout_everywhere": "Provide users ability to revoke all tokens across devices",
+    "regular_security_audits": "Conduct regular security audits of JWT implementation"
+  },
+  
+  "implementation_notes": {
+    "typescript_file": "backend/src/lib/jwt.ts",
+    "python_file": "backend_python/smartpay_ai/shared/jwt_validator.py",
+    "migration_guide": "shared_config/JWT_MIGRATION_GUIDE.md",
+    "compatibility": "Both implementations must maintain feature parity",
+    "testing": "All changes must include tests in both TypeScript and Python"
+  }
+}

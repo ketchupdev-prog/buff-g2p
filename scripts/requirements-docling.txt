@@ -1,0 +1,11 @@
+# For convert_regulation_docs_to_markdown.py (Docling + XLSX)
+# Install: pip install -r fintech/scripts/requirements-docling.txt
+# Optional: docling (full OCR/tables). If missing or broken, script uses fallbacks below.
+docling
+# Fallbacks when docling not used (e.g. tokenizers version conflict)
+PyPDF2
+docx2txt
+# XLSX -> markdown tables
+pandas
+tabulate
+openpyxl

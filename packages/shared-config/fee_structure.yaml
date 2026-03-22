@@ -1,0 +1,237 @@
+# PSD-11 Fee Structure Configuration
+# Bank of Namibia PSD-11 Determination (Effective 1 August 2025)
+#
+# This YAML file provides external configuration for interchange fees,
+# allowing non-developers to update rates without code changes.
+#
+# Location: fintech/smartpay/shared_config/fee_structure.yaml
+#
+# IMPORTANT:
+# - All rates must comply with PSD-11 regulations
+# - Changes require regulatory approval
+# - Update effective_date when rates change
+# - Backup this file before modifications
+
+metadata:
+  regulation: "PSD-11 Determination"
+  effective_date: "2025-08-01"
+  issuing_authority: "Bank of Namibia"
+  vat_rate: 0.15
+  currency: "NAD"
+  last_updated: "2026-03-18"
+
+# =============================================================================
+# Card-Based Payment Transactions (Section 10.1)
+# Direction: Acquirer → Issuer
+# =============================================================================
+
+card_retail_rates:
+  debit:
+    rate: 0.0050  # 0.50%
+    description: "Debit card retail purchase interchange"
+    psd_reference: "PSD-11 Section 10.1"
+  
+  hybrid:
+    rate: 0.0075  # 0.75%
+    description: "Hybrid card retail purchase interchange"
+    psd_reference: "PSD-11 Section 10.1"
+  
+  credit:
+    rate: 0.0155  # 1.55%
+    description: "Credit card retail purchase interchange"
+    psd_reference: "PSD-11 Section 10.1"
+
+card_fuel_rates:
+  debit:
+    rate: 0.0050  # 0.50%
+    description: "Debit card fuel purchase interchange"
+  
+  hybrid:
+    rate: 0.0075  # 0.75%
+    description: "Hybrid card fuel purchase interchange"
+  
+  credit:
+    rate: 0.0080  # 0.80%
+    description: "Credit card fuel purchase interchange"
+
+# =============================================================================
+# Cashback Transactions (Section 10.2)
+# Pure cashback: Issuer → Acquirer (reverse)
+# =============================================================================
+
+cashback:
+  pure_cashback_fee: 1.25  # N$1.25 flat fee (all card types)
+  description: "Pure cashback reverse interchange"
+  direction: "issuer_to_acquirer"
+  psd_reference: "PSD-11 Section 10.2"
+
+# =============================================================================
+# ATM Transactions (Section 10.3, 10.4)
+# Direction: Issuer → Acquirer (reverse)
+# =============================================================================
+
+atm_rates:
+  withdrawal_success:
+    base_fee: 4.00  # N$4.00
+    variable_rate_per_hundred: 0.80  # N$0.80 per N$100
+    description: "ATM withdrawal reverse interchange"
+    formula: "N$4.00 + N$0.80 per N$100"
+  
+  withdrawal_fail:
+    fixed_fee: 4.80  # N$4.80
+    description: "ATM unsuccessful withdrawal reverse interchange"
+  
+  balance_enquiry:
+    fixed_fee: 0.60  # N$0.60
+    description: "ATM balance enquiry reverse interchange"
+  
+  non_financial:
+    fixed_fee: 0.60  # N$0.60
+    description: "ATM non-financial transaction reverse interchange"
+
+# =============================================================================
+# Instant Payment Transactions (Section 11)
+# =============================================================================
+
+instant_payment_rates:
+  p2m:  # Person to Merchant
+    rate: 0.0040  # 0.40%
+    description: "Instant payment P2M interchange"
+    direction: "acquirer_to_issuer"
+  
+  p2b:  # Person to Business
+    rate: 0.0040  # 0.40%
+    description: "Instant payment P2B interchange"
+    direction: "acquirer_to_issuer"
+  
+  cash_in:
+    fixed_fee: 1.25  # N$1.25
+    description: "Cash-in at merchant/agent reverse interchange"
+    direction: "issuer_to_acquirer"
+  
+  cash_out:
+    fixed_fee: 1.25  # N$1.25
+    description: "Cash-out at merchant/agent reverse interchange"
+    direction: "issuer_to_acquirer"
+
+# =============================================================================
+# Exempt Transaction Types (Section 11.5)
+# No interchange applicable
+# =============================================================================
+
+exempt_transaction_types:
+  - ip_p2p           # Person to Person
+  - ip_b2p           # Business to Person
+  - ip_b2b           # Business to Business
+  - ip_b2g           # Business to Government
+  - ip_g2p           # Government to Person
+  - ip_request_to_pay  # Request to Pay
+
+exempt_description: "No interchange applicable per PSD-11 Section 11.5"
+
+# =============================================================================
+# Agent Commission Structures (Optional - configurable per deployment)
+# =============================================================================
+
+agent_commissions:
+  cash_in:
+    commission_type: "percentage"
+    base_rate: 0.01  # 1%
+    min_commission: 0.50  # N$0.50
+    max_commission: 5.00  # N$5.00
+    description: "Cash-in agent commission: 1% of amount (min N$0.50, max N$5.00)"
+  
+  cash_out:
+    commission_type: "percentage"
+    base_rate: 0.015  # 1.5%
+    min_commission: 1.00  # N$1.00
+    max_commission: 10.00  # N$10.00
+    description: "Cash-out agent commission: 1.5% of amount (min N$1.00, max N$10.00)"
+  
+  bill_payment:
+    commission_type: "fixed"
+    base_rate: 2.00  # N$2.00
+    min_commission: 2.00
+    max_commission: 2.00
+    description: "Bill payment agent commission: N$2.00 flat fee"
+
+# =============================================================================
+# Currency Conversion Fees (Cross-Border Transactions)
+# =============================================================================
+
+currency_conversion:
+  cross_border:
+    base_spread: 0.025  # 2.5% FX spread
+    min_fee: 5.00  # N$5.00
+    description: "Cross-border currency conversion: 2.5% FX spread (min N$5.00)"
+
+# =============================================================================
+# Merchant Tier Discounts (Future Feature)
+# =============================================================================
+
+merchant_tiers:
+  standard:
+    tier_name: "Standard"
+    fee_multiplier: 1.0  # No discount
+    min_monthly_volume: 0
+  
+  preferred:
+    tier_name: "Preferred"
+    fee_multiplier: 0.95  # 5% discount
+    min_monthly_volume: 10000
+  
+  premium:
+    tier_name: "Premium"
+    fee_multiplier: 0.90  # 10% discount
+    min_monthly_volume: 50000
+
+# =============================================================================
+# Validation Rules
+# =============================================================================
+
+validation:
+  max_transaction_amount: 1000000.00  # N$1M max per transaction
+  min_transaction_amount: 0.01  # N$0.01 min
+  require_card_type_for_card_transactions: true
+  enforce_psd11_compliance: true
+
+# =============================================================================
+# Change Log
+# =============================================================================
+
+changelog:
+  - date: "2026-03-18"
+    version: "1.0"
+    changes:
+      - "Initial YAML configuration created"
+      - "Migrated from hardcoded Python values"
+      - "Centralized all PSD-11 rates"
+    author: "AI Code Quality Assistant"
+  
+  # Example future change:
+  # - date: "2027-01-15"
+  #   version: "1.1"
+  #   changes:
+  #     - "Updated debit card retail rate from 0.50% to 0.55%"
+  #     - "Bank of Namibia PSD-11 Amendment 2027"
+  #   author: "Compliance Team"
+
+# =============================================================================
+# Notes
+# =============================================================================
+
+notes: |
+  This configuration file is optional. The Python codebase has all rates
+  hardcoded in config/fee_structure.py for performance and type safety.
+  
+  This YAML file serves as:
+  1. External documentation of current rates
+  2. Configuration source for dynamic fee loading (future feature)
+  3. Audit trail for rate changes
+  4. Reference for non-technical stakeholders
+  
+  To use dynamic YAML loading in production:
+  - Implement YAML loader in fee_structure.py
+  - Add configuration validation
+  - Set up hot-reload mechanism
+  - Monitor for configuration errors

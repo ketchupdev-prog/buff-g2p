@@ -1,0 +1,51 @@
+# Render Blueprint for SmartPay Backend
+# Location: fintech/smartpay/backend/render.yaml
+# Deploy: https://dashboard.render.com/
+
+services:
+  - type: web
+    name: smartpay-backend
+    env: node
+    region: frankfurt
+    plan: starter
+    branch: main
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4000
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: OBS_REDIRECT_URI
+        value: https://smartpay.app/obs/callback
+      - key: CORS_ORIGIN
+        value: https://smartpay.vercel.app,https://smartpay.app
+      - key: RATE_LIMIT_MAX_REQUESTS
+        value: 100
+      - key: RATE_LIMIT_WINDOW_MS
+        value: 900000
+    autoDeploy: true
+    dockerCommand: null
+    dockerfilePath: null
+
+databases:
+  - name: smartpay-postgres
+    databaseName: smartpay
+    user: smartpay_admin
+    plan: starter
+    region: frankfurt
+    ipAllowList: []
+
+  - name: smartpay-redis
+    plan: starter
+    region: frankfurt
+    ipAllowList: []

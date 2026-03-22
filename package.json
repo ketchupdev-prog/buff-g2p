@@ -1,0 +1,53 @@
+{
+  "name": "@smartpay/monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SmartPay - Fintech monorepo with mobile app, backend API, and AI services",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:backend": "npm run dev --workspace=@smartpay/backend",
+    "dev:mobile": "npm run start --workspace=@smartpay/mobile",
+    "dev:ai": "cd apps/smartpay-ai && uvicorn smartpay_ai.main:app --reload",
+    "dev:all": "concurrently \"npm run dev:backend\" \"npm run dev:ai\"",
+    
+    "build:backend": "npm run build --workspace=@smartpay/backend",
+    "build:mobile": "npm run build --workspace=@smartpay/mobile",
+    "build:all": "npm run build:backend && npm run build:mobile",
+    
+    "test:backend": "npm test --workspace=@smartpay/backend",
+    "test:mobile": "npm test --workspace=@smartpay/mobile",
+    "test:ai": "cd apps/smartpay-ai && python -m pytest",
+    "test:all": "npm run test:backend && npm run test:mobile && npm run test:ai",
+    "migrate": "npm run migrate --workspace=@smartpay/backend",
+    "migrate:notifications": "npm run migrate:notifications --workspace=@smartpay/backend",
+    "migrate:vouchers-portal": "npm run migrate:vouchers-portal --workspace=@smartpay/backend",
+    
+    "types:generate": "cd packages/shared-types && python generate.py",
+    
+    "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules",
+    "clean:build": "rm -rf apps/*/dist apps/*/build packages/*/dist",
+    
+    "verify": "./scripts/verify-migration.sh",
+    "check:api-versioning": "node scripts/check-api-versioning.mjs",
+    
+    "mobile": "npm run start --workspace=@smartpay/mobile",
+    "mobile:ios": "npm run ios --workspace=@smartpay/mobile",
+    "mobile:android": "npm run android --workspace=@smartpay/mobile",
+    "mobile:web": "npm run web --workspace=@smartpay/mobile",
+    
+    "install:all": "npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=18.0.0 <=22.0.0",
+    "npm": ">=8.0.0"
+  },
+  "author": "SmartPay Team",
+  "license": "MIT"
+}

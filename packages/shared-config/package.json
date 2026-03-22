@@ -1,0 +1,22 @@
+{
+  "name": "@smartpay/shared-config",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Shared configuration files for SmartPay monorepo",
+  "main": "index.js",
+  "exports": {
+    "./rate-limits": "./rate_limits.yaml",
+    "./jwt": "./jwt_config.json",
+    "./fees": "./fee_structure.yaml"
+  },
+  "scripts": {
+    "validate:yaml": "echo 'YAML validation placeholder - install yamllint for validation'",
+    "validate:json": "node -e 'require(\"./jwt_config.json\"); console.log(\"✓ JSON valid\")'"
+  },
+  "keywords": [
+    "config",
+    "shared",
+    "smartpay",
+    "configuration"
+  ]
+}

@@ -1,0 +1,85 @@
+# Local stack: Postgres + Redis + SmartPay backend + SmartPay AI.
+# Usage (from this directory):
+#   cp apps/smartpay-backend/.env.example apps/smartpay-backend/.env
+#   cp apps/smartpay-ai/.env.example apps/smartpay-ai/.env
+#   # Set DATABASE_URL in both .env files to postgresql://smartpay:smartpay@postgres:5432/smartpay
+#   docker compose up --build
+#
+# Apply SQL migrations against the compose Postgres when ready:
+#   docker compose run --rm backend npx tsx scripts/runMigrations.ts
+# (requires DATABASE_URL in backend env / .env)
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: smartpay
+      POSTGRES_PASSWORD: smartpay
+      POSTGRES_DB: smartpay
+    ports:
+      - "5432:5432"
+    volumes:
+      - smartpay_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smartpay -d smartpay"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: apps/smartpay-backend/Dockerfile
+    ports:
+      - "4000:4000"
+    env_file:
+      - path: apps/smartpay-backend/.env
+        required: false
+    environment:
+      NODE_ENV: production
+      PORT: "4000"
+      DATABASE_URL: postgresql://smartpay:smartpay@postgres:5432/smartpay
+      REDIS_URL: redis://redis:6379
+      AI_SERVICE_URL: http://smartpay-ai:8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  smartpay-ai:
+    build:
+      context: ./apps/smartpay-ai
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: apps/smartpay-ai/.env
+        required: false
+    environment:
+      PORT: "8000"
+      DATABASE_URL: postgresql://smartpay:smartpay@postgres:5432/smartpay
+      SMARTPAY_API_BASE_URL: http://backend:4000
+      LANCEDB_PATH: /app/data/lancedb
+      DUCKDB_PATH: /app/data/analytics.duckdb
+    volumes:
+      - smartpay_ai_data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      backend:
+        condition: service_started
+
+volumes:
+  smartpay_pg:
+  smartpay_ai_data:

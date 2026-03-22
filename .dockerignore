@@ -1,0 +1,20 @@
+# Backend / compose build context: fintech/
+node_modules
+**/node_modules
+.git
+**/.env
+**/.env.*
+!**/.env.example
+**/dist
+**/.expo
+**/ios/Pods
+**/android/.gradle
+**/android/app/build
+**/__pycache__
+**/.pytest_cache
+**/*.pyc
+**/.venv
+**/venv
+apps/smartpay-ai/data
+*.md
+!apps/smartpay-backend/migrations

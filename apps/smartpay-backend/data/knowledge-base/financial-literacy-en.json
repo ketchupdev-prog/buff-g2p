@@ -1,0 +1,389 @@
+{
+  "version": "1.0.0",
+  "language": "en",
+  "lastUpdated": "2026-03-18",
+  "categories": [
+    {
+      "id": "basics",
+      "name": "Basics",
+      "description": "Fundamental concepts for digital banking",
+      "icon": "📚"
+    },
+    {
+      "id": "transactions",
+      "name": "Transactions",
+      "description": "Sending, receiving, and managing money",
+      "icon": "💸"
+    },
+    {
+      "id": "financial-services",
+      "name": "Financial Services",
+      "description": "Loans, savings, and other services",
+      "icon": "🏦"
+    },
+    {
+      "id": "compliance",
+      "name": "Compliance & Verification",
+      "description": "KYC, proof of life, and regulations",
+      "icon": "✅"
+    },
+    {
+      "id": "safety",
+      "name": "Safety & Security",
+      "description": "Protecting your money and privacy",
+      "icon": "🔒"
+    },
+    {
+      "id": "fraud-and-scams",
+      "name": "Fraud & Scams",
+      "description": "How to spot scams and protect yourself",
+      "icon": "🚨"
+    },
+    {
+      "id": "fees",
+      "name": "Fees & Pricing",
+      "description": "Understanding fees, charges, and confirmations",
+      "icon": "🧾"
+    },
+    {
+      "id": "features",
+      "name": "Features",
+      "description": "USSD, QR codes, and special features",
+      "icon": "⚡"
+    },
+    {
+      "id": "advanced",
+      "name": "Advanced Topics",
+      "description": "Open banking, APIs, and technical concepts",
+      "icon": "🎓"
+    }
+  ],
+  "glossary": [
+    {
+      "term": "Digital Wallet",
+      "definition": "A secure electronic place to store money on your phone, similar to a physical wallet but for digital transactions",
+      "synonyms": ["E-wallet", "Mobile wallet", "Electronic wallet"]
+    },
+    {
+      "term": "Cash-out",
+      "definition": "Converting digital money in your wallet to physical cash (banknotes)",
+      "synonyms": ["Withdrawal", "Withdraw", "Get cash"]
+    },
+    {
+      "term": "NAMQR",
+      "definition": "Namibian National QR Code standard (version 5.0) used for interoperable payments and cash-outs across banks and wallets",
+      "synonyms": ["QR code", "Payment code"]
+    },
+    {
+      "term": "USSD",
+      "definition": "Unstructured Supplementary Service Data - A technology that lets you access banking services by dialing codes (like *140#) on any phone, even without internet",
+      "synonyms": ["USSD banking", "Offline banking", "Dial code"]
+    },
+    {
+      "term": "KYC",
+      "definition": "Know Your Customer - The process of verifying your identity to comply with banking regulations",
+      "synonyms": ["Verification", "Identity check"]
+    },
+    {
+      "term": "Proof of Life",
+      "definition": "A verification process to confirm that grant and pension recipients are still alive and eligible to receive payments",
+      "synonyms": ["Liveness check", "Biometric verification"]
+    },
+    {
+      "term": "G2P",
+      "definition": "Government-to-Person payments like social grants, pensions, and subsidies disbursed directly to citizens",
+      "synonyms": ["Government payments", "Social grants"]
+    },
+    {
+      "term": "P2P",
+      "definition": "Person-to-Person payments - Sending money directly from one individual to another",
+      "synonyms": ["Send money", "Transfer", "Peer-to-peer"]
+    },
+    {
+      "term": "Open Banking (OBS)",
+      "definition": "A secure system that lets you safely share your bank account information with other apps like Smartpay to access better services",
+      "synonyms": ["OBS", "Bank connection", "Account linking"]
+    },
+    {
+      "term": "PSD-3",
+      "definition": "Bank of Namibia Position Paper Standard-3 - Regulations that set limits on e-money transactions based on your verification level",
+      "synonyms": ["E-money limits", "Transaction limits"]
+    }
+  ],
+  "faq_general": [
+    {
+      "id": "faq-001",
+      "question": "Is Smartpay safe to use?",
+      "answer": "Yes! Smartpay is regulated by the Bank of Namibia and uses bank-level security including:\n• End-to-end encryption (TLS 1.3)\n• PIN and biometric authentication\n• PSD-3 compliance for consumer protection\n• Real-time fraud detection\n• Audit logs for all transactions\n\nYour money is protected by Namibian banking regulations.",
+      "category": "safety",
+      "tags": ["security", "safety", "regulation", "compliance"]
+    },
+    {
+      "id": "faq-002",
+      "question": "Do I need a smartphone?",
+      "answer": "No! While the smartphone app provides the best experience, you can use Smartpay on any phone through USSD. Just dial *140# to access basic banking services like checking balance, sending money, and cashing out. USSD works without internet connection.",
+      "category": "basics",
+      "tags": ["ussd", "feature-phone", "accessibility"]
+    },
+    {
+      "id": "faq-003",
+      "question": "What happens if I lose my phone?",
+      "answer": "Your money is safe! Immediately:\n1. Call Smartpay support to freeze your account\n2. Use USSD from another phone to check balance\n3. Get a new phone and reinstall the app\n4. Log in with your credentials\n5. Set up biometric authentication again\n\nNobody can access your wallet without your PIN and biometric data. Your transaction history and balance remain safe.",
+      "category": "safety",
+      "tags": ["lost-phone", "security", "recovery"]
+    },
+    {
+      "id": "faq-004",
+      "question": "How do I get help if I have a problem?",
+      "answer": "Multiple support channels are available:\n• In-app chat (fastest response)\n• WhatsApp: +264 XXX XXXX\n• Phone: 061-XXX-XXX (toll-free)\n• Email: support@smartpay.na\n• Visit any partner agent or bank branch\n• Report incidents in the app\n\nSupport is available 24/7 for urgent issues.",
+      "category": "basics",
+      "tags": ["support", "help", "contact"]
+    },
+    {
+      "id": "faq-005",
+      "question": "Can I use Smartpay in rural areas?",
+      "answer": "Yes! Smartpay is designed for both urban and rural users:\n• USSD works everywhere with mobile signal\n• Agent network covers rural areas\n• NamPost branches in most towns\n• Offline transactions support\n• SMS notifications when internet is unavailable\n\nYou don't need constant internet access.",
+      "category": "features",
+      "tags": ["rural", "accessibility", "ussd", "agents"]
+    },
+    {
+      "id": "faq-006",
+      "question": "What if the app doesn't work?",
+      "answer": "Try these steps:\n1. Check your internet connection\n2. Close and restart the app\n3. Update to the latest version\n4. Clear app cache\n5. Use USSD as backup (*140#)\n6. Contact support if problem persists\n\nUSSD always works as a fallback, even if the app has issues.",
+      "category": "basics",
+      "tags": ["troubleshooting", "app-issues", "ussd"]
+    }
+  ],
+  "regulatory_info": [
+    {
+      "id": "reg-001",
+      "title": "Bank of Namibia Regulation",
+      "summary": "Smartpay operates under Bank of Namibia oversight and complies with all national banking regulations",
+      "content": "Smartpay is regulated by the Bank of Namibia and complies with:\n• Position Paper Standard-3 (PSD-3) for e-money limits\n• National Payment System rules\n• Data Protection Act\n• Anti-Money Laundering (AML) regulations\n• Know Your Customer (KYC) requirements\n\nThese regulations protect consumers and ensure the safety and integrity of the financial system.",
+      "source": "Bank of Namibia",
+      "level": "intermediate",
+      "tags": ["regulation", "compliance", "psd-3", "bank-of-namibia"]
+    },
+    {
+      "id": "reg-002",
+      "title": "Transaction Limits (PSD-3)",
+      "summary": "Legal limits on daily transactions and wallet balances based on verification level",
+      "content": "PSD-3 regulations set transaction limits to protect consumers:\n\n**Basic Tier** (Phone verification only)\n• Daily limit: N$1,000\n• Wallet balance limit: N$5,000\n• Single transaction: N$500\n\n**Intermediate Tier** (ID verification)\n• Daily limit: N$5,000\n• Wallet balance limit: N$25,000\n• Single transaction: N$2,500\n\n**Full Tier** (Proof of address + biometric)\n• Daily limit: N$50,000\n• Wallet balance limit: N$250,000\n• Single transaction: N$25,000\n\nThese limits are mandated by law for consumer protection.",
+      "source": "Bank of Namibia PSD-3",
+      "level": "basic",
+      "tags": ["limits", "psd-3", "kyc", "compliance"]
+    },
+    {
+      "id": "reg-003",
+      "title": "Privacy & Data Protection",
+      "summary": "How your personal and financial data is protected under Namibian law",
+      "content": "Smartpay complies with the Namibian Data Protection Act:\n\n**Your Rights:**\n• Right to access your data\n• Right to correction of errors\n• Right to deletion (after account closure)\n• Right to data portability\n• Right to withdraw consent\n\n**Data Security:**\n• All data encrypted at rest and in transit\n• Access controls and audit logs\n• Regular security audits\n• Data minimization (only collect what's needed)\n• No data selling to third parties\n\n**Data Usage:**\n• Transaction processing\n• Fraud prevention\n• Regulatory compliance\n• Service improvement\n• Customer support\n\nYou can request a copy of your data or deletion at any time through Settings → Privacy.",
+      "source": "Data Protection Policy",
+      "level": "intermediate",
+      "tags": ["privacy", "data-protection", "gdpr", "compliance"]
+    }
+  ],
+  "how_to_guides": [
+    {
+      "id": "guide-001",
+      "title": "How to Upgrade Your Verification Level",
+      "summary": "Step-by-step guide to increase your transaction limits by completing KYC verification",
+      "steps": [
+        {
+          "number": 1,
+          "title": "Go to Profile",
+          "description": "Open the Smartpay app and tap your profile picture in the top right corner"
+        },
+        {
+          "number": 2,
+          "title": "Select 'Verification'",
+          "description": "Tap on 'Verification Level' to see your current tier and available upgrades"
+        },
+        {
+          "number": 3,
+          "title": "Choose Tier",
+          "description": "Select the tier you want to upgrade to (Intermediate or Full)"
+        },
+        {
+          "number": 4,
+          "title": "Provide Documents",
+          "description": "For Intermediate: Upload ID photo\nFor Full: Upload ID + proof of address + take selfie"
+        },
+        {
+          "number": 5,
+          "title": "Wait for Approval",
+          "description": "Verification usually takes 1-24 hours. You'll get an SMS when approved."
+        },
+        {
+          "number": 6,
+          "title": "Enjoy Higher Limits",
+          "description": "Once approved, your new limits are active immediately"
+        }
+      ],
+      "category": "compliance",
+      "level": "basic",
+      "tags": ["kyc", "verification", "limits", "upgrade"]
+    },
+    {
+      "id": "guide-002",
+      "title": "How to Find and Use Cash-Out Agents",
+      "summary": "Complete guide to withdrawing cash from your wallet using local agents",
+      "steps": [
+        {
+          "number": 1,
+          "title": "Open Agent Finder",
+          "description": "In the app, tap 'Cash Out' then 'Find Agent' or ask the copilot 'Find nearest agent'"
+        },
+        {
+          "number": 2,
+          "title": "Allow Location",
+          "description": "Grant location permission so the app can find agents near you"
+        },
+        {
+          "number": 3,
+          "title": "Select Agent",
+          "description": "See a list of nearby agents with distances. Choose one and tap 'Get Directions'"
+        },
+        {
+          "number": 4,
+          "title": "Generate Code",
+          "description": "At the agent, tap 'Generate Cash-Out Code' and enter the amount you want"
+        },
+        {
+          "number": 5,
+          "title": "Show QR Code",
+          "description": "Show the QR code or secure code to the agent. They'll scan it."
+        },
+        {
+          "number": 6,
+          "title": "Receive Cash",
+          "description": "The agent gives you cash. Check your SMS and app for transaction confirmation."
+        }
+      ],
+      "tips": [
+        "Verify the agent is authorized (check their license displayed at the shop)",
+        "Count your money before leaving the agent",
+        "Keep your PIN secret - never share it with the agent",
+        "Check transaction history after cash-out to confirm"
+      ],
+      "category": "transactions",
+      "level": "basic",
+      "tags": ["cashout", "agent", "withdrawal", "namqr"]
+    }
+  ],
+  "fees_info": [
+    {
+      "id": "fees-001",
+      "title": "How Smartpay Fees Work",
+      "summary": "What fees you may pay and how to confirm them before sending money",
+      "content": "Smartpay may charge fees for certain actions (for example: cash-out, transfers, or partner services). Before you confirm a transaction, always check:\n\n• The fee amount\n• The total amount that will be deducted\n• The recipient/agent name (who will receive the money)\n\nIf anything looks wrong, cancel and contact support. Never send a transaction just because someone is pressuring you.",
+      "category": "fees",
+      "level": "basic",
+      "tags": ["fees", "charges", "confirmation", "consumer-protection"]
+    },
+    {
+      "id": "fees-002",
+      "title": "Proof Before You Pay",
+      "summary": "A simple checklist to avoid being overcharged",
+      "content": "Use this checklist before you pay:\n\n1. Confirm the exact amount and fee\n2. Confirm the recipient/agent identity\n3. Only proceed if you initiated the transaction\n4. Keep your receipt (SMS + in-app history)\n\nIf a merchant/agent refuses to show fees or tries to rush you, walk away and report it in the app.",
+      "category": "fees",
+      "level": "basic",
+      "tags": ["fees", "agents", "merchants", "receipt"]
+    }
+  ],
+  "fraud_and_scams": [
+    {
+      "id": "scam-001",
+      "title": "The Golden Rule: Never Share Your PIN or OTP",
+      "summary": "Smartpay staff and agents will never ask for your PIN, OTP, or password",
+      "content": "Never share:\n• Your PIN\n• One-Time Passwords (OTP)\n• Passwords\n• Card CVV\n\nScammers may pretend to be “support”, “a bank”, or “an agent” over WhatsApp/SMS/phone. If someone asks for your PIN/OTP, it is a scam. End the call and contact Smartpay support using the official channels in the app.",
+      "category": "fraud-and-scams",
+      "level": "basic",
+      "tags": ["scam", "otp", "pin", "whatsapp", "support-impersonation"]
+    },
+    {
+      "id": "scam-002",
+      "title": "Common Scam Scripts to Watch For",
+      "summary": "Examples of what scammers say and how to respond",
+      "content": "Be careful if someone says:\n\n• “I can increase your limits / unlock your account. Send your OTP.”\n• “You won a grant. Pay a small fee first.”\n• “We sent money by mistake. Send it back now.”\n• “Your SIM will be blocked. Confirm your OTP.”\n\nHow to respond:\n1. Do not share codes\n2. Verify using official support\n3. If you already shared a code, freeze your account immediately and report it",
+      "category": "fraud-and-scams",
+      "level": "basic",
+      "tags": ["scam", "social-engineering", "grant", "sim-swap", "impersonation"]
+    },
+    {
+      "id": "scam-003",
+      "title": "If You Think You Were Scammed",
+      "summary": "What to do in the first 5 minutes",
+      "content": "Act quickly:\n\n1. Freeze your Smartpay account (Settings → Security → Freeze)\n2. Change your PIN/password\n3. Report the incident in-app (include the phone number, screenshots, and transaction ID)\n4. If you suspect a SIM swap, contact your mobile network operator immediately\n\nThe faster you report, the more we can do to protect your account and investigate.",
+      "category": "fraud-and-scams",
+      "level": "basic",
+      "tags": ["incident", "fraud", "account-freeze", "recovery"]
+    }
+  ],
+  "rights_and_help": [
+    {
+      "id": "rights-001",
+      "title": "Your Rights as a Smartpay User",
+      "summary": "Key consumer rights in simple language",
+      "content": "You have the right to:\n• Clear information about fees and limits before you confirm\n• Safe handling of your personal data\n• Access your transaction history and receipts\n• Report fraud and get a reference number\n• Ask for help and escalate complaints\n\nIf you don’t understand a fee, a limit, or a message, pause and ask the copilot or support before continuing.",
+      "category": "basics",
+      "level": "basic",
+      "tags": ["consumer-rights", "support", "privacy", "fees"]
+    },
+    {
+      "id": "rights-002",
+      "title": "How to Report a Problem (Best Practice)",
+      "summary": "How to report issues so support can resolve them faster",
+      "content": "When reporting a problem, include:\n• The transaction ID (from History)\n• Date/time\n• Amount\n• Recipient/agent name\n• Screenshots of any messages\n• The phone number that contacted you (for scams)\n\nThis helps support investigate quickly and reduces back-and-forth.",
+      "category": "basics",
+      "level": "basic",
+      "tags": ["support", "complaints", "audit", "fraud"]
+    }
+  ],
+  "learning_paths": [
+    {
+      "id": "path-001",
+      "title": "Start Here (5 Minutes): Stay Safe",
+      "summary": "A short learning path for first-time users",
+      "lessons": [
+        {
+          "id": "lesson-001",
+          "title": "PIN + OTP safety",
+          "key_points": ["Never share PIN/OTP", "Support will never ask for codes", "Freeze account if unsure"],
+          "category": "fraud-and-scams",
+          "recommended_for": ["everyone", "first-time-users", "rural", "feature-phone"]
+        },
+        {
+          "id": "lesson-002",
+          "title": "Confirm fees before you pay",
+          "key_points": ["Check fee + total", "Confirm recipient/agent identity", "Keep receipts"],
+          "category": "fees",
+          "recommended_for": ["everyone", "merchants", "agents"]
+        }
+      ],
+      "tags": ["learning", "safety", "fees", "quick-start"]
+    },
+    {
+      "id": "path-002",
+      "title": "Budgeting Basics (10 Minutes)",
+      "summary": "Simple habits to control spending and plan for emergencies",
+      "lessons": [
+        {
+          "id": "lesson-003",
+          "title": "Track spending using History",
+          "key_points": ["Review weekly", "Categorize spending mentally", "Spot repeated small charges"],
+          "category": "transactions",
+          "recommended_for": ["everyone", "youth", "salaried-workers"]
+        },
+        {
+          "id": "lesson-004",
+          "title": "Emergency savings rule-of-thumb",
+          "key_points": ["Save something every week", "Start small and be consistent", "Use a separate savings wallet if available"],
+          "category": "financial-services",
+          "recommended_for": ["everyone", "families", "informal-workers"]
+        }
+      ],
+      "tags": ["learning", "budgeting", "savings"]
+    }
+  ]
+}

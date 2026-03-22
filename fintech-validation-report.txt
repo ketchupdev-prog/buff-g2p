@@ -1,0 +1,43 @@
+[0;34m╔═══════════════════════════════════════════════════════════════╗[0m
+[0;34m║                                                               ║[0m
+[0;34m║   🔍 SMARTPAY ECOSYSTEM - SYSTEM VALIDATION                   ║[0m
+[0;34m║                                                               ║[0m
+[0;34m╚═══════════════════════════════════════════════════════════════╝[0m
+
+
+[0;34m━━━ 1. Service Availability ━━━[0m
+
+[0;32m✓[0m Backend on port 4000
+[0;32m✓[0m AI Service on port 8000
+[0;32m✓[0m Mobile app on port 8081
+
+[0;34m━━━ 2. Backend API Endpoints ━━━[0m
+
+Using test token for authenticated endpoints...
+[0;32m✓[0m Health endpoint (200)
+[0;32m✓[0m User profile (200)
+[0;32m✓[0m Wallets list (200)
+[0;32m✓[0m Groups list (200)
+[0;32m✓[0m Notifications list (200)
+[0;32m✓[0m Request OTP endpoint available (400)
+
+[0;34m━━━ 3. AI Service Endpoints ━━━[0m
+
+[0;32m✓[0m AI Health (200)
+[0;32m✓[0m AI Copilot Chat endpoint available (422)
+[0;32m✓[0m Copilot chat functional (status: ok)
+
+[0;34m━━━ 4. Database Connectivity ━━━[0m
+
+[0;32m✓[0m Backend PostgreSQL connection working
+[0;32m✓[0m AI Service PostgreSQL connection working
+
+[0;34m━━━ 5. Critical Integration Tests ━━━[0m
+
+[0;32m✓[0m User profile integration working
+[0;31m✗[0m AI Copilot knowledge base integration failed
+
+[0;34m━━━ 6. Security Validation ━━━[0m
+
+[0;32m✓[0m Unauthorized access blocked (401)
+[0;31m✗[0m AI copilot accepts unauthenticated requests (expected 422, got 405)

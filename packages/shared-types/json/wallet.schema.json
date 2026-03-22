@@ -1,0 +1,57 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://smartpay.na/schemas/wallet.json",
+  "title": "Wallet",
+  "description": "SmartPay wallet (main, savings, or grant)",
+  "type": "object",
+  "required": ["id", "user_id", "name", "type", "balance", "currency", "created_at", "updated_at"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique wallet identifier"
+    },
+    "user_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Owner user ID"
+    },
+    "name": {
+      "type": "string",
+      "description": "Wallet display name"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["main", "savings", "grant"],
+      "description": "Wallet type"
+    },
+    "balance": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Current wallet balance"
+    },
+    "currency": {
+      "type": "string",
+      "const": "NAD",
+      "description": "Currency code (always NAD)"
+    },
+    "is_primary": {
+      "type": "boolean",
+      "description": "Whether this is the primary wallet"
+    },
+    "fineract_savings_account_id": {
+      "type": "integer",
+      "description": "Fineract integration account ID"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Wallet creation timestamp"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Last update timestamp"
+    }
+  }
+}

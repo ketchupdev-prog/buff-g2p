@@ -1,0 +1,99 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://smartpay.na/schemas/payment.json",
+  "title": "Payment",
+  "description": "SmartPay payment initiation and tracking",
+  "definitions": {
+    "SendMoneyRequest": {
+      "type": "object",
+      "required": ["recipient_id", "amount"],
+      "properties": {
+        "recipient_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Recipient user ID"
+        },
+        "amount": {
+          "type": "number",
+          "minimum": 0.01,
+          "description": "Payment amount"
+        },
+        "note": {
+          "type": "string",
+          "description": "Optional payment note"
+        },
+        "fromWalletId": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Source wallet ID"
+        }
+      }
+    },
+    "CashOutRequest": {
+      "type": "object",
+      "required": ["amount", "method"],
+      "properties": {
+        "amount": {
+          "type": "number",
+          "minimum": 0.01,
+          "description": "Cash out amount"
+        },
+        "method": {
+          "type": "string",
+          "enum": ["atm", "agent", "bank"],
+          "description": "Cash out method"
+        },
+        "walletId": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Source wallet ID"
+        }
+      }
+    },
+    "P2PTransaction": {
+      "type": "object",
+      "required": ["id", "sender_id", "recipient_id", "wallet_id", "amount", "status", "created_at"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Transaction ID"
+        },
+        "sender_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Sender user ID"
+        },
+        "recipient_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Recipient user ID"
+        },
+        "wallet_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Wallet ID"
+        },
+        "amount": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Transaction amount"
+        },
+        "note": {
+          "type": "string",
+          "description": "Transaction note"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["success", "pending", "failed", "completed"],
+          "description": "Transaction status"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Transaction timestamp"
+        }
+      }
+    }
+  }
+}

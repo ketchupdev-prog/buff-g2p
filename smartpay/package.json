@@ -1,0 +1,39 @@
+{
+  "name": "smartpay",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SmartPay – Fintech mobile app with agentic backend",
+  "scripts": {
+    "test": "npm run test:backend && npm run test:mobile",
+    "test:backend": "npm run test --prefix backend",
+    "test:mobile": "npm run test --prefix mobile",
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:mobile": "npm run start --prefix mobile",
+    "build:backend": "npm run build --prefix backend",
+    "build:mobile": "npm run build --prefix mobile",
+    "start:backend": "npm run start --prefix backend",
+    "start:mobile": "npm run start --prefix mobile",
+    "mobile": "npm run start --prefix mobile",
+    "mobile:ios": "npm run ios --prefix mobile",
+    "mobile:android": "npm run android --prefix mobile",
+    "mobile:start": "cd mobile && npx expo start",
+    "mobile:build": "cd mobile && npx expo build",
+    "mobile:web": "npm run web --prefix mobile",
+    "mobile:test": "npm run test --prefix mobile",
+    "mobile:test:watch": "npm run test:watch --prefix mobile",
+    "mobile:test:coverage": "npm run test:coverage --prefix mobile",
+    "mobile:lint": "npm run lint --prefix mobile",
+    "mobile:lint:fix": "npm run lint:fix --prefix mobile",
+    "install:all": "npm install && cd backend && npm install && cd ../mobile && npm install",
+    "clean": "rm -rf node_modules backend/node_modules mobile/node_modules"
+  },
+  "workspaces": [
+    "backend",
+    "mobile"
+  ],
+  "devDependencies": {
+    "expo": "~55.0.6"
+  },
+  "author": "SmartPay Team",
+  "license": "MIT"
+}

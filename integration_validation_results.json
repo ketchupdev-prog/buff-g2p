@@ -1,0 +1,100 @@
+{
+  "timestamp": "2026-03-18T06:37:08.249587",
+  "tests": {
+    "LanceDB Connection": {
+      "status": "failed",
+      "details": {
+        "tables": []
+      },
+      "error": "knowledge_base table not found",
+      "timestamp": "2026-03-18T06:37:08.256616"
+    },
+    "Knowledge Base Ingestion": {
+      "status": "failed",
+      "details": {
+        "total": 2,
+        "added": 0,
+        "skipped": 0,
+        "errors": 2
+      },
+      "error": "Failed to ingest documents",
+      "timestamp": "2026-03-18T06:50:38.721546"
+    },
+    "Vector Search": {
+      "status": "failed",
+      "details": [
+        {
+          "query": "How do I redeem a voucher?",
+          "result_count": 0,
+          "latency_ms": 229.58,
+          "top_result": null
+        },
+        {
+          "query": "What are wallet features?",
+          "result_count": 0,
+          "latency_ms": 120.07,
+          "top_result": null
+        },
+        {
+          "query": "PSD-1 compliance requirements",
+          "result_count": 0,
+          "latency_ms": 116.85,
+          "top_result": null
+        }
+      ],
+      "error": "No results returned for any query",
+      "timestamp": "2026-03-18T06:50:39.188301"
+    },
+    "RAG Accuracy": {
+      "status": "failed",
+      "details": {
+        "average_accuracy": 0.0,
+        "test_cases": [
+          {
+            "query": "voucher redemption",
+            "accuracy": 0,
+            "error": "No results"
+          },
+          {
+            "query": "wallet management",
+            "accuracy": 0,
+            "error": "No results"
+          }
+        ]
+      },
+      "error": "Average accuracy 0.00 below threshold 0.5",
+      "timestamp": "2026-03-18T06:50:39.343746"
+    },
+    "DuckDB Analytics": {
+      "status": "skipped",
+      "details": {
+        "note": "No DuckDB files found - feature not yet implemented"
+      },
+      "error": null,
+      "timestamp": "2026-03-18T06:50:39.344396"
+    },
+    "BuffrConnect Test Coverage": {
+      "status": "failed",
+      "details": {
+        "implementation_files": [
+          "smartpay/backend/src/routes/buffr.ts",
+          "smartpay/backend/src/routes/buffr-webhooks.ts",
+          "smartpay/backend/src/services/buffr/client.ts",
+          "smartpay/backend/src/services/buffr/cashOut.ts"
+        ],
+        "test_files": [],
+        "implementation_count": 4,
+        "test_count": 0,
+        "coverage_ratio": 0.0
+      },
+      "error": "No test files found for BuffrConnect integration",
+      "timestamp": "2026-03-18T06:50:39.790219"
+    }
+  },
+  "summary": {
+    "total": 6,
+    "passed": 0,
+    "failed": 5,
+    "skipped": 1
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://smartpay.na/schemas/user.json",
+  "title": "User",
+  "description": "SmartPay user account representation",
+  "type": "object",
+  "required": ["id", "phone", "wallet_status", "created_at", "updated_at"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique user identifier"
+    },
+    "phone": {
+      "type": "string",
+      "pattern": "^(264)?[0-9]{8}$",
+      "description": "User phone number (Namibian format)"
+    },
+    "email": {
+      "type": "string",
+      "format": "email",
+      "description": "User email address"
+    },
+    "first_name": {
+      "type": "string",
+      "description": "User's first name"
+    },
+    "last_name": {
+      "type": "string",
+      "description": "User's last name"
+    },
+    "full_name": {
+      "type": "string",
+      "description": "User's full name"
+    },
+    "photo_url": {
+      "type": "string",
+      "format": "uri",
+      "description": "URL to user's profile photo"
+    },
+    "pin_hash": {
+      "type": "string",
+      "description": "Hashed PIN for authentication"
+    },
+    "pin_salt": {
+      "type": "string",
+      "description": "Salt used for PIN hashing"
+    },
+    "last_proof_of_life": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Last proof of life verification timestamp"
+    },
+    "proof_of_life_due_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Next proof of life due date"
+    },
+    "wallet_status": {
+      "type": "string",
+      "enum": ["active", "inactive", "suspended", "closed"],
+      "description": "Current wallet status"
+    },
+    "fineract_client_id": {
+      "type": "integer",
+      "description": "Fineract integration client ID"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Account creation timestamp"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Last update timestamp"
+    }
+  }
+}
