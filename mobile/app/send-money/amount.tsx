@@ -1,0 +1,245 @@
+/**
+ * Send Money – Receiver Details – Buffr G2P.
+ * Recipient hero, Pay From selector, amount input, note, Pay CTA.
+ * §26 / Figma 153:752.
+ * Uses UserContext for profile and walletStatus (frozen guard).
+ */
+import React, { useEffect, useState } from 'react';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
+import { useUser } from '@/contexts/UserContext';
+import { getWallets, type Wallet } from '@/services/wallets';
+import { Avatar, PayFromSheet, PayFromPill, ProgressIndicator, buildPaySources, type PaySource, LoadingState } from '@/components/ui';
+import { AmountInput } from '@/components/shared';
+import { designSystem } from '@/constants/designSystem';
+import { useNetworkStatus } from '@/hooks';
+import { OfflineBanner } from '@/components/common';
+
+export default function ReceiverDetailsScreen() {
+  const { profile, walletStatus } = useUser();
+  const { recipientPhone, recipientName, recipientEmail, recipientBankingName } =
+    useLocalSearchParams<{
+      recipientPhone: string;
+      recipientName: string;
+      recipientEmail?: string;
+      recipientBankingName?: string;
+    }>();
+
+  const insets = useSafeAreaInsets();
+  const [amount, setAmount] = useState('');
+  const [note, setNote] = useState('');
+  const [wallets, setWallets] = useState<Wallet[]>([]);
+  const [paySource, setPaySource] = useState<PaySource | null>(null);
+  const [showPayFrom, setShowPayFrom] = useState(false);
+  const [showNoteInput, setShowNoteInput] = useState(false);
+  const [amountError, setAmountError] = useState<string | null>(null);
+  const [loadingWallets, setLoadingWallets] = useState(true);
+  const { isConnected } = useNetworkStatus();
+
+  useEffect(() => {
+    getWallets().then((ws) => {
+      setWallets(ws);
+      const sources = buildPaySources(ws);
+      if (sources.length > 0) setPaySource(sources[0]);
+    }).finally(() => {
+      setLoadingWallets(false);
+    });
+  }, []);
+
+  const selectedWallet = paySource?.sourceType === 'wallet'
+    ? wallets.find(w => w.id === paySource.id)
+    : null;
+
+  const handlePay = () => {
+    const numeric = parseFloat(amount.replace(/,/g, ''));
+    if (isNaN(numeric) || numeric <= 0) {
+      setAmountError('Please enter a valid amount.');
+      return;
+    }
+    if (selectedWallet && numeric > selectedWallet.balance) {
+      setAmountError(`Insufficient balance. Available: N$${selectedWallet.balance.toFixed(2)}`);
+      return;
+    }
+    setAmountError(null);
+    router.push({
+      pathname: '/send-money/receiver-details',
+      params: {
+        recipientPhone,
+        recipientName,
+        amount: numeric.toFixed(2),
+        note: note ?? '',
+      },
+    } as never);
+  };
+
+  const canPay = parseFloat(amount) > 0;
+
+  return (
+    <View style={styles.screen}>
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <Stack.Screen
+          options={{
+            headerShown: true,
+            headerTitle: 'Add Amount',
+            headerBackTitle: '',
+            headerTintColor: '#111827',
+            headerTitleStyle: { fontSize: 17, fontWeight: '700', color: '#111827' },
+            headerRight: () => (
+              <TouchableOpacity style={{ marginRight: 16 }} accessibilityLabel="Save contact">
+                <Ionicons name="heart-outline" size={22} color="#111827" />
+              </TouchableOpacity>
+            ),
+          }}
+        />
+        <ProgressIndicator
+          currentStep={2}
+          totalSteps={4}
+          stepLabels={['Recipient', 'Amount', 'Review', 'Confirm']}
+        />
+        {!isConnected && <OfflineBanner />}
+
+        <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          {loadingWallets ? (
+            <LoadingState message="Loading wallets..." />
+          ) : (
+            <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+
+              {/* Hero: recipient profile */}
+              <View style={styles.hero}>
+              <View style={styles.avatarShadow}>
+                <Avatar name={recipientName ?? '?'} size={88} />
+              </View>
+              <Text style={styles.recipientName}>{recipientName || 'Recipient'}</Text>
+              {recipientEmail ? <Text style={styles.recipientSub}>{recipientEmail}</Text> : null}
+              <Text style={styles.recipientSub}>{recipientPhone}</Text>
+              {recipientBankingName ? <Text style={styles.recipientBank}>Banking name: {recipientBankingName}</Text> : null}
+            </View>
+
+            {/* Pay From + Note row */}
+            <View style={styles.controlRow}>
+              <PayFromPill source={paySource} onPress={() => setShowPayFrom(true)} />
+              <TouchableOpacity
+                style={styles.noteBtn}
+                onPress={() => setShowNoteInput(v => !v)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="pencil-outline" size={15} color="#6B7280" />
+                <Text style={styles.noteBtnText}>Note</Text>
+              </TouchableOpacity>
+            </View>
+
+            {showNoteInput && (
+              <TextInput
+                style={styles.noteInput}
+                placeholder="What's this for?"
+                placeholderTextColor="#9CA3AF"
+                value={note}
+                onChangeText={setNote}
+                maxLength={100}
+                returnKeyType="done"
+              />
+            )}
+
+            {/* Amount input */}
+            <View style={styles.amountContainer}>
+              <AmountInput
+                value={amount}
+                onChange={(val) => {
+                  setAmount(val);
+                  setAmountError(null);
+                }}
+                error={amountError}
+                availableBalance={selectedWallet?.balance}
+                autoFocus
+                quickAmounts={[]}
+              />
+            </View>
+
+            <View style={{ height: 40 }} />
+          </ScrollView>
+          )}
+
+          {/* Pay button */}
+          <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 24) }]}>
+            <TouchableOpacity
+              style={[styles.payBtn, !canPay && styles.payBtnDisabled]}
+              onPress={handlePay}
+              disabled={!canPay}
+              activeOpacity={0.9}
+            >
+              <Text style={styles.payBtnText}>
+                Pay {recipientName ? recipientName.split(' ')[0] : ''}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+
+      {/* Pay From sheet */}
+      <PayFromSheet
+        visible={showPayFrom}
+        selected={paySource}
+        onSelect={setPaySource}
+        onClose={() => setShowPayFrom(false)}
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: '#fff' },
+  safe: { flex: 1 },
+  flex: { flex: 1 },
+  scroll: { flex: 1 },
+  scrollContent: { paddingBottom: 16 },
+
+  // Hero
+  hero: { alignItems: 'center', paddingTop: 32, paddingBottom: 24, paddingHorizontal: 24 },
+  avatarShadow: {
+    marginBottom: 16,
+    shadowColor: '#0029D6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 4,
+    borderRadius: 44,
+  },
+  recipientName: { fontSize: 22, fontWeight: '700', color: '#111827', marginBottom: 4 },
+  recipientSub: { fontSize: 13, color: '#6B7280', marginBottom: 2 },
+  recipientBank: { fontSize: 12, color: '#9CA3AF', marginTop: 2 },
+
+  // Control row
+  controlRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 24, marginBottom: 16, gap: 10 },
+  noteBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#F8FAFC', borderWidth: 1.5, borderColor: '#E2E8F0',
+    borderRadius: 9999, paddingHorizontal: 14, paddingVertical: 10,
+  },
+  noteBtnText: { fontSize: 13, fontWeight: '600', color: '#6B7280' },
+
+  noteInput: {
+    marginHorizontal: 24, marginBottom: 12, height: 48,
+    backgroundColor: '#F8FAFC', borderWidth: 1.5, borderColor: '#E2E8F0',
+    borderRadius: 9999, paddingHorizontal: 16, fontSize: 15, color: '#111827',
+  },
+
+  // Amount
+  amountContainer: { paddingHorizontal: 24, marginTop: 8 },
+
+  // Footer
+  footer: { paddingHorizontal: 24, paddingTop: 16, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#F3F4F6' },
+  payBtn: { height: 54, borderRadius: 9999, backgroundColor: '#020617', justifyContent: 'center', alignItems: 'center' },
+  payBtnDisabled: { opacity: 0.4 },
+  payBtnText: { fontSize: 17, fontWeight: '700', color: '#fff' },
+});

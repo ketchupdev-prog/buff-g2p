@@ -3,12 +3,16 @@
 # dependencies
 node_modules/
 
-# Monorepo workspaces
+# Monorepo workspaces (SmartPay)
 apps/*/node_modules
 apps/*/dist
 apps/*/build
 packages/*/node_modules
 packages/*/dist
+
+# Python venv (Buffr AI / legacy paths)
+/ai/
+backend/ai/
 
 # Expo
 .expo/
@@ -16,7 +20,7 @@ dist/
 web-build/
 expo-env.d.ts
 
-# Native
+# Native (regenerate with: npx expo prebuild)
 .kotlin/
 *.orig.*
 *.jks
@@ -24,14 +28,17 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
+*.keystore
 
 # Metro
 .metro-health-check*
 
-# debug
+# debug & logs
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+*.log
+npm-debug.log*
 
 # macOS
 .DS_Store
@@ -39,13 +46,15 @@ yarn-error.*
 
 # local env files (keep API keys out of repo)
 .env
+.env.*
 .env*.local
 apps/*/.env.local
+!.env.example
 
 # typescript
 *.tsbuildinfo
 
-# generated native folders
+# generated native folders (root Expo)
 /ios
 /android
 
@@ -70,4 +79,7 @@ env/
 # Build outputs
 build/
 dist/
-*.log
+
+# Testing / coverage
+coverage/
+.nyc_output/

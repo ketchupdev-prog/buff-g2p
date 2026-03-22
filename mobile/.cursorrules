@@ -1,0 +1,6 @@
+# Buffr G2P Mobile – Cursor Rules
+
+- **Backend and database only.** All user-facing data (wallets, transactions, vouchers, contacts, profile, agents, bills, loans, groups) comes from the API. When the API is configured, call it; on failure, surface errors or empty results.
+- **AI Companion:** Backend only.
+- **Auth:** Production uses backend OTP and user/card endpoints. When API is unset, local generation is for development only.
+- See `docs/DEVELOPMENT_RULES.md` for full rules.

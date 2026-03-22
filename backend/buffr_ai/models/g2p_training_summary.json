@@ -1,0 +1,82 @@
+{
+  "trained_at": "2026-02-10T09:30:51.612819",
+  "models": [
+    {
+      "model": "churn_prediction",
+      "metrics": {
+        "accuracy": 0.994375,
+        "precision": 0.3333333333333333,
+        "recall": 0.2857142857142857,
+        "f1_score": 0.3076923076923077,
+        "roc_auc": 0.8159806295399515
+      }
+    },
+    {
+      "model": "nps_scoring",
+      "metrics": {
+        "mae": 6.206836972011865,
+        "rmse": 7.918814820097213,
+        "r_squared": 0.4800876341666428
+      }
+    },
+    {
+      "model": "digital_adoption",
+      "metrics": {
+        "silhouette_score": 0.12778792875988615,
+        "classifier_accuracy": 0.9852083333333334,
+        "n_tiers": 5,
+        "tier_distribution": {
+          "Dormant": 1187,
+          "Basic": 859,
+          "Active": 991,
+          "Power": 664,
+          "Champion": 1099
+        }
+      }
+    },
+    {
+      "model": "beneficiary_segmentation",
+      "metrics": {
+        "kmeans_silhouette": 0.09295733345648656,
+        "gmm_silhouette": 0.06801160051406345,
+        "n_segments": 6,
+        "segment_distribution": {
+          "Rural Elderly": 567,
+          "Urban Youth": 672,
+          "Peri-Urban Family": 504,
+          "Digital-First": 428,
+          "Traditional Cash": 559,
+          "New Enrollee": 470
+        },
+        "val_kmeans_silhouette": 0.09547475406919485
+      }
+    },
+    {
+      "model": "voucher_forecast",
+      "metrics": {
+        "days_mae": 1.588769607431545,
+        "days_rmse": 2.0795754367154538,
+        "days_r_squared": 0.6370670532325258,
+        "channel_accuracy": 0.99875
+      }
+    },
+    {
+      "model": "agent_demand",
+      "metrics": {
+        "mae": 2486.6530736279574,
+        "rmse": 3146.643636872028,
+        "r_squared": 0.7330176162060216
+      }
+    },
+    {
+      "model": "expiry_risk",
+      "metrics": {
+        "accuracy": 0.9425,
+        "precision": 0.1282051282051282,
+        "recall": 0.125,
+        "f1_score": 0.12658227848101267,
+        "roc_auc": 0.8425646551724137
+      }
+    }
+  ]
+}

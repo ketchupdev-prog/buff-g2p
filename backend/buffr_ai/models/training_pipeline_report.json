@@ -1,0 +1,13 @@
+{
+  "started_at": "2026-01-26T12:04:14.599594",
+  "steps_completed": [
+    "data_preparation"
+  ],
+  "steps_failed": [
+    "model_training"
+  ],
+  "models_trained": [],
+  "models_failed": [],
+  "final_status": "partial",
+  "completed_at": "2026-01-26T12:04:17.727806"
+}
